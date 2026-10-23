@@ -2,6 +2,7 @@
    toast was drawn twice (two overlays, two focus traps). Living here also covers LoginLayout.
    RadzenTooltip stays although nothing calls TooltipService directly: RadzenChart renders its
    series tooltips through it. *@
+@using System.Reflection
 <RadzenDialog />
 <RadzenNotification />
 <RadzenTooltip />
@@ -24,3 +25,15 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+
+@if (BuildVersion is not null)
+{
+    <div class="app-build-version">v@(BuildVersion)</div>
+}
+
+@code {
+    /// <summary>Stamped by the AssemblyMetadata item in the client csproj.</summary>
+    private static readonly string? BuildVersion = typeof(App).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(a => a.Key == "BuildVersion")?.Value;
+}

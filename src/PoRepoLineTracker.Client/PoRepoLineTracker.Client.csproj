@@ -57,6 +57,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- YYMMDD build stamp shown bottom-right by App.razor. UTC build date, not commit date, so
+         re-running an old commit's deploy stamps it with the re-run day. -->
+    <AssemblyMetadata Include="BuildVersion" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
+  </ItemGroup>
+
+  <ItemGroup>
     <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
   </ItemGroup>
 

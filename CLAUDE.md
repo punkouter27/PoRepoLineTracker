@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`AGENTS.md` (writing ruleset + owner's project rules) and `SPEC.md` (contracts, boundaries, load-bearing edge cases) are the source of truth. Read SPEC §8 "Boundaries" and §10 "Edge cases" before changing behaviour; the dated "Delta" sections at the end of SPEC override earlier sections.
+`AGENTS.md` (writing ruleset + owner's project rules; `.github/copilot-instructions.md` is a verbatim copy, so keep the two in sync) and `SPEC.md` (contracts, boundaries, load-bearing edge cases) are the source of truth. Read SPEC §8 "Boundaries" and §10 "Edge cases" before changing behaviour; the dated "Delta" sections at the end of SPEC override earlier sections.
 
 ## Commands
 
@@ -20,6 +20,8 @@ dotnet test tests/PoRepoLineTracker.Unit --filter "FullyQualifiedName~FileIgnore
 ```
 
 - A running app locks the build (MSB3027). Stop it first: `Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force`.
+- A build that worked yesterday can fail today with `NU1903` (a new NuGet security advisory, which warnings-as-errors turns into a failure). Fix it by bumping the version in `Directory.Packages.props` (central management with transitive pinning). Don't suppress it.
+- Without Docker, run Azurite from npm (`azurite --silent --location <dir> --skipApiVersionCheck`). The Integration tier falls back to it automatically.
 - Composition-root changes (`Program.cs`, `AddInfrastructure`, `AddAuth`, middleware order) only fail in the Integration tier, not Unit.
 - Dev auth without GitHub: send `X-Fake-User: <guid>` (Development/Test only), or open `/auth/login?dev=true` in a browser. Writes also need the antiforgery pair; see `src/PoRepoLineTracker.API/api-tests.http`.
 - `POST /api/dev/seed/repository` writes synthetic chart history (Development only). Without it, E2EUI chart tests skip.
@@ -32,6 +34,6 @@ One deployable: `PoRepoLineTracker.API` (ASP.NET Core 10 minimal APIs) serves th
 - **Middleware order in `Program.cs` is load-bearing.** Static files come before auth, then `ApiNotFoundMiddleware` (404 for unmatched `/api` GETs, never a catch-all route), then authentication, authorization, rate limiting, `ProductionAuthEnforcementMiddleware`, and `AntiforgeryMiddleware` (after authorization, so unauthenticated writes get 401 rather than 400).
 - **Analysis pipeline.** Bulk-add (`/api/repositories/bulk`, the only write path) queues `AnalyzeRepositoryCommits`. `GitClient` shells out to the `git` CLI (libgit2 crashes on App Service Linux) to clone/pull into `repo_{id}`. `GitHubService` walks commits with per-tree memoization, `SourceLineCounter` + `FileIgnoreFilter` + `CommentSyntax` count lines, and `RepositoryDataService` writes per-commit snapshots. Progress goes through `AnalysisProgressService` to the SignalR hub `/hubs/analysis`. The client's fallback poll synthesises the same frames, so there is only one completion path. `ResumePendingAnalysis` restarts unfinished work at startup.
 - **Single sources of truth.** Repository size is the newest commit's `TotalLines` snapshot, never a sum (`Shared/Domain/RepositoryTotals`). Streaks are in `CommitStreaks`, repo ownership checks in `Auth/RepositoryOwnership`, and config keys in `Shared/Models/ConfigKeys`.
-- **Client.** Radzen.Blazor UI. Pages are in `Pages/`, feature components in `Components/Repositories/`, and reusable pieces in `Components/Shared/`. Scoped `.razor.css` must be rooted at a plain `<div>`; use `::deep` for anything Radzen renders. Every wire type needs a `[JsonSerializable]` entry in `AppJsonSerializerContext`, otherwise trimming breaks it at runtime.
+- **Client.** Radzen.Blazor UI. Pages are in `Pages/`, feature components in `Components/Repositories/`, and reusable pieces in `Components/Shared/`. Scoped `.razor.css` must be rooted at a plain `<div>`; use `::deep` for anything Radzen renders. Every wire type needs a `[JsonSerializable]` entry in `AppJsonSerializerContext`, otherwise trimming breaks it at runtime. The `vYYMMDD` label in the bottom-right corner comes from an `AssemblyMetadata` `BuildVersion` item in the client csproj (the build date). It is separate from MinVer, which versions the assemblies from `v*` git tags.
 - **Config/secrets.** Key Vault secrets are prefixed `PoRepoLineTracker--` (`PrefixKeyVaultSecretManager`). Local overrides go in the gitignored `appsettings.Development.local.json` (copy the `.template`), which loads after Key Vault. Never use user-secrets. Optional features (Claude via `Anthropic:ApiKey`, App Insights, OTLP) are off when their key is absent, and the app must still boot.
 - **Infra/CI.** Bicep files are in `infra/`. `.github/workflows/deploy.yml` builds, runs Unit tests, and deploys to a Linux App Service on push to `master`; `infra/verify-deploy.ps1` smoke-tests the result.

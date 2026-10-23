@@ -35,15 +35,31 @@ Not lazy about: understanding the problem (read it fully and trace the real flow
 
 These are the owner's standing rules for this repository. Where one conflicts with the ponytail text above, the rule here wins.
 
-- Only use the `master` branch for all work. Use another branch only when specifically asked to.
-- Always restart the app after a code change and verify it restarted successfully.
-- Check for a `DOCS` folder in the repository root for an overall summary of the project.
-- Do not use dotnet user-secrets to store data locally. Put it in appsettings or Azure Key Vault (if one exists).
-- When asked to "git sync": create a git commit with a short message in casual American slang, not technical, so it reads like a human wrote it, and push the code.
-- At the end of any answer longer than 100 words, add a TL;DR of about 20 words.
-- Do not run all tests after code changes. Run only the tests related to the change, or none at all if the change is simple.
-- Avoid making the owner type commands into a CLI or click through a web GUI by hand when it can be done for them automatically.
-- Treat compile warnings as errors and make sure they are fixed.
-- If more than 100 lines of code are removed overall in one prompt, mention it.
-- When the UI changes, take an annotated screenshot showing the old and new UI with the changes marked. Place the image in the `SCREENSHOTS` folder inside an HTML file and give its valid full path.
-- For every code change over 20 lines, give a TL;DR summary at 3 levels: 1. Toddler, 2. Child, 3. Adult.
+## 1. Branching & version control
+
+- **Master first:** work only on `master`. Use another branch only when explicitly asked.
+- **Human-like commits:** on "git sync", make a short commit in non-technical American slang (it should feel human) and push automatically.
+
+## 2. Runtime, testing & quality
+
+- **Startup verification:** after any code change, restart the app and verify it started successfully.
+- **Targeted testing:** don't run the full suite. Run only the tests relevant to the change, or none for minor edits.
+- **Zero warnings:** compiler warnings are errors; fix them immediately.
+
+## 3. Architecture & configuration
+
+- **Docs check:** read the root `DOCS/` folder (if present) and `README.md` first for architecture context. Update both immediately when dependencies, configuration keys or major endpoints change.
+- **Secrets:** never use dotnet user-secrets. Use appsettings or Azure Key Vault.
+- **Maximum automation:** don't make the owner type CLI commands or click through a web GUI when it can be automated.
+- **Build version:** the app shows the build version `YYMMDD` in the bottom-right corner, stamped automatically at build time (`AssemblyMetadata` `BuildVersion` in the client csproj). Keep it working.
+
+## 4. UI changes & reporting
+
+- **Visual documentation:** for UI changes, capture and annotate the old and new states, save them as `SCREENSHOTS/YYMMDD-feature-name.html`, and give its valid full path.
+- **TL;DR:** end any answer longer than 100 words with a TL;DR of about 20 words.
+- **3-tier diff summary:** for any code change over 20 lines, add a TL;DR with exactly one line per tier:
+  1. Toddler: one-sentence simple intuition.
+  2. Child: one-sentence summary of the behaviour.
+  3. Adult: one-sentence technical/architectural summary.
+- **Big removals:** if more than 100 lines of code are removed overall in one prompt, say so.
+- **Direction questions:** after any code change over 100 lines, if the prompt asked no other questions, end with 3 optional high-level questions about the app's purpose and direction that could lead to further changes.

@@ -694,6 +694,18 @@ a:focus-visible {
     .app-scrim { display: none; }
 }
 
+/* YYMMDD build stamp, rendered by App.razor so it shows under both layouts. Click-through so it
+   never covers a control; z-index 1 keeps it under the scrim (890) and Radzen's dialog mask (1000). */
+.app-build-version {
+    position: fixed;
+    right: 0.5rem;
+    bottom: 0.25rem;
+    z-index: 1;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
 /* The mobile bottom-nav bar lived here. It was a second copy of the drawer's six destinations,
    fixed over the content on every phone viewport, and its `.app-content` padding-bottom override
    existed only to keep the page clear of it. Deleted with the bar — the drawer is one tap away
