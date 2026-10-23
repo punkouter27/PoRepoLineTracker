@@ -1,0 +1,1 @@
+{"hash":"a065a394884b59c58702b2ccf37d8d1aab0d167d","date":"2026-05-18T00:26:48-04:00","message":"ci: tolerate RoleAssignmentExists in azd provision (idempotent re-deploy)","author":"punkouter26","added":[],"removed":[],"modified":{}}

@@ -1,0 +1,1 @@
+{"hash":"88362f88911d02cefb85e0b0a45a649a964e421f","date":"2026-09-07T11:25:39-04:00","message":"CI: package once in the build job, drop the unread coverage collector","author":"punkouter26","added":[],"removed":[],"modified":{"SCRIPTS/README.md":{"id":"SCRIPTS/README.md","linesOfCode":11,"complexity":1,"language":"documentation","linksOut":[]}}}

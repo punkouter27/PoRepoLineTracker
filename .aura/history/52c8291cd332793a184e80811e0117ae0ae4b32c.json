@@ -1,0 +1,1 @@
+{"hash":"52c8291cd332793a184e80811e0117ae0ae4b32c","date":"2026-05-05T18:00:11-04:00","message":"fix: start Azurite before integration tests (table storage emulator on port 10002)","author":"punkouter26","added":[],"removed":[],"modified":{}}

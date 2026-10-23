@@ -1,0 +1,1 @@
+{"hash":"4a9b7640756c7f43bee4d0dd89f3345826f8dbfc","date":"2026-08-05T15:29:14-04:00","message":"fix(infra): grant the web app identity Key Vault access in Bicep, not by hand","author":"punkouter26","added":[],"removed":[],"modified":{}}

@@ -1,0 +1,1 @@
+{"hash":"01f5fa93cd1873a018c1ab2fcd490848b0df5a6e","date":"2026-05-05T13:22:56-04:00","message":"ci: apply best-practice improvements (OIDC vars, PR triggers, concurrency, NuGet cache, split jobs, env gates, health checks)","author":"punkouter26","added":[],"removed":[],"modified":{}}

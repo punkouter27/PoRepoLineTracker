@@ -1,0 +1,1 @@
+{"hash":"9dce6ae5423a38767fe7375831b0ecdfdc1f4695","date":"2026-02-09T20:40:40-05:00","message":"Fix: add ASPNETCORE_URLS=http://+:8080 for App Service Linux port binding","author":"punkouter26","added":[],"removed":[],"modified":{}}
