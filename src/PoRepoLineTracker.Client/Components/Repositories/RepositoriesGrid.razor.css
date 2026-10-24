@@ -106,6 +106,78 @@
     max-width: 100%;
 }
 
+.rp-search-controls {
+    flex: 1 1 15rem;
+    justify-content: flex-end;
+}
+
+.rp-search-controls ::deep .rp-search-input.rp-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    ::deep .rp-grid.rp-grid .rz-data-grid-data > table,
+    ::deep .rp-grid.rp-grid .rz-datatable-tablewrapper > table,
+    ::deep .rp-grid.rp-grid .rz-datatable-scrollable-header-box > table,
+    ::deep .rp-grid.rp-grid .rz-datatable-scrollable-table-wrapper > table {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.25rem 0.75rem;
+        padding: 0.65rem 0;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-width: 0;
+        padding: 0.15rem 0.5rem !important;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td:first-child {
+        grid-column: 1 / -1;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td:last-child {
+        grid-column: 2;
+        grid-row: 1;
+        padding: 0 !important;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td:first-child .rz-column-title,
+    ::deep .rp-grid.rp-grid .rz-data-row > td:last-child .rz-column-title {
+        display: none;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td .rz-cell-data {
+        min-width: 0;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    ::deep .rp-grid.rp-grid .rz-data-row > td .rz-column-title {
+        flex: none;
+        color: var(--text-muted);
+        font-size: var(--text-xs);
+        font-weight: 500;
+    }
+
+    ::deep .rp-grid.rp-grid .rp-repo-name.rp-repo-name {
+        max-width: none;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+    }
+}
+
 /* Live-feed connection state beside the heading (moved from the old Live activity panel). */
 .rp-live-state {
     display: inline-flex;

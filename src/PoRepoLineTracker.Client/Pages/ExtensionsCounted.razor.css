@@ -20,6 +20,29 @@
     height: auto !important;
 }
 
+::deep .ext-section-title.ext-section-title {
+    margin: 0 !important;
+    font-weight: 600 !important;
+}
+
+.ext-account-panels {
+    margin-top: var(--space-md);
+}
+
+.ext-account-panels > * {
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    ::deep .ext-grid .rz-data-row > td {
+        padding: 0.4rem 0.5rem !important;
+    }
+
+    ::deep .ext-grid .rz-data-row > td:last-child .rz-stack {
+        flex-wrap: nowrap;
+    }
+}
+
 ::deep .ext-code {
     font-size: 1rem;
 }

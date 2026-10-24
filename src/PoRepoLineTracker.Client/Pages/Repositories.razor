@@ -522,10 +522,11 @@
     private async Task OpenAddRepositoryDialog()
     {
         var result = await DialogService.OpenAsync<AddRepository>(
-            "Get All My Repositories",
+            "Add repositories",
             options: new DialogOptions
             {
                 Width = "min(680px, 95vw)",
+                Style = "max-height: calc(100dvh - 2rem); overflow: auto;",
                 CloseDialogOnOverlayClick = true,
                 ShowClose = true
             });

@@ -40,7 +40,7 @@
                 </span>
             }
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem" class="rp-search-controls">
             @* The name search stays a box here rather than a filter cell on the Repository
                column: the page mirrors it into ?q=, and the column filter covers Status, which
                this never could. One way to do each. *@
@@ -110,7 +110,7 @@
                     </RadzenStack>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Total Lines")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Total Lines")">
                 <Template Context="row">
                     @if (row.TotalLinesSortValue.HasValue)
                     {
@@ -131,7 +131,7 @@
             </RadzenDataGridColumn>
             @* The 30-day columns. "—" until the page's insights request lands: it is fetched
                after the grid is on screen, so these never hold up the rows themselves. *@
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Net (30d)")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Net (30d)")">
                 <Template Context="row">
                     @if (row.NetChange30Days is { } net)
                     {
@@ -143,7 +143,7 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Shown("Commits (30d)")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Commits (30d)")">
                 <Template Context="row">
                     @if (row.Commits30Days is { } commits)
                     {
@@ -155,7 +155,7 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Cadence (12w)" Width="140px" Sortable="false" Filterable="false" Visible="@Shown("Cadence (12w)")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Title="Cadence (12w)" Width="140px" Sortable="false" Filterable="false" Visible="@Visible("Cadence (12w)")">
                 <Template Context="row">
                     @if (row.Movement is { } movement)
                     {
@@ -176,7 +176,7 @@
             </RadzenDataGridColumn>
             @* "Last commit", not "Last Analyzed": the value is the newest analysed commit's own
                date, so a repository analysed a minute ago read "3 months ago" under the old title. *@
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last commit" Width="120px" Sortable="true" Filterable="false" Visible="@Shown("Last commit")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last commit" Width="120px" Sortable="true" Filterable="false" Visible="@Visible("Last commit")">
                 <Template Context="row">
                     @if (row.LastAnalyzedCommitDate.HasValue)
                     {
@@ -193,7 +193,7 @@
             </RadzenDataGridColumn>
             @* Sorts and filters on the stored outcome (RepositoryGridRow.Status): type "failed"
                to find what needs attention. *@
-            <RadzenDataGridColumn @ref="_statusColumn" TItem="RepositoryGridRow" Property="Status" Title="Status" Width="130px" Sortable="true" Filterable="true" FilterOperator="FilterOperator.Contains" Visible="@Shown("Status")">
+            <RadzenDataGridColumn @ref="_statusColumn" TItem="RepositoryGridRow" Property="Status" Title="Status" Width="130px" Sortable="true" Filterable="true" FilterOperator="FilterOperator.Contains" Visible="@Visible("Status")">
                 <Template Context="row">
                     <AnalysisStatusCell Progress="@(ProgressMap != null && ProgressMap.TryGetValue(row.Id, out var p) ? p : null)"
                                         Status="@row.Status"
@@ -264,7 +264,7 @@
     internal static readonly string[] PickableTitles =
         ["Total Lines", "Net (30d)", "Commits (30d)", "Cadence (12w)", "Last commit", "Status"];
 
-    /// <summary>The 30-day columns: three more than a phone or a narrow laptop well has room for.</summary>
+    /// <summary>Secondary facts are hidden on small screens and available from the column picker.</summary>
     private static readonly string[] WideOnlyTitles = ["Net (30d)", "Commits (30d)", "Cadence (12w)"];
 
     internal static readonly string[] SortableProperties =
@@ -280,6 +280,11 @@
     private bool _sortDescending;
 
     private bool Shown(string title) => !_hidden.Contains(title);
+
+    private bool _wide;
+
+    /// <summary>Radzen stacks responsive rows below 768px; its table needs room above that.</summary>
+    private bool Visible(string title) => Shown(title) && (_wide || !WideOnlyTitles.Contains(title));
 
     /// <summary>
     /// Reads a saved settings string. localStorage is editable and outlives a deploy, so nothing
@@ -306,10 +311,11 @@
         // interop can fail mid-teardown; the grid has already rendered with its defaults.
         try
         {
+            _wide = await JS.GetValueAsync<int>("innerWidth") > 768;
             var saved = await JS.InvokeAsync<string?>("localStorage.getItem", SettingsKey);
             if (saved is null)
             {
-                if (await JS.GetValueAsync<int>("innerWidth") >= 1200) _hidden = [];
+                if (_wide) _hidden = [];
             }
             else
             {

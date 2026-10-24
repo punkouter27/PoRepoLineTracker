@@ -25,7 +25,7 @@
             <RadzenStack Gap="0.15rem">
                 <h1 class="page-hero__title ext-title">Settings</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="ext-subtitle">
-                    Configure PoRepoLineTracker to match your workflow
+                    File counting, GitHub access, exports, and account controls
                 </RadzenText>
             </RadzenStack>
         </Heading>
@@ -126,8 +126,8 @@
                                 </Template>
                                 <EditTemplate Context="item">
                                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
-                                        <RadzenButton Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text" Click="@(() => SaveRow(item))" title="Save" />
-                                        <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="@(() => CancelEdit(item))" title="Cancel" />
+                                        <RadzenButton Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text" Click="@(() => SaveRow(item))" title="Save" aria-label="Save extension" />
+                                        <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Click="@(() => CancelEdit(item))" title="Cancel" aria-label="Cancel extension edit" />
                                     </RadzenStack>
                                 </EditTemplate>
                             </RadzenDataGridColumn>
@@ -138,20 +138,21 @@
             </RadzenCard>
         </div>
 
-        <RadzenCard class="rz-mt-4">
-            <RadzenStack Gap="0.75rem">
-                <RadzenText TextStyle="TextStyle.Subtitle1" style="font-weight: 600;">GitHub Integration &amp; Permissions</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2">
-                    PoRepoLineTracker connects to GitHub using Personal Access Tokens (PAT) or GitHub OAuth to analyze repository trees and commit histories.
-                </RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                    <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="repo (Full control of private repositories)" />
-                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="read:user (Read profile data)" />
+        <div class="app-dashboard app-dashboard--panels ext-account-panels">
+            <RadzenCard>
+                <RadzenStack Gap="0.75rem">
+                    <RadzenText TextStyle="TextStyle.Subtitle1" class="ext-section-title">GitHub access</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2">
+                        OAuth or a Personal Access Token with <code>repo</code> access reads repository trees and commit history. <code>read:user</code> reads your profile.
+                    </RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="repo" />
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="read:user" />
+                    </RadzenStack>
                 </RadzenStack>
-            </RadzenStack>
-        </RadzenCard>
-
-        <AccountDataCard />
+            </RadzenCard>
+            <AccountDataCard />
+        </div>
 
     }
 </div>
@@ -236,13 +237,13 @@
     {
         var result = await DialogService.OpenAsync("Add Extension", ds =>
             @<RadzenStack Gap="1rem" class="ext-dialog">
-                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" class="ext-input" />
+                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" class="ext-input" aria-label="File extension" />
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
                     <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
                     <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(newExtensionValue))" />
                 </RadzenStack>
             </RadzenStack>,
-            new DialogOptions { Width = "350px", Height = "180px" });
+            new DialogOptions { Width = "min(350px, 95vw)", AutoFocusFirstElement = true });
 
         if (result is string { Length: > 0 } typed && ValidateExtension(typed) is { } ext)
         {

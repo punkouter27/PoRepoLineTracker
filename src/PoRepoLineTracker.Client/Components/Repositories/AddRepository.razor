@@ -14,8 +14,6 @@
 @* The wrapper <div> is this component's CSS-isolation anchor for ::deep rules. *@
 <div class="add-repo">
 <RadzenStack Gap="1rem">
-    <RadzenText TextStyle="TextStyle.H4" class="add-repo-title">Add Repositories</RadzenText>
-
     @if (!string.IsNullOrEmpty(pageState.ErrorMessage))
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat"

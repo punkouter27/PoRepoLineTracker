@@ -1,4 +1,8 @@
 /* Rooted at the plain .account-card div; Radzen-rendered elements need ::deep. */
+.account-card {
+    min-width: 0;
+}
+
 .account-card__title {
     margin: 0;
     font-size: 1rem;
@@ -23,4 +27,15 @@
 
 ::deep .account-card__input.account-card__input {
     width: 8rem;
+    max-width: 100%;
+}
+
+@media (max-width: 480px) {
+    .account-card ::deep .rz-stack {
+        min-width: 0;
+    }
+
+    .account-card ::deep .rz-button {
+        white-space: normal;
+    }
 }
