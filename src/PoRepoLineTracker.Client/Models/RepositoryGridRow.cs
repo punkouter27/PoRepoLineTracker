@@ -28,7 +28,8 @@ public sealed record RepositoryGridRow(
     /// filter that dropped a row the moment its job started would hide exactly the row being watched.
     /// </summary>
     public string Status =>
-        !string.IsNullOrEmpty(Repository?.LastAnalysisError) ? AnalysisStatus.Failed
+        AnalysisFailure.IsAuth(Repository?.LastAnalysisError) ? AnalysisStatus.Reauth
+        : !string.IsNullOrEmpty(Repository?.LastAnalysisError) ? AnalysisStatus.Failed
         : LastAnalyzedCommitDate.HasValue ? AnalysisStatus.Done
         : Repository?.LastAnalysisAttemptUtc is not null ? AnalysisStatus.Empty
         : AnalysisStatus.Pending;

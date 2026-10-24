@@ -10,11 +10,12 @@ public interface IRepositoryDataService
     Task<IEnumerable<GitHubRepository>> GetAllRepositoriesAsync(UserId userId);
 
     /// <summary>
-    /// Every repository across all users whose analysis has never run to a conclusion
-    /// (no analysed commit and no recorded attempt). Backs the startup sweep
-    /// that resumes analyses a restart interrupted.
+    /// Every repository across all users whose analysis has not run to a conclusion: never
+    /// attempted (no analysed commit and no recorded attempt), or queued and not finished
+    /// (<see cref="GitHubRepository.AnalysisQueuedUtc"/> set). Backs the startup sweep that
+    /// resumes analyses a restart interrupted.
     /// </summary>
-    Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync();
+    Task<IEnumerable<GitHubRepository>> GetResumableRepositoriesAsync();
 
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId);

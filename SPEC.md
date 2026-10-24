@@ -333,3 +333,22 @@ Three items listed under §8 "Never" / §9 were reinstated at the owner's explic
 - **Settings page.** The custom ignore-patterns editor was removed from the UI; stored patterns are still honoured by analysis and preserved on save. The Diagnostics page has no sidebar link (still at `/diag`).
 
 Still out of scope: sentiment, AI-share detection, ML over commit content, an AI model selector in the UI.
+
+---
+
+## Delta: features landed 2026-10-23
+
+Five owner-requested features (F2, F3, F5, F9, F10). No new table, Bicep resource or config key; the repository row gains three columns (`AnalysisQueuedUtc`, `QueuedFullReanalysis`, `IsPublic`), which Table Storage takes without a migration.
+
+- **Analysis queue (F2).** `Features/Repositories/AnalysisQueue` is the only way an analysis runs: bulk-add and re-analyse enqueue, two workers drain (per process; `ponytail:` comment names the ceiling). It replaces `ResumePendingAnalysis` and the endpoints' fire-and-forget `Task.Run`.
+  - A re-analysis stamps `AnalysisQueuedUtc` (+ `QueuedFullReanalysis`) on the row *before* it is queued; the worker clears it after the job ends, from a fresh read. The startup sweep (`GetResumableRepositoriesAsync`) queues rows never attempted **or** still stamped, so a restart loses neither kind. A job cancelled by shutdown keeps its stamp and records no attempt.
+  - Re-analyse, delete, remove-all, account delete and visibility changes answer 409 while a job is **queued or running** (`AnalysisQueue.IsPending`), not only while running.
+  - Clone/pull is retried twice (15 s, 60 s) when the failure is transient; auth failures fail at once. Classification lives in one place, `Shared/Domain/AnalysisFailure`, read by the server's retry and by the grid.
+  - New grid status `Reauth` (`AnalysisStatus.All`), shown as "Sign-in needed" with a link to `/auth/login`. The assistant's Ask schema offers it.
+- **Account lifecycle (F3).** `DELETE /api/account` removes repositories (rows, snapshots, clones), preferences and the user row (token included), signs the cookie out, then revokes the OAuth grant (`DELETE /applications/{client_id}/grant`, app-authenticated). Revocation is best-effort and never attempted with the server PAT; `AccountDeletedDto.GrantRevoked` tells the client to point the user at GitHub's settings when it fails. Settings gains a "Your data" card: JSON/CSV export (resolves §13.7) and a typed-`DELETE` confirmation.
+- **Hotspots (F5).** `GET /api/repositories/{id}/hotspots/{days}` (days clamped 1–3650). Change counts come from `git log --numstat --no-renames` on the clone; sizes and complexity come from `CodeMetricsAnalyzer` over the same walk Code Health uses, so the two tabs agree. Ranked by commits × code lines, top 60, cached for an hour per (repo, days, newest SHA). No clone on disk → `HasClone: false`, not an error. Rendered as a pure-SVG squarified treemap plus a ranked list (Hotspots tab).
+- **Year in Review (F9).** `GET /api/insights/year/{year}?offset=<local−UTC minutes>` (year 1970..next year), page `/year-in-review[/{year}]`. Totals are `RepositoryTotals` snapshots at the local year's bounds; streak is `CommitStreaks.Longest`; language growth is share, not lines. Days and hours are local to the viewer (fixed offset for the year; `ponytail:` on DST). The closing card exports to PNG in the browser (serialised SVG → canvas, `data:` URL because CSP has no `blob:`), with no library. Optional Claude caption at `/year/{year}/narrative`: numbers only, the top repository sent as `R1`, same rate limit as the digest narrative.
+- **Public badges and share page (F10).** Opt-in per repository (`PUT /api/repositories/{id}/visibility`, off by default). Anonymous `GET /badge/{id}/lines.svg`, `/badge/{id}/health.svg` and `GET /share/{id}` (server-rendered HTML with OG tags; no OG image, which would need a raster library).
+  - Exposes only owner/name, latest total lines, the **memoised** code-health grade (an anonymous request never triggers a clone walk) and the newest commit date. Missing and private answer the same 404.
+  - Outside `/api` by design; `/badge` and `/share` are on `ProductionAuthEnforcementMiddleware`'s public list and the published service worker's server-route list. Rate limit `public`: 120/min per address. Cards cached 10 min and evicted when visibility changes.
+  - This is the first anonymous data surface: §8 "Validation at trust boundaries" now includes it.

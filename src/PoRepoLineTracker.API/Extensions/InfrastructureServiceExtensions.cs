@@ -166,7 +166,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GitClient>();
         services.AddScoped<FileIgnoreFilter>();
 
-        // Singleton: tracks live analysis progress across background Task.Run jobs, and pushes
+        // Singleton: tracks live analysis progress across the queue's background jobs, and pushes
         // each update to the owning user over AnalysisHub (hence AddSignalR below it — IHubContext
         // has to be resolvable for the singleton above to take a dependency on it).
         services.AddSignalR();
@@ -174,9 +174,11 @@ public static class InfrastructureServiceExtensions
         // Drains the bounded AnalysisHub.ProgressChannel on a single reader thread; takes
         // IHubContext from the SignalR registration above. Long-running by definition.
         services.AddHostedService<AnalysisProgressReader>();
-        // Startup sweep: restarts kill the bulk-add fire-and-forget analysis loop mid-flight;
-        // this finishes whatever it left unanalyzed. Runs once, then idles.
-        services.AddHostedService<ResumePendingAnalysis>();
+        // The analysis queue: endpoints enqueue, a fixed worker pool drains, and at startup it
+        // re-queues whatever a restart interrupted. One instance serves both roles, so it is a
+        // singleton the endpoints inject AND the hosted service the host starts.
+        services.AddSingleton<AnalysisQueue>();
+        services.AddHostedService(sp => sp.GetRequiredService<AnalysisQueue>());
 
         services.AddScoped<IGitHubService>(sp => new GitHubService(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("GitHubClient"),
@@ -199,15 +201,18 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAllRepositoriesQueryHandler>();
         services.AddScoped<GetLineCountHistoryQueryHandler>();
         services.AddScoped<GetRepositoryPunchcardQueryHandler>();
+        services.AddScoped<GetRepositoryHotspotsQueryHandler>();
         services.AddScoped<GetAllRepositoriesLineCountHistoryQueryHandler>();
         services.AddScoped<GetFileExtensionPercentagesQueryHandler>();
         services.AddScoped<DeleteRepositoryCommandHandler>();
         services.AddScoped<RemoveAllRepositoriesCommandHandler>();
+        services.AddScoped<DeleteAccountCommandHandler>();
         services.AddScoped<AddMultipleRepositoriesCommandHandler>();
         services.AddScoped<AnalyzeRepositoryCommitsCommandHandler>();
         services.AddScoped<GetContributorStatsQueryHandler>();
         services.AddScoped<GetPortfolioInsightsQueryHandler>();
         services.AddScoped<GetWeeklyDigestQueryHandler>();
+        services.AddScoped<GetYearInReviewQueryHandler>();
         services.AddScoped<GetCodeHealthQueryHandler>();
         services.AddScoped<GetCodeHealthTrendQueryHandler>();
         services.AddScoped<GetPortfolioCodeHealthQueryHandler>();
@@ -235,6 +240,11 @@ public static class InfrastructureServiceExtensions
             options.AddPolicy(RateLimitPolicies.Health, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
+            // Higher than /health: one README page view can fetch two badges, and GitHub's image
+            // proxy fetches from a handful of addresses for everyone who views it.
+            options.AddPolicy(RateLimitPolicies.Public, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
         });
 
         // Forwarded headers for Azure Container Apps reverse proxy
@@ -260,4 +270,7 @@ internal static class RateLimitPolicies
 
     /// <summary>Per client address: the anonymous health probe.</summary>
     public const string Health = "health";
+
+    /// <summary>Per client address: the anonymous badge and share routes.</summary>
+    public const string Public = "public";
 }

@@ -57,6 +57,14 @@ public class AnalyzeRepositoryCommitsCommandHandler
     }
 
     /// <summary>
+    /// The waits before the second and third clone/pull attempt, when the one before failed on
+    /// the network (<see cref="AnalysisFailure.IsTransient"/>). A single dropped connection used
+    /// to fail the whole run, and the user's only recourse was to click Re-analyze and hope.
+    /// Settable so tests do not sleep.
+    /// </summary>
+    internal TimeSpan[] NetworkRetryDelays { get; init; } = [TimeSpan.FromSeconds(15), TimeSpan.FromMinutes(1)];
+
+    /// <summary>
     /// Whether an analysis currently holds this repository's lock. The re-analyse and delete
     /// endpoints answer 409 on it: a second run would be silently skipped below while the caller
     /// was told "started", and a delete would leave the running loop upserting commit rows for a
@@ -113,7 +121,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
             var accessToken = await _userService.ResolveGitHubTokenAsync(repository.UserId);
 
             // ── Step 1: Clone/pull OR validate local repository ───────────────────────
-            var repositoryPath = await EnsureRepositoryOnDiskAsync(repository, accessToken);
+            var repositoryPath = await EnsureRepositoryOnDiskWithRetryAsync(repository, accessToken, cancellationToken);
 
             // Clear existing commit data for a full re-analysis — only now that the repository is
             // known to be fetchable. This used to run before the clone/pull, so a revoked token, a
@@ -161,7 +169,9 @@ public class AnalyzeRepositoryCommitsCommandHandler
             // ── Step 4: Save results ──────────────────────────────────────────────────
             await FinalizeRepositoryAsync(repository, commitStatsList);
         }
-        catch (Exception ex)
+        // Not on shutdown: an attempt stamp would take a never-analysed repository out of the
+        // startup sweep, so the job the restart interrupted would never be resumed.
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
         {
             _logger.LogError(ex, "Error analyzing repository {RepositoryId}", request.RepositoryId);
             _progressService.ReportError(request.RepositoryId, ex.Message);
@@ -187,6 +197,33 @@ public class AnalyzeRepositoryCommitsCommandHandler
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not record analysis outcome for repository {RepositoryId}", repository.Id);
+        }
+    }
+
+    /// <summary>
+    /// Step 1 with retries for network failures only. An auth failure or a missing repository
+    /// fails at once: a revoked token is not fixed by waiting, and the stored error then says why.
+    /// </summary>
+    private async Task<string> EnsureRepositoryOnDiskWithRetryAsync(
+        GitHubRepository repository,
+        string? accessToken,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await EnsureRepositoryOnDiskAsync(repository, accessToken);
+            }
+            catch (Exception ex) when (attempt < NetworkRetryDelays.Length && AnalysisFailure.IsTransient(ex.Message))
+            {
+                var delay = NetworkRetryDelays[attempt];
+                _logger.LogWarning(ex, "Clone/pull of {RepositoryId} failed on the network; retrying in {Delay} (attempt {Next} of {Max})",
+                    repository.Id, delay, attempt + 2, NetworkRetryDelays.Length + 1);
+                _progressService.ReportStep(repository.Id, 1, "Cloning",
+                    $"Step 1/4 — Network error, retrying in {delay.TotalSeconds:0}s (attempt {attempt + 2} of {NetworkRetryDelays.Length + 1})");
+                await Task.Delay(delay, cancellationToken);
+            }
         }
     }
 

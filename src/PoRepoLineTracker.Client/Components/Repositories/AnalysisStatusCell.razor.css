@@ -86,3 +86,9 @@
 .rp-live {
     white-space: normal !important;
 }
+
+/* A plain <a> from this file's markup, so it carries the scope id without ::deep. */
+.rp-reauth-link {
+    font-size: 0.75rem;
+    color: var(--rz-primary);
+}

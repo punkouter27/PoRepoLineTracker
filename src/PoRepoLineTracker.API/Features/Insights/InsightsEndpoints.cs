@@ -112,5 +112,72 @@ internal static class InsightsEndpoints
         })
         .RequireRateLimiting(RateLimitPolicies.Assistant)
         .WithName("GetDigestNarrative");
+
+        // Year in Review. Scoped by the caller's id like everything else here. The year is
+        // bounded so the date arithmetic cannot overflow and nobody asks for year 9999.
+        insights.MapGet("/year/{year:int}", async (int year, int? offset, HttpContext ctx, GetYearInReviewQueryHandler yearHandler, CancellationToken cancellationToken) =>
+        {
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
+            if (year < 1970 || year > DateTime.UtcNow.Year + 1)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["year"] = ["Pick a year between 1970 and next year."] });
+
+            return Results.Ok(await yearHandler.Handle(new GetYearInReviewQuery(userId, year, offset ?? 0), cancellationToken));
+        })
+        .WithName("GetYearInReview");
+
+        // One celebratory sentence over the year's figures. Numbers only, as with the digest: the
+        // top repository goes as R1 and its name is put back after the reply.
+        insights.MapGet("/year/{year:int}/narrative", async (
+            int year,
+            int? offset,
+            HttpContext ctx,
+            GetYearInReviewQueryHandler yearHandler,
+            ClaudeAssistant assistant,
+            CancellationToken cancellationToken) =>
+        {
+            if (!ctx.User.TryGetUserId(out var userId))
+                return Results.Unauthorized();
+            if (!assistant.IsAvailable || year < 1970 || year > DateTime.UtcNow.Year + 1)
+                return Results.Ok(new DigestNarrativeDto());
+
+            var review = await yearHandler.Handle(new GetYearInReviewQuery(userId, year, offset ?? 0), cancellationToken);
+            if (!review.HasActivity)
+                return Results.Ok(new DigestNarrativeDto());
+
+            var figures = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                year = review.Year,
+                commits = review.Commits,
+                linesAdded = review.LinesAdded,
+                linesRemoved = review.LinesRemoved,
+                activeDays = review.ActiveDays,
+                longestStreakDays = review.LongestStreakDays,
+                busiestMonth = review.BusiestMonth,
+                peakHour = review.PeakHour,
+                repositoriesTouched = review.RepositoriesTouched,
+                portfolioLinesStart = review.PortfolioLinesStart,
+                portfolioLinesEnd = review.PortfolioLinesEnd,
+                topRepository = review.TopRepository is null ? null : new { id = "R1", commits = review.TopRepositoryCommits }
+            });
+
+            var reply = await assistant.AskJsonAsync(
+                system: "You write one upbeat sentence summing up a developer's year of coding for the closing slide of a year-in-review. "
+                        + "Use only the figures in the JSON you are given; months are 1-12 and hours 0-23 local time. Refer to the repository by its id exactly as given (R1). "
+                        + "Plain sentence, no markdown, no emoji, no greeting, at most 35 words.",
+                user: figures,
+                schema: ClaudeAssistant.ObjectSchema(new { summary = new { type = "string" } }, "summary"),
+                cancellationToken);
+
+            var text = reply is { } json && json.TryGetProperty("summary", out var summary) ? summary.GetString() : null;
+            if (string.IsNullOrWhiteSpace(text) || text.Length > 400)
+                return Results.Ok(new DigestNarrativeDto());
+
+            if (review.TopRepository is not null)
+                text = text.Replace("R1", review.TopRepository, StringComparison.Ordinal);
+            return Results.Ok(new DigestNarrativeDto { Text = text });
+        })
+        .RequireRateLimiting(RateLimitPolicies.Assistant)
+        .WithName("GetYearInReviewNarrative");
     }
 }

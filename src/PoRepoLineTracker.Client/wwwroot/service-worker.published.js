@@ -27,7 +27,9 @@ const offlineAssetsExclude = [/^service-worker\.js$/];
 // thinks it is still logged out. /api and /hubs are here for the same reason — a cached shell
 // returned to an XHR or a SignalR negotiate is a 200 carrying HTML, which fails in whatever way
 // the caller happens to parse it, rather than the 401 the caller knows how to handle.
-const serverRoutePrefixes = ['/api/', '/auth/', '/hubs/', '/health', '/signin-', '/signout-'];
+// /badge/ and /share/ are server-rendered public pages: opened by the owner in a tab the worker
+// controls, a share link would otherwise show the app shell instead of the page they shared.
+const serverRoutePrefixes = ['/api/', '/auth/', '/hubs/', '/health', '/signin-', '/signout-', '/badge/', '/share/'];
 const apiCacheName = 'porepolinetracker-api-cache';
 // /auth/me is in the list because the app asks it "who am I?" before rendering anything. With no
 // cached answer an offline cold start failed that request, the app concluded "signed out" and

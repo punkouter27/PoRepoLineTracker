@@ -243,6 +243,46 @@
             networkListener = null;
         }
 
+        // ── Year in Review helpers ──────────────────────────────────────────────────
+        //
+        // Local minus UTC, in minutes (the opposite sign of getTimezoneOffset). Read here because
+        // the trimmed WASM runtime may not carry time-zone data, so TimeZoneInfo.Local can be UTC.
+        function utcOffsetMinutes() {
+            return -new Date().getTimezoneOffset();
+        }
+
+        // Rasterises an inline <svg> to a PNG download, with no library: serialise it, load it
+        // as an image, draw it on a canvas at 2x, save. A data: URL rather than a blob: one,
+        // because img-src in the CSP allows data: and not blob:. The SVG must be self-contained
+        // (literal colours, system fonts): page CSS does not reach an SVG loaded as an image.
+        function downloadSvgAsPng(svg, fileName) {
+            return new Promise(function (resolve, reject) {
+                var box = svg.viewBox.baseVal;
+                var clone = svg.cloneNode(true);
+                clone.setAttribute('width', box.width);
+                clone.setAttribute('height', box.height);
+                var source = new XMLSerializer().serializeToString(clone);
+                var image = new Image();
+                image.onload = function () {
+                    try {
+                        var canvas = document.createElement('canvas');
+                        canvas.width = box.width * 2;
+                        canvas.height = box.height * 2;
+                        var context = canvas.getContext('2d');
+                        context.scale(2, 2);
+                        context.drawImage(image, 0, 0, box.width, box.height);
+                        var link = document.createElement('a');
+                        link.download = fileName;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                        resolve();
+                    } catch (e) { reject(e); }
+                };
+                image.onerror = function () { reject(new Error('The card could not be drawn.')); };
+                image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+            });
+        }
+
         // Already installed and launched from the home screen — there is nothing left to
         // offer, and `navigator.standalone` covers iOS, which does not implement
         // display-mode.

@@ -1,0 +1,55 @@
+/* Rooted at the plain .share-card div; the RadzenSwitch and buttons are reached through their
+   wrappers, which are this file's own markup. */
+
+.share-card__body {
+    display: grid;
+    gap: var(--space-sm, 0.5rem);
+}
+
+.share-card__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.share-card__note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--rz-text-secondary-color);
+}
+
+.share-card__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: var(--space-sm, 0.5rem) 0;
+}
+
+.share-card__label {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.share-card__snippet {
+    width: 100%;
+    resize: vertical;
+    padding: 0.5rem;
+    border: 1px solid var(--rz-base-300);
+    border-radius: 6px;
+    background: var(--rz-base-100, transparent);
+    color: var(--rz-text-color);
+    font: 0.75rem/1.4 var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+}
+
+.share-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.share-card__open {
+    font-size: 0.85rem;
+    color: var(--rz-primary);
+}

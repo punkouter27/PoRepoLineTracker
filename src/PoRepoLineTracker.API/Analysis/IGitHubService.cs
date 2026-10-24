@@ -55,5 +55,11 @@ public interface IGitHubService
     /// </summary>
     IEnumerable<SourceFile> EnumerateSourceFiles(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount);
 
+    /// <summary>
+    /// Per-path change counts from HEAD back to <paramref name="sinceUtc"/>, keyed by
+    /// repository-relative path. Empty for a path that is not a valid clone.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, FileChurn>> GetFileChurnAsync(string repositoryPath, DateTime sinceUtc);
+
     Task<IEnumerable<GitHubUserRepositoryDto>> GetUserRepositoriesAsync(string accessToken);
 }

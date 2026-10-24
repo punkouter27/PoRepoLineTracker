@@ -30,6 +30,8 @@ public static class ApiEndpointExtensions
         app.MapAuthEndpoints();
         app.MapRepositoryEndpoints();
         app.MapPortfolioExportEndpoints();
+        app.MapAccountEndpoints();
+        app.MapPublicBadgeEndpoints();
         app.MapSettingsEndpoints();
         app.MapGitHubEndpoints();
         app.MapDiagnosticsEndpoints();

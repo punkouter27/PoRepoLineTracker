@@ -174,6 +174,52 @@ public class GitClient
             workingDirectory: localPath);
     }
 
+    /// <summary>
+    /// Per-file change counts since a date, for the hotspot view: how many commits touched each
+    /// path, and how many lines they added plus removed.
+    ///
+    /// <para>The git CLI rather than a LibGit2Sharp tree diff per commit: `git log --numstat` is
+    /// one process that git has optimised for exactly this, where diffing every commit pair in
+    /// managed code costs seconds per hundred commits. Read-only, so it needs no credential and
+    /// is safe beside a running fetch.</para>
+    ///
+    /// <para><c>--no-renames</c> keeps every path a plain path (no <c>old => new</c> syntax to
+    /// unpick); a rename then counts as a delete of one path and an add of another, and only the
+    /// new path is still at HEAD to be shown. Merges print no numstat by default, matching the
+    /// rule that a merge's lines were already counted on its branch.</para>
+    /// </summary>
+    public Dictionary<string, FileChurn> FileChurnSince(string repositoryPath, DateTime sinceUtc)
+    {
+        RunGitProcess("log --numstat", [
+                "log", "--numstat", "--no-renames", "--format=%x1e",
+                $"--since={sinceUtc:yyyy-MM-ddTHH:mm:ssZ}", "HEAD"
+            ],
+            workingDirectory: repositoryPath, captureOutput: true, out var output);
+        return ParseNumstat(output);
+    }
+
+    /// <summary>
+    /// Parses <see cref="FileChurnSince"/>'s output: a record-separator line opens each commit,
+    /// then one <c>added TAB removed TAB path</c> line per file it touched (<c>-</c> for a binary
+    /// file's counts).
+    /// </summary>
+    internal static Dictionary<string, FileChurn> ParseNumstat(string output)
+    {
+        var churn = new Dictionary<string, FileChurn>(StringComparer.Ordinal);
+        foreach (var rawLine in output.Split('\n'))
+        {
+            var parts = rawLine.TrimEnd('\r').Split('\t', 3);
+            if (parts.Length != 3 || parts[2].Length == 0) continue;
+
+            int.TryParse(parts[0], out var added);
+            int.TryParse(parts[1], out var removed);
+            churn[parts[2]] = churn.TryGetValue(parts[2], out var existing)
+                ? new FileChurn(existing.Commits + 1, existing.LinesChanged + added + removed)
+                : new FileChurn(1, added + removed);
+        }
+        return churn;
+    }
+
     public Repository OpenRepository(string path)
     {
         return new Repository(path);

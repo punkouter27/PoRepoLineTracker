@@ -1,0 +1,113 @@
+@using System.Net
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject NotificationService Notifications
+@inject IJSRuntime JS
+@inject ILogger<ShareBadgeCard> Logger
+
+@* The owner's switch for the anonymous badge and share page, and the snippet to paste once it is
+   on. Off by default (SPEC delta 2026-10-23): those routes answer without a sign-in. *@
+<div class="share-card">
+    <ChartCard Title="Badges & share page" Description="Show this repository's size and health in a README or a link">
+        <ChildContent>
+            <div class="share-card__body">
+                <div class="share-card__toggle">
+                    <RadzenSwitch @bind-Value="_isPublic" Change="@OnToggleAsync" Disabled="@_saving"
+                                  InputAttributes="@(new Dictionary<string, object> { ["aria-labelledby"] = "share-toggle-label" })" />
+                    <span id="share-toggle-label">Publish badges and a share page for <strong>@Repository.Owner/@Repository.Name</strong></span>
+                </div>
+                <p class="share-card__note">
+                    Anyone with the link sees the repository's name, line count, code-health grade and last-commit date.
+                    Nothing else is published, and turning this off takes the badges down at once.
+                </p>
+
+                @if (_isPublic)
+                {
+                    <div class="share-card__badges">
+                        <img src="@($"/badge/{Repository.Id}/lines.svg?v={_version}")" alt="lines of code badge" height="20" />
+                        <img src="@($"/badge/{Repository.Id}/health.svg?v={_version}")" alt="code health badge" height="20" />
+                    </div>
+
+                    <label class="share-card__label" for="share-markdown">README markdown</label>
+                    <textarea id="share-markdown" class="share-card__snippet" readonly rows="3">@Markdown</textarea>
+
+                    <div class="share-card__actions">
+                        <RadzenButton Text="Copy markdown" Icon="content_copy" Size="ButtonSize.Small" Click="@(() => CopyAsync(Markdown, "Markdown"))" />
+                        <RadzenButton Text="Copy share link" Icon="link" Size="ButtonSize.Small" Variant="Variant.Outlined" Click="@(() => CopyAsync(ShareUrl, "Link"))" />
+                        <a class="share-card__open" href="@ShareUrl" target="_blank" rel="noopener">Open share page</a>
+                    </div>
+                    <p class="share-card__note">The health badge reads the last Code Health report; open that tab once if it says "unknown".</p>
+                }
+            </div>
+        </ChildContent>
+    </ChartCard>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GitHubRepository Repository { get; set; } = default!;
+
+    /// <summary>Raised with the new value once the server has accepted it, so the page's copy of the row agrees.</summary>
+    [Parameter] public EventCallback<bool> IsPublicChanged { get; set; }
+
+    private bool _isPublic;
+    private bool _saving;
+
+    /// <summary>Bumped on each enable so the previews do not show an "unavailable" badge the browser cached while private.</summary>
+    private int _version;
+
+    private string Origin => Navigation.BaseUri.TrimEnd('/');
+    private string ShareUrl => $"{Origin}/share/{Repository.Id}";
+
+    private string Markdown =>
+        $"[![lines of code]({Origin}/badge/{Repository.Id}/lines.svg)]({ShareUrl}) "
+        + $"[![code health]({Origin}/badge/{Repository.Id}/health.svg)]({ShareUrl})";
+
+    protected override void OnParametersSet() => _isPublic = Repository.IsPublic;
+
+    private async Task OnToggleAsync(bool value)
+    {
+        _saving = true;
+        try
+        {
+            using var response = await Http.PutAppJsonAsync($"/api/repositories/{Repository.Id}/visibility",
+                new RepositoryVisibilityDto { IsPublic = value }, AppJsonSerializerContext.Default.RepositoryVisibilityDto);
+
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                _isPublic = !value;
+                Notifications.Notify(NotificationSeverity.Warning, "Analysis is still running",
+                    "Try again when it finishes.", 6000);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            _version++;
+            await IsPublicChanged.InvokeAsync(value);
+        }
+        catch (Exception ex)
+        {
+            _isPublic = !value;
+            Logger.LogError(ex, "Could not change visibility of {RepositoryId}", Repository.Id);
+            Notifications.Notify(NotificationSeverity.Error, "Error", $"Could not change sharing: {ex.Message}", 6000);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task CopyAsync(string text, string what)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            Notifications.Notify(NotificationSeverity.Success, "Copied", $"{what} copied to the clipboard.", 2500);
+        }
+        catch (Exception ex)
+        {
+            // Clipboard access needs a secure context and focus; the text box stays selectable either way.
+            Logger.LogWarning(ex, "Clipboard write failed");
+            Notifications.Notify(NotificationSeverity.Warning, "Copy failed", "Select the text and copy it by hand.", 4000);
+        }
+    }
+}

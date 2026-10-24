@@ -24,4 +24,7 @@ public interface IUserService
     /// listing then fails and is reported as such.
     /// </summary>
     Task<string?> ResolveGitHubTokenAsync(UserId userId);
+
+    /// <summary>Deletes the user's row, encrypted token included. No-op when there is none.</summary>
+    Task DeleteUserAsync(UserId userId);
 }

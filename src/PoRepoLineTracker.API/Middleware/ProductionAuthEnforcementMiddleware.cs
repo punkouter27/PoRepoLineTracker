@@ -47,7 +47,11 @@ public class ProductionAuthEnforcementMiddleware
         "/auth",   // covers /auth/login, /auth/logout, /auth/me and the OAuth callback
         "/login",  // the page this middleware redirects TO — gating it would be an infinite loop
         "/signin-github",
-        "/signout-github"
+        "/signout-github",
+        // Anonymous by design, for repositories their owner made public (PublicBadgeEndpoints):
+        // a README badge fetched through GitHub's image proxy cannot follow a sign-in redirect.
+        "/badge",
+        "/share"
     ];
 
     public ProductionAuthEnforcementMiddleware(

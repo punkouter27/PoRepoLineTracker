@@ -116,7 +116,7 @@ public class RepositoryDataService : IRepositoryDataService
         return entities;
     }
 
-    public async Task<IEnumerable<GitHubRepository>> GetUnanalyzedRepositoriesAsync()
+    public async Task<IEnumerable<GitHubRepository>> GetResumableRepositoriesAsync()
     {
         await EnsureTablesExistAsync();
         var repositories = new List<GitHubRepository>();
@@ -127,10 +127,12 @@ public class RepositoryDataService : IRepositoryDataService
         {
             // Never attempted, not merely "no commits yet": a repository whose analysis ran and
             // failed (or found an empty repo) has an attempt stamp and is the user's to retry.
-            if (entity.LastAnalyzedCommitDate is null && entity.LastAnalysisAttemptUtc is null)
+            // Or queued and never finished: the stamp outlives the in-memory queue entry.
+            if ((entity.LastAnalyzedCommitDate is null && entity.LastAnalysisAttemptUtc is null)
+                || entity.AnalysisQueuedUtc is not null)
                 repositories.Add(entity.ToDomainModel());
         }
-        _logger.LogInformation("Found {Count} never-analyzed repositories across all users.", repositories.Count);
+        _logger.LogInformation("Found {Count} repositories with unfinished analysis across all users.", repositories.Count);
         return repositories;
     }
 

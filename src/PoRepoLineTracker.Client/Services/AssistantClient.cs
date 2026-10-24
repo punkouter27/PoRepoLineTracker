@@ -59,6 +59,23 @@ public sealed class AssistantClient(
         }
     }
 
+    /// <summary>The closing sentence of the Year in Review; null when there is nothing to show, for any reason.</summary>
+    public async Task<string?> GetYearNarrativeAsync(int year, int utcOffsetMinutes)
+    {
+        if (!await IsAvailableAsync()) return null;
+
+        try
+        {
+            var narrative = await http.GetAppJsonAsync($"/api/insights/year/{year}/narrative?offset={utcOffsetMinutes}", AppJsonSerializerContext.Default.DigestNarrativeDto);
+            return string.IsNullOrWhiteSpace(narrative?.Text) ? null : narrative.Text;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Year narrative unavailable — card shown without it");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Maps a question onto the grid's own filters. Null when it could not be answered, in which
     /// case the user has already been told why.

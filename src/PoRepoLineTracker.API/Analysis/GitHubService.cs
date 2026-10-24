@@ -125,6 +125,14 @@ public class GitHubService : IGitHubService
     public Task<bool> IsRepositoryValidAsync(string repositoryPath) =>
         Task.FromResult(Repository.IsValid(repositoryPath));
 
+    public async Task<IReadOnlyDictionary<string, FileChurn>> GetFileChurnAsync(string repositoryPath, DateTime sinceUtc)
+    {
+        if (!Repository.IsValid(repositoryPath)) return new Dictionary<string, FileChurn>();
+
+        // Off the request thread: the process wait is synchronous.
+        return await Task.Run(() => _gitClient.FileChurnSince(repositoryPath, sinceUtc));
+    }
+
     public Task DeleteLocalRepositoryAsync(string localPath)
     {
         var fullLocalPath = Path.Combine(_localReposPath, localPath);

@@ -1,0 +1,99 @@
+@using System.Net
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject NotificationService Notifications
+@inject DialogService Dialogs
+@inject ILogger<AccountDataCard> Logger
+
+@* The user's own data: take it with them, or delete it. Its own component so the Settings page,
+   which is about counted extensions, does not grow a second job in its @code block.
+
+   The confirmation is a typed word, not a Yes/No dialog. Everything here is irreversible and a
+   dialog's default button is one Enter away; typing DELETE is not something done by accident. *@
+<div class="account-card">
+    <RadzenCard class="rz-mt-4">
+        <RadzenStack Gap="0.75rem">
+            <h2 class="account-card__title">Your data</h2>
+            <RadzenText TextStyle="TextStyle.Body2">
+                Download every tracked repository with its current size, as JSON or CSV.
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="Download JSON" Icon="download" Size="ButtonSize.Small" Variant="Variant.Outlined"
+                              Click="@(() => Download(null))" />
+                <RadzenButton Text="Download CSV" Icon="table_view" Size="ButtonSize.Small" Variant="Variant.Outlined"
+                              Click="@(() => Download("csv"))" />
+            </RadzenStack>
+
+            <hr class="account-card__rule" />
+
+            <RadzenText TextStyle="TextStyle.Subtitle2" class="account-card__danger">Delete account</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">
+                Removes your repositories, commit history, code-health snapshots, the clones kept on the server,
+                your settings and your stored GitHub token, then revokes this app's access on GitHub.
+                This cannot be undone.
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <label for="account-delete-confirm" class="account-card__label">Type <code>DELETE</code> to confirm</label>
+                <RadzenTextBox id="account-delete-confirm" @bind-Value="_confirmation" @bind-Value:event="oninput"
+                               autocomplete="off" class="account-card__input" />
+                <RadzenButton Text="Delete my account" Icon="delete_forever" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                              IsBusy="@_deleting" BusyText="Deleting…"
+                              Disabled="@(_confirmation != "DELETE" || _deleting)"
+                              Click="@DeleteAccountAsync" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    private string _confirmation = string.Empty;
+    private bool _deleting;
+
+    /// <summary>
+    /// A full navigation, not a fetch: the endpoint answers with Content-Disposition: attachment,
+    /// so the browser saves the file and the page stays where it is. /api is outside the service
+    /// worker's cache, so this always reaches the server.
+    /// </summary>
+    private void Download(string? format) =>
+        Navigation.NavigateTo(format is null ? "/api/repositories/export" : $"/api/repositories/export?format={format}", forceLoad: true);
+
+    private async Task DeleteAccountAsync()
+    {
+        _deleting = true;
+        try
+        {
+            using var response = await Http.DeleteAsync("/api/account");
+            if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "Not yet",
+                    response.StatusCode is HttpStatusCode.Conflict
+                        ? "An analysis is still queued or running. Try again when it finishes."
+                        : "Too many requests. Try again in a minute.", 6000);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.AccountDeletedDto);
+
+            if (result?.GrantRevoked != true)
+            {
+                await Dialogs.Alert(
+                    "Your data has been deleted. GitHub access could not be revoked automatically: remove "
+                    + "PoRepoLineTracker under Settings → Applications → Authorized OAuth Apps on github.com.",
+                    "Account deleted");
+            }
+
+            // A full load: the session cookie is gone, and the WASM app's cached auth state is not.
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Account deletion failed");
+            Notifications.Notify(NotificationSeverity.Error, "Error", $"Could not delete the account: {ex.Message}", 6000);
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+}

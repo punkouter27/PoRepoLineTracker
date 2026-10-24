@@ -20,4 +20,7 @@ public interface IUserPreferencesService
     /// Gets file extensions for a specific user.
     /// </summary>
     Task<List<string>> GetFileExtensionsAsync(UserId userId);
+
+    /// <summary>Deletes the user's stored preferences. No-op when there are none.</summary>
+    Task DeletePreferencesAsync(UserId userId);
 }

@@ -81,6 +81,19 @@ public class UserPreferencesService : IUserPreferencesService
         }
     }
 
+    public async Task DeletePreferencesAsync(UserId userId)
+    {
+        await EnsureTableExistsAsync();
+        try
+        {
+            await _preferencesTableClient.DeleteEntityAsync("PREFS", userId.ToString(), Azure.ETag.All);
+        }
+        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Never saved preferences — nothing to delete.
+        }
+    }
+
     public async Task<List<string>> GetFileExtensionsAsync(UserId userId)
     {
         var prefs = await GetPreferencesAsync(userId);

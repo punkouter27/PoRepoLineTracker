@@ -1,0 +1,26 @@
+/* Rooted at the plain .account-card div; Radzen-rendered elements need ::deep. */
+.account-card__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.account-card__rule {
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--rz-base-300);
+    margin: var(--space-sm, 0.5rem) 0;
+}
+
+::deep .account-card__danger.account-card__danger {
+    margin: 0 !important;
+    color: var(--status-neg) !important;
+}
+
+.account-card__label {
+    font-size: 0.875rem;
+}
+
+::deep .account-card__input.account-card__input {
+    width: 8rem;
+}

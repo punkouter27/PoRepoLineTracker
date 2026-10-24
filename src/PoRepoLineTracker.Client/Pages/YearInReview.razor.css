@@ -1,0 +1,157 @@
+/* Rooted at the page's plain .yir div (it also carries .app-stack). Radzen-rendered pieces are
+   reached with ::deep. */
+
+::deep .yir-title.yir-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .yir-lede.yir-lede {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* One slide at a time, centred, on a gradient that echoes the summary card. */
+.yir-stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: clamp(320px, 52dvh, 480px);
+    padding: var(--space-xl);
+    border-radius: 24px;
+    color: #fff;
+    background: linear-gradient(135deg, #4c1d95 0%, #6750a4 55%, #c02d76 100%);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    text-align: center;
+}
+
+.yir-stage:focus-visible {
+    outline: 3px solid var(--rz-primary);
+    outline-offset: 3px;
+}
+
+.yir-slide {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    max-width: 44rem;
+}
+
+::deep .yir-icon.yir-icon {
+    font-size: 2.5rem !important;
+    opacity: 0.85;
+}
+
+.yir-kicker {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.yir-value {
+    margin: 0;
+    font-size: clamp(2.25rem, 8vw, 4.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.yir-caption {
+    margin: 0;
+    max-width: 34rem;
+    font-size: var(--text-lg);
+    opacity: 0.9;
+}
+
+.yir-months {
+    width: min(100%, 360px);
+    margin-top: var(--space-md);
+}
+
+.yir-bar {
+    fill: rgb(255 255 255 / 0.45);
+}
+
+.yir-bar--peak {
+    fill: #fff;
+}
+
+.yir-month-label {
+    fill: rgb(255 255 255 / 0.8);
+    font-size: 11px;
+}
+
+.yir-summary {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-md);
+    width: 100%;
+}
+
+.yir-card {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+.yir-narrative {
+    margin: 0;
+    max-width: 36rem;
+    font-size: var(--text-base);
+    font-style: italic;
+    opacity: 0.95;
+}
+
+.yir-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+}
+
+.yir-dots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+/* 24px hit area around a 10px dot, for touch. */
+.yir-dot {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+
+.yir-dot::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-medium);
+    transition: transform 150ms ease, background 150ms ease;
+}
+
+.yir-dot--on::before {
+    background: var(--rz-primary);
+    transform: scale(1.3);
+}
+
+.yir-dot:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    border-radius: 50%;
+}

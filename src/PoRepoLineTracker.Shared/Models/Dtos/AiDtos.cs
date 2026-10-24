@@ -49,5 +49,8 @@ public static class AnalysisStatus
     public const string Empty = "Empty";
     public const string Pending = "Pending";
 
-    public static readonly string[] All = [Done, Failed, Empty, Pending];
+    /// <summary>Failed because GitHub refused the stored token; signing in again fixes it.</summary>
+    public const string Reauth = "Reauth";
+
+    public static readonly string[] All = [Done, Failed, Empty, Pending, Reauth];
 }

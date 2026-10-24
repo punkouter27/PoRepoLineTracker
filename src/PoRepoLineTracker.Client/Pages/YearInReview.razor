@@ -1,0 +1,289 @@
+@page "/year-in-review"
+@page "/year-in-review/{Year:int}"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject AssistantClient Assistant
+@inject NotificationService Notifications
+@inject ILogger<YearInReview> Logger
+@using Microsoft.AspNetCore.Authorization
+@using System.Globalization
+
+<PageTitle>Year in Review @(_data?.Year) · PoRepoLineTracker</PageTitle>
+
+@* A year across every tracked repository, told one figure at a time, ending on a card that can be
+   saved as a PNG. All figures come from one GET (/api/insights/year/{year}); the slides are just
+   different views of that payload. *@
+<div class="app-stack yir">
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.125rem">
+                <h1 class="page-hero__title yir-title">Year in Review</h1>
+                <RadzenText TextStyle="TextStyle.Body1" class="yir-lede">
+                    @if (_data is { HasActivity: true })
+                    {
+                        <span>Your @_data.Year across @_data.RepositoriesTouched tracked repositor@(_data.RepositoriesTouched == 1 ? "y" : "ies")</span>
+                    }
+                    else
+                    {
+                        <span>A year of commits, one figure at a time</span>
+                    }
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            @if (_data is { AvailableYears.Count: > 0 })
+            {
+                <RadzenDropDown TValue="int" Data="@_data.AvailableYears" Value="@_data.Year" Change="@(v => OnYearChanged((int)v))"
+                                Style="width: 7rem" aria-label="Year" />
+            }
+        </Actions>
+    </PageHero>
+
+    @if (_loading)
+    {
+        <RadzenCard><RadzenSkeleton Width="100%" Height="320px" /></RadzenCard>
+    }
+    else if (_error is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
+            @_error
+            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text" Click="@LoadAsync" />
+        </RadzenAlert>
+    }
+    else if (_data is not { HasActivity: true })
+    {
+        <EmptyState Kind="EmptyStateKind.NoInsights"
+                    Title="@($"No commits in {_data?.Year ?? DateTime.Now.Year}")"
+                    Description="@(_data?.AvailableYears.Count > 0 ? "Pick another year above." : "Add a repository and let it finish analysing; its history fills this in.")" />
+    }
+    else
+    {
+        var slide = _slides[_index];
+
+        @* The stage takes the arrow keys once focused; the buttons below do the same for pointer
+           and screen-reader users, and the live region announces each new figure. *@
+        <div class="yir-stage" tabindex="0" @onkeydown="OnKeyDown" aria-roledescription="carousel" aria-label="Year in review slides">
+            <div class="yir-slide u-enter" @key="_index" aria-live="polite">
+                @if (slide.IsSummary)
+                {
+                    <div class="yir-summary">
+                        <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
+                             aria-label="@($"{_data.Year} summary card")">
+                            @* Plain hex colours and system fonts, not theme tokens: this SVG is also
+                               exported as a standalone image, where the page's CSS does not exist. *@
+                            <defs>
+                                <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0" stop-color="#4c1d95" />
+                                    <stop offset="0.55" stop-color="#6750a4" />
+                                    <stop offset="1" stop-color="#c02d76" />
+                                </linearGradient>
+                            </defs>
+                            <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
+                            <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
+                                <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
+                                <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
+                                @{ var stats = SummaryStats(); }
+                                @for (var i = 0; i < stats.Count; i++)
+                                {
+                                    var (label, value) = stats[i];
+                                    var x = 72 + (i % 3) * 360;
+                                    var y = 330 + (i / 3) * 130;
+                                    <g>
+                                        <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
+                                        <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
+                                    </g>
+                                }
+                                <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
+                            </g>
+                        </svg>
+                        @if (_narrative is not null)
+                        {
+                            <p class="yir-narrative">@_narrative</p>
+                        }
+                        <RadzenButton Text="Download PNG" Icon="download" Click="@DownloadCardAsync" class="yir-download" />
+                    </div>
+                }
+                else
+                {
+                    <RadzenIcon Icon="@slide.Icon" class="yir-icon" />
+                    <p class="yir-kicker">@slide.Kicker</p>
+                    <p class="yir-value">@slide.Value</p>
+                    <p class="yir-caption">@slide.Caption</p>
+                    @if (slide.ShowMonths)
+                    {
+                        <svg class="yir-months" viewBox="0 0 360 120" role="img" aria-label="Commits per month">
+                            @{ var max = Math.Max(1, _data.MonthlyCommits.Max()); }
+                            @for (var m = 0; m < 12; m++)
+                            {
+                                var h = 90.0 * _data.MonthlyCommits[m] / max;
+                                @* In a <g>: a bare <text> directly in a code block is Razor's directive. *@
+                                <g>
+                                    <rect x="@(m * 30 + 4)" y="@F(96 - h)" width="22" height="@F(Math.Max(h, 1))" rx="3"
+                                          class="@(m + 1 == _data.BusiestMonth ? "yir-bar yir-bar--peak" : "yir-bar")">
+                                        <title>@MonthName(m + 1): @_data.MonthlyCommits[m] commits</title>
+                                    </rect>
+                                    <text x="@(m * 30 + 15)" y="114" text-anchor="middle" class="yir-month-label">@(MonthName(m + 1)[..1])</text>
+                                </g>
+                            }
+                        </svg>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="yir-controls">
+            <RadzenButton Icon="chevron_left" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => Go(-1))"
+                          Disabled="@(_index == 0)" aria-label="Previous slide" />
+            <div class="yir-dots">
+                @for (var i = 0; i < _slides.Count; i++)
+                {
+                    var target = i;
+                    <button type="button" class="@(i == _index ? "yir-dot yir-dot--on" : "yir-dot")" @onclick="@(() => _index = target)"
+                            aria-label="@($"Slide {i + 1} of {_slides.Count}: {_slides[i].Kicker}")" aria-current="@(i == _index ? "step" : null)"></button>
+                }
+            </div>
+            <RadzenButton Icon="chevron_right" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => Go(1))"
+                          Disabled="@(_index == _slides.Count - 1)" aria-label="Next slide" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int? Year { get; set; }
+
+    private YearInReviewDto? _data;
+    private List<Slide> _slides = [];
+    private int _index;
+    private bool _loading = true;
+    private string? _error;
+    private string? _narrative;
+    private int _offsetMinutes;
+    private int? _loadedYear;
+    private ElementReference _card;
+
+    private sealed record Slide(string Kicker, string Value, string Caption, string Icon, bool ShowMonths = false, bool IsSummary = false);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var year = Year ?? DateTime.Now.Year;
+        if (_loadedYear == year) return;
+        _loadedYear = year;
+
+        // From the browser, not TimeZoneInfo.Local: the WASM runtime's zone data is optional
+        // and trimming may leave it as UTC.
+        _offsetMinutes = await JS.InvokeAsync<int>("utcOffsetMinutes");
+        await LoadAsync();
+
+        // Landing on /year-in-review in a quiet year (early January, say) would open on an empty
+        // page while last year has a story. Only for the default year: an explicit one is honoured.
+        if (Year is null && _data is { HasActivity: false, AvailableYears.Count: > 0 })
+            Navigation.NavigateTo($"/year-in-review/{_data.AvailableYears[0]}", replace: true);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _narrative = null;
+        try
+        {
+            _data = await Http.GetAppJsonAsync($"/api/insights/year/{_loadedYear}?offset={_offsetMinutes}", AppJsonSerializerContext.Default.YearInReviewDto);
+            _slides = _data is { HasActivity: true } ? BuildSlides(_data) : [];
+            _index = 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Year in review failed to load for {Year}", _loadedYear);
+            _error = $"Could not load the year: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        // Decoration on the last slide; the page is complete without it, so not awaited before render.
+        if (_data is { HasActivity: true })
+            _ = LoadNarrativeAsync(_data.Year);
+    }
+
+    private async Task LoadNarrativeAsync(int year)
+    {
+        var text = await Assistant.GetYearNarrativeAsync(year, _offsetMinutes);
+        if (_data?.Year != year) return;
+        _narrative = text;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static List<Slide> BuildSlides(YearInReviewDto d)
+    {
+        var slides = new List<Slide>
+        {
+            new($"{d.Year} in code", $"{d.Commits:N0} commits",
+                $"across {d.RepositoriesTouched} repositor{(d.RepositoriesTouched == 1 ? "y" : "ies")} on {d.ActiveDays} different days", "commit"),
+            new("Lines written", $"+{d.LinesAdded:N0}",
+                $"and {d.LinesRemoved:N0} removed. The portfolio went from {d.PortfolioLinesStart:N0} to {d.PortfolioLinesEnd:N0} lines.", "edit_note"),
+            new("Longest streak", $"{d.LongestStreakDays} day{(d.LongestStreakDays == 1 ? "" : "s")}",
+                "in a row with at least one commit", "local_fire_department"),
+            new("Busiest month", MonthName(d.BusiestMonth, full: true),
+                $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits", "calendar_month", ShowMonths: true),
+            new(d.PeakHour is >= 21 or < 5 ? "Night owl" : d.PeakHour < 9 ? "Early bird" : "Peak hour", HourLabel(d.PeakHour),
+                $"was your most common commit hour, and {CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)d.PeakWeekday)}s your busiest day", "schedule"),
+        };
+
+        if (d.BiggestDay is { } day)
+            slides.Add(new("Biggest day", day.ToString("MMMM d", CultureInfo.CurrentCulture), $"+{d.BiggestDayLinesAdded:N0} lines added in a single day", "bolt"));
+        if (d.TopRepository is not null)
+            slides.Add(new("Most active repository", d.TopRepository, $"{d.TopRepositoryCommits:N0} commits", "star"));
+        if (d.TopGrowingExtension is not null)
+            slides.Add(new("On the rise", d.TopGrowingExtension, $"grew by {d.TopGrowingSharePoints:0.#} points of your portfolio's share", "trending_up"));
+
+        slides.Add(new("Your year", string.Empty, string.Empty, "auto_awesome", IsSummary: true));
+        return slides;
+    }
+
+    private List<(string Label, string Value)> SummaryStats() =>
+    [
+        ("Lines added", $"+{_data!.LinesAdded:N0}"),
+        ("Longest streak", $"{_data.LongestStreakDays} days"),
+        ("Active days", $"{_data.ActiveDays}"),
+        ("Busiest month", MonthName(_data.BusiestMonth, full: true)),
+        ("Peak hour", HourLabel(_data.PeakHour)),
+        ("Top repository", Truncate(_data.TopRepository ?? "—", 14))
+    ];
+
+    private void Go(int step) => _index = Math.Clamp(_index + step, 0, _slides.Count - 1);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowRight") Go(1);
+        else if (e.Key == "ArrowLeft") Go(-1);
+    }
+
+    private void OnYearChanged(int year) => Navigation.NavigateTo($"/year-in-review/{year}");
+
+    private async Task DownloadCardAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("downloadSvgAsPng", _card, $"year-in-review-{_data!.Year}.png");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "PNG export failed");
+            Notifications.Notify(NotificationSeverity.Warning, "Download failed", "This browser could not turn the card into an image.", 5000);
+        }
+    }
+
+    private static string MonthName(int month, bool full = false) =>
+        month is < 1 or > 12 ? "—"
+        : full ? CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)
+        : CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
+
+    private static string HourLabel(int hour) => DateTime.Today.AddHours(hour).ToString("h tt", CultureInfo.InvariantCulture);
+
+    private static string Truncate(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+
+    private static string F(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+}

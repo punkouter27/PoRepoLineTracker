@@ -1,0 +1,105 @@
+/* Rooted at the plain .hotspots div. The SVG, legend and list are this file's own markup and
+   carry its scope id; nothing here needs ::deep. */
+
+.hotspots__map {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.hotspots__tile {
+    stroke: var(--rz-base-background-color, #fff);
+    stroke-width: 2;
+    transition: opacity 120ms ease;
+}
+
+.hotspots__map a:hover .hotspots__tile,
+.hotspots__map a:focus-visible .hotspots__tile {
+    opacity: 0.8;
+}
+
+.hotspots__map a:focus-visible {
+    outline: 2px solid var(--rz-primary);
+}
+
+/* Four steps from the surface colour to the danger colour. color-mix keeps them correct in both
+   themes, because both ends are theme tokens. */
+.hotspots__heat-1 { fill: color-mix(in srgb, var(--status-neg) 22%, var(--rz-base-200)); }
+.hotspots__heat-2 { fill: color-mix(in srgb, var(--status-neg) 45%, var(--rz-base-200)); }
+.hotspots__heat-3 { fill: color-mix(in srgb, var(--status-neg) 70%, var(--rz-base-200)); }
+.hotspots__heat-4 { fill: var(--status-neg); }
+
+.hotspots__label,
+.hotspots__sub {
+    pointer-events: none;
+    fill: var(--rz-text-color);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.hotspots__sub {
+    font-size: 11px;
+    font-weight: 400;
+    fill: var(--rz-text-secondary-color);
+}
+
+/* The two darker steps need light text to stay readable. */
+.hotspots__heat-3 ~ .hotspots__labels text,
+.hotspots__heat-4 ~ .hotspots__labels text {
+    fill: #fff;
+}
+
+.hotspots__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: var(--space-sm, 0.5rem);
+    font-size: 0.75rem;
+    color: var(--rz-text-secondary-color);
+}
+
+.hotspots__scale {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.hotspots__swatch {
+    width: 1rem;
+    height: 0.6rem;
+    border-radius: 2px;
+}
+
+.hotspots__swatch.hotspots__heat-1 { background: color-mix(in srgb, var(--status-neg) 22%, var(--rz-base-200)); }
+.hotspots__swatch.hotspots__heat-2 { background: color-mix(in srgb, var(--status-neg) 45%, var(--rz-base-200)); }
+.hotspots__swatch.hotspots__heat-3 { background: color-mix(in srgb, var(--status-neg) 70%, var(--rz-base-200)); }
+.hotspots__swatch.hotspots__heat-4 { background: var(--status-neg); }
+
+.hotspots__list {
+    margin: var(--space-md, 1rem) 0 0;
+    padding-left: 1.5rem;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.hotspots__list li {
+    min-width: 0;
+}
+
+.hotspots__path {
+    display: block;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+    color: var(--rz-primary);
+}
+
+.hotspots__meta,
+.hotspots__note {
+    font-size: 0.75rem;
+    color: var(--rz-text-secondary-color);
+}
+
+.hotspots__note {
+    margin: var(--space-sm, 0.5rem) 0 0;
+}

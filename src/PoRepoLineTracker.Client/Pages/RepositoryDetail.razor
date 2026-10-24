@@ -195,6 +195,12 @@
                         <CodeHealthTrendCard RepositoryId="@RepositoryId" />
                     </div>
                 </RadzenTabsItem>
+                <RadzenTabsItem Text="Hotspots" Icon="local_fire_department">
+                    <HotspotTreemap RepositoryId="@RepositoryId" Owner="@_repo.Owner" Name="@_repo.Name" Days="@ChartDays" />
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Share" Icon="share">
+                    <ShareBadgeCard Repository="@_repo" IsPublicChanged="@(value => _repo.IsPublic = value)" />
+                </RadzenTabsItem>
             </Tabs>
         </RadzenTabs>
     }
@@ -233,7 +239,7 @@
     private int ChartDays => ChartFormat.RangeDays(Days);
 
     /// <summary>Tab order as rendered; the first is the default and stays out of the URL.</summary>
-    private static readonly string[] TabNames = ["activity", "composition", "health"];
+    private static readonly string[] TabNames = ["activity", "composition", "health", "hotspots", "share"];
 
     /// <summary>An unknown name falls back to the first tab rather than selecting none.</summary>
     private int TabIndex => Math.Max(0, Array.IndexOf(TabNames, Tab));

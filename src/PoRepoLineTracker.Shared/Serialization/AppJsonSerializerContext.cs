@@ -100,6 +100,11 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(List<PunchcardItemDto>))]
 [JsonSerializable(typeof(PortfolioExportRowDto))]
 [JsonSerializable(typeof(List<PortfolioExportRowDto>))]
+[JsonSerializable(typeof(AccountDeletedDto))]
+[JsonSerializable(typeof(RepositoryVisibilityDto))]
+[JsonSerializable(typeof(YearInReviewDto))]
+[JsonSerializable(typeof(HotspotsDto))]
+[JsonSerializable(typeof(HotspotFileDto))]
 
 // ─── Primitive collections persisted as JSON columns in Azure Table Storage ─────────────────
 [JsonSerializable(typeof(List<string>))]

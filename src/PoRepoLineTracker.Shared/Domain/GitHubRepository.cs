@@ -28,6 +28,23 @@ public class GitHubRepository
     public string? LastAnalysisError { get; set; }
 
     /// <summary>
+    /// When a run was queued that has not finished yet; null otherwise. Written before the job
+    /// enters the in-memory queue and cleared after it ends, so a restart in between can see the
+    /// job was lost and queue it again. Without it a re-analysis of an already-analysed repository
+    /// died with the process: the startup sweep only looks for rows that were never attempted.
+    /// </summary>
+    public DateTime? AnalysisQueuedUtc { get; set; }
+
+    /// <summary>Whether the queued run is a full re-analysis, so a resumed job keeps that intent.</summary>
+    public bool QueuedFullReanalysis { get; set; }
+
+    /// <summary>
+    /// The owner's opt-in to the anonymous badge and share page. Off by default: those routes
+    /// answer without a sign-in, so a repository's name and size are only published on request.
+    /// </summary>
+    public bool IsPublic { get; set; }
+
+    /// <summary>
     /// The only clone URL the server uses: built from owner/name, never accepted from a caller.
     /// The user's token is embedded in whatever URL git is handed, so a caller-supplied URL sent
     /// that token to a host of the caller's choosing. Validate owner/name

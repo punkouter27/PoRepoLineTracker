@@ -104,6 +104,42 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_NetworkFailureOnClone_IsRetried_ButAnAuthFailureIsNot()
+    {
+        var sut = new AnalyzeRepositoryCommitsCommandHandler(
+            _gitHubService, _dataService, _userService, _prefsService, _progressService, _logger)
+        {
+            NetworkRetryDelays = [TimeSpan.Zero, TimeSpan.Zero]
+        };
+        _gitHubService.GetCommitStatsAsync(Arg.Any<string>(), Arg.Any<DateTime?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<Action<int, int>?>()).Returns(Enumerable.Empty<CommitStatsDto>());
+
+        // A dropped connection, then success: the run completes and records no error.
+        var flakyId = RepositoryId.New();
+        var flaky = new GitHubRepository { Id = flakyId, Owner = "testowner", Name = "flaky" };
+        _dataService.GetRepositoryByIdAsync(flakyId).Returns(flaky);
+        _gitHubService.CloneRepositoryAsync(Arg.Any<string>(), $"repo_{flakyId}", Arg.Any<string?>()).Returns(
+            _ => Task.FromException<string>(new InvalidOperationException("git clone failed (exit 128): fatal: unable to access: Could not resolve host: github.com")),
+            _ => Task.FromResult("cloned"));
+
+        await sut.Handle(new AnalyzeRepositoryCommitsCommand(flakyId), CancellationToken.None);
+
+        await _gitHubService.Received(2).CloneRepositoryAsync(Arg.Any<string>(), $"repo_{flakyId}", Arg.Any<string?>());
+        flaky.LastAnalysisError.Should().BeNull();
+        _progressService.Received(1).ReportComplete(flakyId);
+
+        // A revoked token fails at once: waiting does not fix it, and the stored error says why.
+        var revokedId = RepositoryId.New();
+        _dataService.GetRepositoryByIdAsync(revokedId).Returns(new GitHubRepository { Id = revokedId, Owner = "testowner", Name = "revoked" });
+        _gitHubService.CloneRepositoryAsync(Arg.Any<string>(), $"repo_{revokedId}", Arg.Any<string?>()).Returns(
+            _ => Task.FromException<string>(new InvalidOperationException("git clone failed (exit 128): fatal: Authentication failed for 'https://github.com/testowner/revoked.git/'")));
+
+        var act = () => sut.Handle(new AnalyzeRepositoryCommitsCommand(revokedId), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _gitHubService.Received(1).CloneRepositoryAsync(Arg.Any<string>(), $"repo_{revokedId}", Arg.Any<string?>());
+    }
+
+    [Fact]
     public async Task Handle_ClearExistingData_DeletesCommitsAndResetsDate()
     {
         var repoId = RepositoryId.New();

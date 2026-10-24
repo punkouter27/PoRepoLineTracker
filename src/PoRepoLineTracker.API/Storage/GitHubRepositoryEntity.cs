@@ -24,6 +24,9 @@ public class GitHubRepositoryEntity : ITableEntity
     public DateTime? LastAnalyzedCommitDate { get; set; } // Nullable to avoid Azure Table Storage DateTime.MinValue issue
     public DateTime? LastAnalysisAttemptUtc { get; set; }
     public string? LastAnalysisError { get; set; }
+    public DateTime? AnalysisQueuedUtc { get; set; }
+    public bool QueuedFullReanalysis { get; set; }
+    public bool IsPublic { get; set; }
 
     public GitHubRepository ToDomainModel()
     {
@@ -37,7 +40,10 @@ public class GitHubRepositoryEntity : ITableEntity
             LocalPath = LocalPath,
             LastAnalyzedCommitDate = LastAnalyzedCommitDate,
             LastAnalysisAttemptUtc = LastAnalysisAttemptUtc,
-            LastAnalysisError = LastAnalysisError
+            LastAnalysisError = LastAnalysisError,
+            AnalysisQueuedUtc = AnalysisQueuedUtc,
+            QueuedFullReanalysis = QueuedFullReanalysis,
+            IsPublic = IsPublic
         };
     }
 
@@ -57,7 +63,10 @@ public class GitHubRepositoryEntity : ITableEntity
                 ? DateTime.SpecifyKind(model.LastAnalyzedCommitDate.Value, DateTimeKind.Utc)
                 : model.LastAnalyzedCommitDate?.ToUniversalTime(),
             LastAnalysisAttemptUtc = model.LastAnalysisAttemptUtc,
-            LastAnalysisError = model.LastAnalysisError
+            LastAnalysisError = model.LastAnalysisError,
+            AnalysisQueuedUtc = model.AnalysisQueuedUtc,
+            QueuedFullReanalysis = model.QueuedFullReanalysis,
+            IsPublic = model.IsPublic
         };
     }
 }

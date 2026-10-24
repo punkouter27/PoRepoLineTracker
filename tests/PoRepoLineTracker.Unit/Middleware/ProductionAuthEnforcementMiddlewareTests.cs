@@ -92,6 +92,15 @@ public class ProductionAuthEnforcementMiddlewareTests
         _nextCalled = false;
         await InvokeAsync("Production", "/auth/login");
         _nextCalled.Should().BeTrue();
+
+        // README badges are fetched by GitHub's image proxy, which cannot follow a sign-in redirect.
+        _nextCalled = false;
+        await InvokeAsync("Production", "/badge/7f8c1c1e-0000-0000-0000-000000000001/lines.svg");
+        _nextCalled.Should().BeTrue();
+
+        _nextCalled = false;
+        await InvokeAsync("Production", "/share/7f8c1c1e-0000-0000-0000-000000000001");
+        _nextCalled.Should().BeTrue();
     }
 
     [Fact]

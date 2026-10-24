@@ -18,7 +18,7 @@
     // A live frame's error first, then the outcome stored on the row. The frame is gone after a
     // reload, so without the stored one a repository that failed to clone read "Pending" forever.
     var error = !string.IsNullOrEmpty(progress?.ErrorMessage) ? progress.ErrorMessage
-        : Status == AnalysisStatus.Failed ? LastError : null;
+        : Status is AnalysisStatus.Failed or AnalysisStatus.Reauth ? LastError : null;
 }
 @* A plain <div> root, not the bare <RadzenStack> this started as.
 
@@ -116,6 +116,19 @@
                         @Elapsed(startTime)
                     </RadzenText>
                 }
+            </RadzenStack>
+        }
+        else if (Status == AnalysisStatus.Reauth && string.IsNullOrEmpty(progress?.ErrorMessage))
+        {
+            @* GitHub refused the stored token (revoked, expired, or access to this repository
+               removed). The stderr is useless to act on; the fix is one click, so offer it. A
+               full page load, not router navigation: /auth/login is a server route. *@
+            <RadzenStack Gap="0.2rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="key_off" class="rp-error-icon" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Sign-in needed" title="@error" />
+                </RadzenStack>
+                <a class="rp-reauth-link" href="/auth/login?returnUrl=%2Frepositories">Sign in again with GitHub</a>
             </RadzenStack>
         }
         else if (!string.IsNullOrEmpty(error))

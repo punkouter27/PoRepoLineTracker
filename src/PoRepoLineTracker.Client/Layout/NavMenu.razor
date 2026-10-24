@@ -36,6 +36,13 @@
             <span class="rz-navigation-item-text">Code Health</span>
         </NavLink>
     </li>
+    <li>
+        @* Prefix: the page also lives at /year-in-review/{year}. *@
+        <NavLink href="/year-in-review" Match="NavLinkMatch.Prefix" class="rz-panelmenu-header app-nav__link">
+            <RadzenIcon Icon="auto_awesome" class="rz-menuitem-icon" />
+            <span class="rz-navigation-item-text">Year in Review</span>
+        </NavLink>
+    </li>
 
     @* A list item, not a heading. It was an <h2>, but the sidebar precedes <main> in the
        document, so that put an h2 ahead of every page's h1 — a heading outline that starts at

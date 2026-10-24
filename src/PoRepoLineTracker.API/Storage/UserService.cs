@@ -150,6 +150,18 @@ public class UserService : IUserService
         }
     }
 
+    public async Task DeleteUserAsync(UserId userId)
+    {
+        await EnsureTableExistsAsync();
+
+        // By Id, like GetUserByIdAsync: the RowKey is the GitHub id, which the caller does not hold.
+        await foreach (var entity in _userTableClient.QueryAsync<UserEntity>(e => e.Id == userId.Value))
+        {
+            await _userTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey, ETag.All);
+        }
+        _logger.LogInformation("Deleted user {UserId}", userId);
+    }
+
     private User ToUser(UserEntity entity)
     {
         var user = entity.ToDomainModel();

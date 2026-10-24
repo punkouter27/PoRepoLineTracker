@@ -1,0 +1,227 @@
+@inject HttpClient Http
+@inject ILogger<HotspotTreemap> Logger
+
+@* Hotspots: files that are both big and frequently changed. Tile AREA is code lines at the newest
+   analysed commit, tile COLOUR is how many commits touched the file in the page's range, so the
+   large dark tiles are the ones worth a look. Pure SVG, like CodeHealthRadar: no chart library
+   has a treemap the app already ships.
+
+   Rooted at a plain <div>: the SVG and list below are this file's own markup, so they carry the
+   scope id, and the ChartCard around them is reached with ::deep where needed. *@
+<div class="hotspots">
+    <ChartCard Title="Hotspots"
+               Description="@Description"
+               IsLoading="@_loading"
+               ErrorMessage="@_error"
+               OnRetry="@LoadAsync"
+               IsEmpty="@(_data is null || _data.Files.Count == 0)"
+               EmptyIcon="local_fire_department"
+               EmptyText="@EmptyText"
+               EmptyHint="@EmptyHint">
+        <ChildContent>
+            @if (_data is not null)
+            {
+                <svg class="hotspots__map" viewBox="0 0 @Width @Height" role="img"
+                     aria-label="@($"Treemap of the {_data.Files.Count} most changed files")">
+                    @foreach (var tile in _tiles)
+                    {
+                        var file = _data.Files[tile.Index];
+                        <a href="@BlobUrl(file.Path)" target="_blank" rel="noopener noreferrer">
+                            <rect class="hotspots__tile hotspots__heat-@Heat(file.Commits)"
+                                  x="@F(tile.X)" y="@F(tile.Y)" width="@F(tile.W)" height="@F(tile.H)">
+                                <title>@file.Path — @file.CodeLines.ToString("N0") lines, @file.Commits commit@(file.Commits == 1 ? "" : "s"), @file.LinesChanged.ToString("N0") lines changed, complexity ~@file.Complexity</title>
+                            </rect>
+                            @* Each label inside a <g>: a bare <text> directly in an @if block is
+                               Razor's own <text> directive, not the SVG element. *@
+                            @if (tile.W > 90 && tile.H > 30)
+                            {
+                                <g class="hotspots__labels">
+                                    <text class="hotspots__label" x="@F(tile.X + 6)" y="@F(tile.Y + 18)">@Clip(FileName(file.Path), tile.W)</text>
+                                    @if (tile.H > 48)
+                                    {
+                                        <g><text class="hotspots__sub" x="@F(tile.X + 6)" y="@F(tile.Y + 34)">@file.Commits× · @file.CodeLines.ToString("N0") lines</text></g>
+                                    }
+                                </g>
+                            }
+                        </a>
+                    }
+                </svg>
+
+                <div class="hotspots__legend">
+                    <span>Area = code lines</span>
+                    <span class="hotspots__scale" aria-hidden="true">
+                        @for (var i = 1; i <= 4; i++)
+                        {
+                            <span class="hotspots__swatch hotspots__heat-@i"></span>
+                        }
+                    </span>
+                    <span>Colour = commits in range (darker is more)</span>
+                </div>
+
+                @* The same ranking as text: readable by a screen reader, and on a phone, where the
+                   treemap's small tiles carry no labels. *@
+                <ol class="hotspots__list">
+                    @foreach (var file in _data.Files.Take(10))
+                    {
+                        <li>
+                            <a href="@BlobUrl(file.Path)" target="_blank" rel="noopener noreferrer" class="hotspots__path">@file.Path</a>
+                            <span class="hotspots__meta">@file.Commits commit@(file.Commits == 1 ? "" : "s") · @file.CodeLines.ToString("N0") lines · @file.LinesChanged.ToString("N0") changed</span>
+                        </li>
+                    }
+                </ol>
+                @if (_data.FilesChanged > _data.Files.Count)
+                {
+                    <p class="hotspots__note">Showing the top @_data.Files.Count of @_data.FilesChanged.ToString("N0") changed files.</p>
+                }
+            }
+        </ChildContent>
+    </ChartCard>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RepositoryId RepositoryId { get; set; }
+    [Parameter, EditorRequired] public string Owner { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public int Days { get; set; } = 180;
+
+    private const double Width = 1000;
+    private const double Height = 560;
+
+    private HotspotsDto? _data;
+    private List<Tile> _tiles = [];
+    private bool _loading = true;
+    private string? _error;
+    private int _loadedDays = -1;
+
+    private string Description => $"Large files changed most often in the last {Days} days";
+
+    private string EmptyText => _data is { HasClone: false }
+        ? "The server has no copy of this repository right now."
+        : $"No counted files changed in the last {Days} days.";
+
+    private string? EmptyHint => _data is { HasClone: false }
+        ? "Re-analyze to fetch it again; hotspots are read from the clone."
+        : "Pick a longer range above to look back further.";
+
+    protected override Task OnParametersSetAsync() => _loadedDays == Days ? Task.CompletedTask : LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loadedDays = Days;
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Http.GetAppJsonAsync($"/api/repositories/{RepositoryId}/hotspots/{Days}", AppJsonSerializerContext.Default.HotspotsDto);
+            _tiles = _data is null ? [] : Layout(_data.Files.Select(f => (double)f.CodeLines).ToList(), Width, Height);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Never analysed: the empty state, not an error with a Retry that cannot help.
+            _data = null;
+            _tiles = [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Hotspots unavailable for {RepositoryId}", RepositoryId);
+            _error = $"Could not load hotspots: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private int MaxCommits => _data?.Files.Count > 0 ? _data.Files.Max(f => f.Commits) : 1;
+
+    /// <summary>1–4, relative to the busiest file shown, so the scale always uses its full range.</summary>
+    private int Heat(int commits) => Math.Clamp((int)Math.Ceiling(4.0 * commits / Math.Max(1, MaxCommits)), 1, 4);
+
+    private string BlobUrl(string path) =>
+        $"https://github.com/{Owner}/{Name}/blob/{_data?.CommitSha}/{string.Join('/', path.Split('/').Select(Uri.EscapeDataString))}";
+
+    private static string FileName(string path) => path[(path.LastIndexOf('/') + 1)..];
+
+    /// <summary>About 7.5 viewBox units per character at the label's size; cut with an ellipsis rather than overflow the tile.</summary>
+    private static string Clip(string text, double tileWidth)
+    {
+        var fits = Math.Max(3, (int)((tileWidth - 12) / 7.5));
+        return text.Length <= fits ? text : text[..(fits - 1)] + "…";
+    }
+
+    private static string F(double value) => value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>One placed rectangle; <see cref="Index"/> points back into the input list.</summary>
+    public readonly record struct Tile(int Index, double X, double Y, double W, double H);
+
+    /// <summary>
+    /// Squarified treemap (Bruls, Huizing and van Wijk, 2000): fills the rectangle row by row,
+    /// adding a value to the current row only while that keeps the row's worst aspect ratio from
+    /// getting worse. Plain slice-and-dice is shorter but draws hair-thin slivers that cannot be
+    /// clicked or labelled. Expects values sorted largest first; zero or negative values get no tile.
+    /// </summary>
+    public static List<Tile> Layout(IReadOnlyList<double> values, double width, double height)
+    {
+        var tiles = new List<Tile>();
+        var total = values.Where(v => v > 0).Sum();
+        if (total <= 0 || width <= 0 || height <= 0) return tiles;
+
+        var scale = width * height / total;
+        var items = values.Select((v, i) => (Index: i, Area: v * scale)).Where(t => t.Area > 0).ToList();
+
+        double x = 0, y = 0, w = width, h = height;
+        var next = 0;
+        while (next < items.Count)
+        {
+            var side = Math.Min(w, h);
+            var row = new List<(int Index, double Area)> { items[next] };
+            var rowArea = items[next].Area;
+            next++;
+
+            while (next < items.Count
+                   && Worst(row.Append(items[next]), rowArea + items[next].Area, side) <= Worst(row, rowArea, side))
+            {
+                row.Add(items[next]);
+                rowArea += items[next].Area;
+                next++;
+            }
+
+            if (w >= h)
+            {
+                // The row stands as a column against the left edge.
+                var columnWidth = rowArea / h;
+                var cursor = y;
+                foreach (var (index, area) in row)
+                {
+                    tiles.Add(new Tile(index, x, cursor, columnWidth, area / columnWidth));
+                    cursor += area / columnWidth;
+                }
+                x += columnWidth;
+                w -= columnWidth;
+            }
+            else
+            {
+                var rowHeight = rowArea / w;
+                var cursor = x;
+                foreach (var (index, area) in row)
+                {
+                    tiles.Add(new Tile(index, cursor, y, area / rowHeight, rowHeight));
+                    cursor += area / rowHeight;
+                }
+                y += rowHeight;
+                h -= rowHeight;
+            }
+        }
+
+        return tiles;
+    }
+
+    /// <summary>The worst (largest) aspect ratio in a row laid along a side of the given length.</summary>
+    private static double Worst(IEnumerable<(int Index, double Area)> row, double rowArea, double side)
+    {
+        var areas = row.Select(r => r.Area).ToList();
+        var squaredSide = side * side;
+        var squaredSum = rowArea * rowArea;
+        return Math.Max(squaredSide * areas.Max() / squaredSum, squaredSum / (squaredSide * areas.Min()));
+    }
+}
