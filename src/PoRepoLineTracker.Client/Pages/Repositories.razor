@@ -140,7 +140,7 @@
                                  IsLoading="@(!_totalsLoaded)"
                                  ErrorMessage="@_historyError"
                                  OnRetry="@LoadLatestLineCounts"
-                                 Days="@ChartFormat.RangeDays(Days)"
+                                 Days="@ChartFormat.RangeDays(Days, ChartFormat.AllDays)"
                                  DaysChanged="@OnChartDaysChanged" />
     }
 
@@ -160,14 +160,17 @@
     /// <summary>Grid search text.</summary>
     [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
-    /// <summary>Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string.</summary>
+    /// <summary>
+    /// Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string. Opens on "All"
+    /// here (owner, 2026-10-24), the whole history being what the portfolio overview is for.
+    /// </summary>
     [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
 
     private void OnSearchChanged(string value) =>
         Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(value) ? null : value), replace: true);
 
     private void OnChartDaysChanged(int days) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days, ChartFormat.AllDays)), replace: true);
 
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;
@@ -423,13 +426,21 @@
 
                 Logger.LogInformation("Loaded latest line counts for {Count} repositories", _repoLatestLineCounts.Count);
 
-                // Sum every repo's per-day total into one portfolio series for the sparkline.
-                TotalLinesTrend = all
-                    .SelectMany(r => r.DailyLineCounts)
-                    .GroupBy(d => d.Date.Date)
-                    .OrderBy(g => g.Key)
-                    .Select(g => new DailyLineCountDto { Date = g.Key, TotalLines = g.Sum(d => d.TotalLines) })
+                // The portfolio's size on each of the last 60 days with a commit anywhere: every
+                // repository's newest snapshot at or before that day, carried forward. Summing only
+                // the repositories with a point on the day dropped every quiet one out of it, so the
+                // line plunged on any day a big repository did not commit.
+                var series = all.Select(r => r.DailyLineCounts.OrderBy(d => d.Date).ToList()).ToList();
+                TotalLinesTrend = series
+                    .SelectMany(s => s.Select(d => d.Date.Date))
+                    .Distinct()
+                    .Order()
                     .TakeLast(60)
+                    .Select(day => new DailyLineCountDto
+                    {
+                        Date = day,
+                        TotalLines = series.Sum(s => s.LastOrDefault(d => d.Date.Date <= day)?.TotalLines ?? 0)
+                    })
                     .ToList();
             }
         }

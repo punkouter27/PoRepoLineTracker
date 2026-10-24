@@ -1,9 +1,10 @@
 // Animated background: one fixed WebGL2 canvas behind the app shell.
 //
 // ON by default (the owner's choice; there is no settings switch). localStorage 'backdrop' = 'off'
-// — set by hand in devtools — is the only way to disable it. It does not start under
-// prefers-reduced-motion or without WebGL2 — the app's ordinary CSS background stays exactly as
-// it is, because the rules that let the canvas show through (app.css, `data-backdrop`) only apply
+// — set by hand in devtools — is the only way to disable it. Under prefers-reduced-motion it is
+// one still frame, redrawn only when the theme, the size or the mood changes, and no shockwave.
+// Without WebGL2 it does not start — the app's ordinary CSS background stays exactly as it is,
+// because the rules that let the canvas show through (app.css, `data-backdrop`) only apply
 // once a first frame has actually been drawn. Nothing here is required by anything else: every
 // entry point is wrapped, and a failure leaves the page as if this file had not loaded.
 //
@@ -16,7 +17,7 @@
 //     (fx.js, when an analysis finishes or a total crosses a milestone).
 (function () {
     var canvas = null, gl = null, uniforms = null, observer = null, timer = 0, frameRequest = 0, last = 0;
-    var mood = [0.3, 0.2], target = [0.3, 0.2], pulseStart = -1;
+    var mood = [0.3, 0.2], target = [0.3, 0.2], pulseStart = -1, still = false;
     var SCALE = 0.5, PULSE_MS = 1700;
 
     // One triangle covering the viewport, generated from gl_VertexID — no buffers to manage.
@@ -77,8 +78,10 @@
     function draw(now) {
         last = now;
         // Eased toward the target rather than jumped, so a new mood drifts in over a few seconds.
-        mood[0] += (target[0] - mood[0]) * 0.04;
-        mood[1] += (target[1] - mood[1]) * 0.04;
+        // A still frame has no next frame to drift over, so it takes the target at once.
+        var ease = still ? 1 : 0.04;
+        mood[0] += (target[0] - mood[0]) * ease;
+        mood[1] += (target[1] - mood[1]) * ease;
         gl.uniform2f(uniforms.mood, mood[0], mood[1]);
         gl.uniform1f(uniforms.time, now / 1000);
         var age = pulseStart < 0 ? -1 : (now - pulseStart) / 1000;
@@ -117,7 +120,9 @@
 
     function onVisibility() {
         halt();
-        if (!document.hidden) frame();
+        if (document.hidden) return;
+        if (still) draw(performance.now());
+        else frame();
     }
 
     function compile(type, source) {
@@ -149,9 +154,10 @@
         mood: function (energy, heat) {
             target = [Math.max(0, Math.min(1, +energy || 0)), Math.max(0, Math.min(1, +heat || 0))];
             try { localStorage.setItem('backdrop-mood', JSON.stringify(target)); } catch (e) { }
+            if (gl && still) draw(performance.now());
         },
         pulse: function (x, y) {
-            if (!gl || document.hidden) return;
+            if (!gl || still || document.hidden) return;
             pulse.x = x * SCALE;
             pulse.y = (window.innerHeight - y) * SCALE; // GL's y runs up
             pulseStart = performance.now();
@@ -163,7 +169,7 @@
     function start() {
         try {
             // index.html's global, defined by the inline boot script before this deferred file runs.
-            if (prefersReducedMotion()) return;
+            still = prefersReducedMotion();
             try {
                 var saved = JSON.parse(localStorage.getItem('backdrop-mood'));
                 if (saved && saved.length === 2) mood = target = [+saved[0] || 0, +saved[1] || 0];

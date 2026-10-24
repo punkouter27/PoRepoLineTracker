@@ -3,7 +3,11 @@ using PoRepoLineTracker.Shared.Domain;
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
-/// Everything the Insights dashboard renders, in one response.
+/// Everything the All Time Insights dashboard renders, in one response.
+///
+/// <para>The dashboard is lifetime throughout (owner, 2026-10-24): every figure it shows reads the
+/// whole history. The 30-day fields and <see cref="Movers"/> are not on that page; they feed the
+/// Repositories grid's 30-day columns and the backdrop's mood, which share this request.</para>
 ///
 /// <para><b>Why a dedicated shape rather than more of /allcharts.</b> The dashboard's figures are
 /// aggregates over every commit of every repository — streak lengths, movers, language mix. Doing
@@ -22,9 +26,16 @@ public sealed class PortfolioInsightsDto
     /// <summary>Sum of each repository's most recent total-lines snapshot.</summary>
     public int TotalLines { get; set; }
 
-    /// <summary>Change in <see cref="TotalLines"/> over the window. Negative when code shrank.</summary>
-    public int NetLines7Days { get; set; }
-    public int NetLines30Days { get; set; }
+    /// <summary>Every commit across the portfolio, and the lines they added and removed.</summary>
+    public int CommitsAllTime { get; set; }
+    public int LinesAddedAllTime { get; set; }
+    public int LinesRemovedAllTime { get; set; }
+
+    /// <summary>Days with at least one commit, ever.</summary>
+    public int ActiveDaysAllTime { get; set; }
+
+    /// <summary>UTC date of the portfolio's oldest commit; null before any analysis.</summary>
+    public DateTime? FirstCommitDate { get; set; }
 
     public int Commits30Days { get; set; }
     public int LinesAdded30Days { get; set; }
@@ -32,7 +43,7 @@ public sealed class PortfolioInsightsDto
     /// <summary>Consecutive days with at least one commit, counting back from the most recent activity.</summary>
     public int CurrentStreakDays { get; set; }
 
-    /// <summary>Longest such run anywhere in the last year.</summary>
+    /// <summary>Longest such run anywhere in the history.</summary>
     public int LongestStreakDays { get; set; }
 
     /// <summary>Days with at least one commit in the last 30.</summary>
@@ -45,11 +56,10 @@ public sealed class PortfolioInsightsDto
     public List<LanguageShareDto> LanguageMix { get; set; } = [];
 
     /// <summary>
-    /// How the language mix moved over the trailing year, ranked by the size of the move, gainers
-    /// first. Measured in SHARE, not lines: a share that grew while the language itself shrank means
-    /// everything else shrank faster, and a line-count delta cannot show that. Empty when the
-    /// portfolio did not exist a year ago — every extension would read "+100%", which is a fact
-    /// about the baseline rather than about the year.
+    /// How the language mix moved over the portfolio's lifetime: from each repository's first
+    /// analysed commit to its newest, ranked by the size of the move, gainers first. Measured in
+    /// SHARE, not lines: a share that grew while the language itself shrank means everything else
+    /// shrank faster, and a line-count delta cannot show that. Empty when no share moved.
     /// </summary>
     public List<LanguageDriftDto> LanguageDrift { get; set; } = [];
 
@@ -66,7 +76,8 @@ public sealed class PortfolioInsightsDto
     public List<ActivityDayDto> Activity { get; set; } = [];
 
     /// <summary>
-    /// Portfolio-wide total lines, sampled roughly monthly over the last year. Each point sums
+    /// Portfolio-wide total lines from the first commit to today, at most 36 evenly spaced points
+    /// (monthly for a history up to three years). Each point sums
     /// every repository's <see cref="RepositoryTotals.TotalLinesAsOf"/> at that date — the same
     /// "whole-repository snapshot" definition as <see cref="TotalLines"/>, never a sum of per-commit
     /// deltas.
@@ -74,9 +85,9 @@ public sealed class PortfolioInsightsDto
     public List<PortfolioTrendPointDto> TrendLine { get; set; } = [];
 
     /// <summary>
-    /// Recent commits that added far more lines than is normal for their repository — usually a
+    /// The largest commits ever that added far more lines than is normal for their repository — usually a
     /// vendored library, a generated file or a data dump that the ignore rules should cover.
-    /// Largest first; empty when nothing stands out.
+    /// Largest first, at most ten; empty when nothing stands out.
     /// </summary>
     public List<CommitOutlierDto> Outliers { get; set; } = [];
 }

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Features.CodeHealth;
 
-/// <summary>One repository's health month by month, over the trailing two years.</summary>
+/// <summary>One repository's health over its whole history (owner, 2026-10-24), month by month.</summary>
 public record GetCodeHealthTrendQuery(RepositoryId RepositoryId);
 
 /// <summary>
@@ -14,9 +14,10 @@ public record GetCodeHealthTrendQuery(RepositoryId RepositoryId);
 /// the score.</para>
 ///
 /// <para><b>Why this is affordable at all.</b> Every figure is a pure function of the commit's tree,
-/// so it is memoised per SHA and computed at most once ever. A first run pays for up to twenty-four
-/// snapshots; every run after that reads storage. Months resolving to a repeated commit are
-/// deduplicated before any work happens, so a quiet year costs one measurement, not twelve.</para>
+/// so it is memoised per SHA and computed at most once ever. A first run pays for at most
+/// <see cref="MaxPoints"/> snapshots (one a month for four years, then spread evenly over a longer
+/// history); every run after that reads storage. A month resolving to a commit already measured,
+/// in this run or an earlier one, reuses it, so a quiet year costs one measurement, not twelve.</para>
 ///
 /// <para><b>The memo is loaded in ONE query, before the loop.</b> Reading it per commit inside the
 /// loop is precisely the pattern that got <c>CommitExistsAsync</c> deleted — a point read per SHA
@@ -30,8 +31,11 @@ public sealed class GetCodeHealthTrendQueryHandler(
     ICodeHealthSnapshotStore snapshotStore,
     ILogger<GetCodeHealthTrendQueryHandler> logger)
 {
-    /// <summary>Two years: long enough to show a slow drift, bounded enough that a first run ends.</summary>
-    private const int MonthsBack = 24;
+    /// <summary>
+    /// Most points on the line. Monthly up to four years of history; beyond that the boundaries are
+    /// spread evenly, so a decade-old repository's first run measures 48 trees, not 120.
+    /// </summary>
+    internal const int MaxPoints = 48;
 
     public async Task<CodeHealthTrendDto?> Handle(GetCodeHealthTrendQuery request, CancellationToken cancellationToken = default)
     {
@@ -48,7 +52,7 @@ public sealed class GetCodeHealthTrendQueryHandler(
         // boundary, so there is nothing to plot — and that is NOT the same as having no commits.
         // Returning null here reported "no analysed commits yet" for a repository actively being
         // committed to, which is simply false. An empty series says "not enough history" instead.
-        var months = ResolveMonthlyCommits(commits);
+        var months = ResolveMonthlyCommits(commits, DateTime.UtcNow);
         if (months.Count == 0)
         {
             return new CodeHealthTrendDto
@@ -100,6 +104,10 @@ public sealed class GetCodeHealthTrendQueryHandler(
                 await snapshotStore.SaveAsync(entity);
                 computed++;
 
+                // So a later quiet month resolving to this same commit reads it rather than measuring
+                // the identical tree again; the memo was loaded before the loop and knew nothing of it.
+                memo[commit.CommitSha] = entity;
+
                 points.Add(ToPoint(month, entity));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -139,27 +147,37 @@ public sealed class GetCodeHealthTrendQueryHandler(
     }
 
     /// <summary>
-    /// One commit per month for the trailing window: the last one on or before each 1st.
+    /// The commit each plotted 1st of the month is measured at: the last one on or before it. The
+    /// boundaries run from the first 1st after the first commit to this month's; past
+    /// <see cref="MaxPoints"/> they are thinned evenly, always keeping the first and the newest.
     ///
-    /// <para>Walks the months against a commit list already sorted by date, rather than scanning the
-    /// whole history per month — the same reason the analysis handler pre-loads its SHA set instead
-    /// of asking storage per commit.</para>
+    /// <para>Walks the boundaries against a commit list already sorted by date, rather than scanning
+    /// the whole history per boundary — the same reason the analysis handler pre-loads its SHA set
+    /// instead of asking storage per commit. Months before the first commit never appear: the
+    /// repository did not exist, and a zero would read as a verdict.</para>
     /// </summary>
-    private static List<(DateTime Month, CommitLineCount Commit)> ResolveMonthlyCommits(
-        IReadOnlyList<CommitLineCount> ascendingByDate)
+    internal static List<(DateTime Month, CommitLineCount Commit)> ResolveMonthlyCommits(
+        IReadOnlyList<CommitLineCount> ascendingByDate, DateTime now)
     {
         var result = new List<(DateTime, CommitLineCount)>();
-        var today = DateTime.UtcNow;
-        var firstOfThisMonth = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        if (ascendingByDate.Count == 0) return result;
+
+        var first = ascendingByDate[0].CommitDate;
+        var firstBoundary = new DateTime(first.Year, first.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        if (firstBoundary < first) firstBoundary = firstBoundary.AddMonths(1);
+        var lastBoundary = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var monthCount = (lastBoundary.Year - firstBoundary.Year) * 12 + lastBoundary.Month - firstBoundary.Month + 1;
+        if (monthCount <= 0) return result;
+
+        var boundaries = monthCount <= MaxPoints
+            ? Enumerable.Range(0, monthCount)
+            : Enumerable.Range(0, MaxPoints).Select(i => (int)Math.Round((double)i * (monthCount - 1) / (MaxPoints - 1)));
 
         var index = 0;
         CommitLineCount? latestSoFar = null;
-        string? lastSha = null;
-
-        for (var back = MonthsBack - 1; back >= 0; back--)
+        foreach (var month in boundaries.Select(offset => firstBoundary.AddMonths(offset)))
         {
-            var month = firstOfThisMonth.AddMonths(-back);
-
             // Advance through the commits up to this boundary, keeping the last one seen.
             while (index < ascendingByDate.Count && ascendingByDate[index].CommitDate <= month)
             {
@@ -167,20 +185,7 @@ public sealed class GetCodeHealthTrendQueryHandler(
                 index++;
             }
 
-            // No commit yet: the repository did not exist at this boundary, so there is nothing to
-            // report and a zero would read as a verdict.
-            if (latestSoFar is null) continue;
-
-            // A quiet month resolves to the same commit as the previous one. Recording it again
-            // would measure identical bytes twice for one flat segment of the line.
-            if (lastSha == latestSoFar.CommitSha)
-            {
-                result.Add((month, latestSoFar));
-                continue;
-            }
-
-            lastSha = latestSoFar.CommitSha;
-            result.Add((month, latestSoFar));
+            if (latestSoFar is not null) result.Add((month, latestSoFar));
         }
 
         return result;

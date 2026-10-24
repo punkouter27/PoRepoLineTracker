@@ -6,7 +6,8 @@
    that moved, and crossing a power of ten from 1,000 up fires a milestone (js/fx.js).
 
    The first value an instance sees is simply shown: a tile appearing for the first time states its
-   number rather than rolling up to it. Reduced motion needs nothing here: app.css zeroes every
+   number rather than rolling up to it. RollIn is the exception, for a page whose entrance is the
+   point (Year in Review): the reels start at zero and roll up once painted. Reduced motion needs nothing here: app.css zeroes every
    transition, so the reels jump. The reels are aria-hidden and the plain value beside them is
    what a screen reader (and a copy) gets. *@
 <span class="odo @Class" @ref="_root">
@@ -35,8 +36,12 @@
     [Parameter] public string Format { get; set; } = "N0";
     [Parameter] public string? Class { get; set; }
 
+    /// <summary>Roll up from zero on first appearance instead of stating the value.</summary>
+    [Parameter] public bool RollIn { get; set; }
+
     private string _text = string.Empty;
     private int? _shown;
+    private bool _rollPending;
     private ElementReference _root;
 
     protected override async Task OnParametersSetAsync()
@@ -44,15 +49,34 @@
         var previous = _shown;
         var text = Value.ToString(Format);
         _shown = Value;
-        if (previous == Value && text == _text) return;
+        if (previous is null)
+        {
+            _rollPending = RollIn;
+            _text = RollIn ? new string(text.Select(c => char.IsAsciiDigit(c) ? '0' : c).ToArray()) : text;
+            return;
+        }
+
+        // Mid-roll-in the reels are about to land on the latest value anyway; no clicks for it.
+        if (_rollPending || text == _text) return;
 
         var changed = ChangedDigits(_text, text);
         _text = text;
-        if (previous is not { } old) return;
 
         // Decoration: an interop failure (prerendering, teardown) costs the click, nothing else.
-        try { await JS.InvokeVoidAsync("fx.odometer", _root, changed, CrossedMilestone(old, Value)); }
+        try { await JS.InvokeVoidAsync("fx.odometer", _root, changed, CrossedMilestone(previous.Value, Value)); }
         catch (Exception) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_rollPending) return;
+
+        // A beat for the zeros to paint first: a style set in the same frame an element appears in
+        // has nothing to transition from.
+        await Task.Delay(350);
+        _rollPending = false;
+        _text = Value.ToString(Format);
+        StateHasChanged();
     }
 
     /// <summary>Digits that differ between two renderings, compared from the right as the reels are keyed.</summary>

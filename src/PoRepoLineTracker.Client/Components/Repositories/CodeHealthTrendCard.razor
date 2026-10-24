@@ -6,11 +6,12 @@
 @using Radzen
 @using Radzen.Blazor
 
-@* The repository's health month by month.
+@* The repository's health over its whole history, month by month.
 
    Each point is measured at the last commit on or before that month's 1st — the state the code was
-   actually in that morning. Loaded on demand like the card above it: a first run measures up to
-   twenty-four commits, and every run after that is served from the per-commit memo in storage. *@
+   actually in that morning; past four years the months are thinned evenly. Loaded on demand like
+   the card above it: a first run measures up to 48 commits, and every run after that is served from
+   the per-commit memo in storage. *@
 
 @* Plain <div> root so this file's scoped rules have an element carrying the scope id. *@
 <div class="trend">
@@ -23,11 +24,11 @@
                     <RadzenText TextStyle="TextStyle.Caption" class="trend__sub">
                         @if (_trend is { Points.Count: > 0 } loaded)
                         {
-                            <span>@loaded.Points.Count months · measured at the last commit on or before each 1st</span>
+                            <span>Since @loaded.Points[0].Month.ToString("MMMM yyyy") · @loaded.Points.Count points, each measured at the last commit on or before a 1st</span>
                         }
                         else
                         {
-                            <span>Monthly score for the trailing two years</span>
+                            <span>Score over the repository's whole history</span>
                         }
                     </RadzenText>
                 </div>

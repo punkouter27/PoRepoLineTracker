@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inject HttpClient Http
 @inject ILogger<CodeHealth> Logger
+@implements IDisposable
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Shared.Domain
 @using PoRepoLineTracker.Client.Models
@@ -83,6 +84,40 @@
                                             <RadzenText TextStyle="TextStyle.Caption" class="ch-unmeasured-reason">@row.UnmeasuredReason</RadzenText>
                                         }
                                     </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            @* Each repository's score over its whole history (the same endpoint as the
+                               Health over time card), filled in row by row after the ranking lands. *@
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Title="All-time trend" Width="170px" Sortable="false">
+                                <Template Context="row">
+                                    @if (!row.Measured)
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                    else if (!_trends.TryGetValue(row.RepositoryId, out var trend))
+                                    {
+                                        <RadzenSkeleton Width="120px" Height="1.25rem" />
+                                    }
+                                    else if (trend is { Points.Count: > 1 } t)
+                                    {
+                                        var change = t.Points[^1].Score - t.Points[0].Score;
+                                        <div class="ch-trend" title="@($"{t.Points[0].Score} in {t.Points[0].Month:MMM yyyy}, {t.Points[^1].Score} now")">
+                                            <div class="ch-trend__spark app-spark">
+                                                @* The series is a child: RadzenSparkline is a chart, and
+                                                   Data/Property set on it are just HTML attributes. *@
+                                                <RadzenSparkline>
+                                                    <RadzenLineSeries Data="@t.Points" CategoryProperty="Month" ValueProperty="Score"
+                                                                      Stroke="var(--primary-color)" StrokeWidth="2" />
+                                                </RadzenSparkline>
+                                            </div>
+                                            <span class="@(change < 0 ? "ch-trend__delta ch-trend__delta--down" : "ch-trend__delta ch-trend__delta--up")">@(change > 0 ? "+" : "")@change</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted" title="Not enough history at a month boundary to draw a trend">—</span>
+                                    }
                                 </Template>
                             </RadzenDataGridColumn>
 
@@ -174,6 +209,10 @@
 
     private int _measuredCount => _rows?.Count(r => r.Measured) ?? 0;
 
+    /// <summary>Each measured row's all-time trend once it arrives; absent while loading, null when there is none.</summary>
+    private readonly Dictionary<RepositoryId, CodeHealthTrendDto?> _trends = new();
+    private CancellationTokenSource? _trendLoads;
+
     /// <summary>Empty-state copy: distinguishes "never fetched" from "fetched and genuinely empty".</summary>
     private string GridEmptyText => _rows is null
         ? "Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#, so it takes a few seconds per repository."
@@ -190,6 +229,7 @@
             _rows = await Http.GetFromJsonAsync(
                 "api/code-health",
                 AppJsonSerializerContext.Default.ListCodeHealthSummaryDto);
+            if (_rows is not null) _ = LoadTrendsAsync(_rows);
         }
         catch (Exception ex)
         {
@@ -202,6 +242,53 @@
             _isLoading = false;
         }
     }
+
+    /// <summary>
+    /// The trend column, three repositories at a time: a first run measures each repository's
+    /// history on the server (memoised per commit afterwards), and a portfolio's worth at once
+    /// would queue every clone walk behind the others. A re-run or leaving the page cancels it.
+    /// </summary>
+    private async Task LoadTrendsAsync(List<CodeHealthSummaryDto> rows)
+    {
+        _trendLoads?.Cancel();
+        _trendLoads = new CancellationTokenSource();
+        var token = _trendLoads.Token;
+        _trends.Clear();
+
+        using var gate = new SemaphoreSlim(3);
+        await Task.WhenAll(rows.Where(r => r.Measured).Select(async row =>
+        {
+            CodeHealthTrendDto? trend = null;
+            try
+            {
+                await gate.WaitAsync(token);
+                try
+                {
+                    trend = await Http.GetFromJsonAsync($"api/code-health/{row.RepositoryId}/trend",
+                        AppJsonSerializerContext.Default.CodeHealthTrendDto, token);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // A 404 (no analysed commits) or a failed walk: the cell reads "—", not an error.
+                Logger.LogWarning(ex, "No health trend for {RepositoryId}", row.RepositoryId);
+            }
+
+            if (token.IsCancellationRequested) return;
+            _trends[row.RepositoryId] = trend;
+            StateHasChanged();
+        }));
+    }
+
+    public void Dispose() => _trendLoads?.Cancel();
 
     private static BadgeStyle HealthBadgeStyle(int score) => score switch
     {

@@ -13,9 +13,13 @@
 
 <PageTitle>Year in Review @(_data?.Year) · PoRepoLineTracker</PageTitle>
 
-@* A year across every tracked repository, told one figure at a time, ending on a card that can be
-   saved as a PNG. All figures come from one GET (/api/insights/year/{year}); the slides are just
-   different views of that payload. *@
+@* A year across every tracked repository on one screen: a hero banner with the headline number
+   over a 3D city of the year (js/city.js), a bento grid of the other figures, and the card that
+   saves as a PNG. All figures come from one GET (/api/insights/year/{year}).
+
+   It used to be a carousel, one figure per slide; seeing them side by side is the point of a
+   recap, so every figure is now a tile. Hovering a tile flies the city's camera to the day or
+   month it is about. *@
 <div class="app-stack yir">
     <PageHero>
         <Heading>
@@ -28,7 +32,7 @@
                     }
                     else
                     {
-                        <span>A year of commits, one figure at a time</span>
+                        <span>Your year of commits on one page</span>
                     }
                 </RadzenText>
             </RadzenStack>
@@ -61,65 +65,38 @@
     }
     else
     {
-        var slide = _slides[_index];
-
-        @* The stage takes the arrow keys once focused; the buttons below do the same for pointer
-           and screen-reader users, and the live region announces each new figure. *@
-        <div class="yir-stage" @ref="_stage" tabindex="0" @onkeydown="OnKeyDown" aria-roledescription="carousel" aria-label="Year in review slides">
-            @* The year as a 3D city behind the slides (js/city.js). Outside the keyed slide, so it
-               survives slide changes; the camera flies to whatever each slide is about. *@
+        @* Keyed by year so a new year re-runs the entrance, the roll-up and the city. *@
+        <section class="yir-hero u-enter" @key="_data.Year" @ref="_hero" aria-label="@($"{_data.Year} headline")">
             <canvas @ref="_cityCanvas" class="yir-city" aria-hidden="true"></canvas>
-            <div class="yir-slide u-enter" @key="_index" aria-live="polite">
-                @if (slide.IsSummary)
+            <div class="yir-hero__text">
+                <p class="yir-kicker">@_data.Year in code</p>
+                <p class="yir-headline"><AnimatedNumber Value="@_data.Commits" RollIn="true" /> commits</p>
+                <p class="yir-caption">
+                    across @_data.RepositoriesTouched repositor@(_data.RepositoriesTouched == 1 ? "y" : "ies") on @_data.ActiveDays different days
+                </p>
+                @if (_narrative is not null)
                 {
-                    <div class="yir-summary">
-                        @* Foil that tilts toward the pointer (.u-holo). On a wrapper, so the exported
-                           PNG is the plain card. *@
-                        <div class="yir-holo u-holo">
-                            <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
-                                 aria-label="@($"{_data.Year} summary card")">
-                                @* Plain hex colours and system fonts, not theme tokens: this SVG is also
-                                   exported as a standalone image, where the page's CSS does not exist. *@
-                                <defs>
-                                    <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
-                                        <stop offset="0" stop-color="#4c1d95" />
-                                        <stop offset="0.55" stop-color="#6750a4" />
-                                        <stop offset="1" stop-color="#c02d76" />
-                                    </linearGradient>
-                                </defs>
-                                <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
-                                <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
-                                    <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
-                                    <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
-                                    @{ var stats = SummaryStats(); }
-                                    @for (var i = 0; i < stats.Count; i++)
-                                    {
-                                        var (label, value) = stats[i];
-                                        var x = 72 + (i % 3) * 360;
-                                        var y = 330 + (i / 3) * 130;
-                                        <g>
-                                            <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
-                                            <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
-                                        </g>
-                                    }
-                                    <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
-                                </g>
-                            </svg>
-                        </div>
-                        @if (_narrative is not null)
-                        {
-                            <p class="yir-narrative">@_narrative</p>
-                        }
-                        <RadzenButton Text="Download PNG" Icon="download" Click="@DownloadCardAsync" class="yir-download" />
-                    </div>
+                    <p class="yir-narrative">@_narrative</p>
                 }
-                else
-                {
-                    <RadzenIcon Icon="@slide.Icon" class="yir-icon" />
-                    <p class="yir-kicker">@slide.Kicker</p>
-                    <p class="yir-value">@slide.Value</p>
-                    <p class="yir-caption">@slide.Caption</p>
-                    @if (slide.ShowMonths)
+            </div>
+        </section>
+
+        <div class="yir-bento" @key="(_data.Year, 1)">
+            @for (var i = 0; i < _tiles.Count; i++)
+            {
+                var tile = _tiles[i];
+                var index = i;
+                <article class="@($"yir-tile u-glass u-enter {tile.Css}")" style="--i:@(i + 1)"
+                         @onmouseenter="@(() => FocusCityAsync(tile.FocusDay, index + 1))"
+                         @onmouseleave="@(() => FocusCityAsync(-1, 0))">
+                    <header class="yir-tile__head">
+                        <RadzenIcon Icon="@tile.Icon" class="yir-tile__icon" />
+                        <span class="yir-tile__kicker">@tile.Kicker</span>
+                    </header>
+                    @* On one line: whitespace between the parts would print as a gap ("+ 17,834"). *@
+                    <p class="yir-tile__value">@if (tile.Flame) {<span class="u-flame" style="--flame:@ChartFormat.StreakFlame(_data.LongestStreakDays)" aria-hidden="true"></span>}<span>@tile.Prefix</span>@if (tile.Number is { } number) {<AnimatedNumber Value="@number" RollIn="true" />}<span>@tile.Text</span></p>
+                    <p class="yir-tile__caption">@tile.Caption</p>
+                    @if (tile.ShowMonths)
                     {
                         <svg class="yir-months" viewBox="0 0 360 120" role="img" aria-label="Commits per month">
                             @{ var max = Math.Max(1, _data.MonthlyCommits.Max()); }
@@ -137,24 +114,45 @@
                             }
                         </svg>
                     }
-                }
-            </div>
+                </article>
+            }
         </div>
 
-        <div class="yir-controls">
-            <RadzenButton Icon="chevron_left" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => Go(-1))"
-                          Disabled="@(_index == 0)" aria-label="Previous slide" />
-            <div class="yir-dots">
-                @for (var i = 0; i < _slides.Count; i++)
-                {
-                    var target = i;
-                    <button type="button" class="@(i == _index ? "yir-dot yir-dot--on" : "yir-dot")" @onclick="@(() => _index = target)"
-                            aria-label="@($"Slide {i + 1} of {_slides.Count}: {_slides[i].Kicker}")" aria-current="@(i == _index ? "step" : null)"></button>
-                }
+        <section class="yir-summary" aria-label="Shareable card">
+            @* Foil that tilts toward the pointer (.u-holo). On a wrapper, so the exported PNG is the plain card. *@
+            <div class="yir-holo u-holo">
+                <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
+                     aria-label="@($"{_data.Year} summary card")">
+                    @* Plain hex colours and system fonts, not theme tokens: this SVG is also
+                       exported as a standalone image, where the page's CSS does not exist. *@
+                    <defs>
+                        <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#4c1d95" />
+                            <stop offset="0.55" stop-color="#6750a4" />
+                            <stop offset="1" stop-color="#c02d76" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
+                    <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
+                        <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
+                        <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
+                        @{ var stats = SummaryStats(); }
+                        @for (var i = 0; i < stats.Count; i++)
+                        {
+                            var (label, value) = stats[i];
+                            var x = 72 + (i % 3) * 360;
+                            var y = 330 + (i / 3) * 130;
+                            <g>
+                                <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
+                                <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
+                            </g>
+                        }
+                        <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
+                    </g>
+                </svg>
             </div>
-            <RadzenButton Icon="chevron_right" Variant="Variant.Outlined" Size="ButtonSize.Small" Click="@(() => Go(1))"
-                          Disabled="@(_index == _slides.Count - 1)" aria-label="Next slide" />
-        </div>
+            <RadzenButton Text="Download PNG" Icon="download" Click="@DownloadCardAsync" class="yir-download" />
+        </section>
     }
 </div>
 
@@ -162,23 +160,27 @@
     [Parameter] public int? Year { get; set; }
 
     private YearInReviewDto? _data;
-    private List<Slide> _slides = [];
-    private int _index;
+    private List<Tile> _tiles = [];
     private bool _loading = true;
     private string? _error;
     private string? _narrative;
     private int _offsetMinutes;
     private int? _loadedYear;
     private ElementReference _card;
-    private ElementReference _stage;
+    private ElementReference _hero;
     private ElementReference _cityCanvas;
     private IJSObjectReference? _cityModule;
     private IJSObjectReference? _city;
     private string? _cityCanvasId;
-    private int _shownIndex = -1;
 
-    /// <param name="FocusDay">0-based day of the year the city's camera flies to, or -1 for the slide's own framing.</param>
-    private sealed record Slide(string Kicker, string Value, string Caption, string Icon, bool ShowMonths = false, bool IsSummary = false, int FocusDay = -1);
+    /// <summary>
+    /// One figure. <see cref="Number"/> rolls up on an odometer, between <see cref="Prefix"/> and
+    /// <see cref="Text"/>; figures that are not counts (a month, a name) are all <see cref="Text"/>.
+    /// </summary>
+    /// <param name="FocusDay">0-based day of the year the city's camera flies to on hover, or -1 for a framing of its own.</param>
+    /// <param name="Css">Size in the bento grid: <c>yir-tile--wide</c>, <c>yir-tile--feature</c> or none.</param>
+    private sealed record Tile(string Kicker, string Icon, string Caption, int? Number = null, string Prefix = "", string Text = "",
+        int FocusDay = -1, string Css = "", bool ShowMonths = false, bool Flame = false);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -205,8 +207,7 @@
         try
         {
             _data = await Http.GetAppJsonAsync($"/api/insights/year/{_loadedYear}?offset={_offsetMinutes}", AppJsonSerializerContext.Default.YearInReviewDto);
-            _slides = _data is { HasActivity: true } ? BuildSlides(_data) : [];
-            _index = 0;
+            _tiles = _data is { HasActivity: true } ? BuildTiles(_data) : [];
         }
         catch (Exception ex)
         {
@@ -218,7 +219,7 @@
             _loading = false;
         }
 
-        // Decoration on the last slide; the page is complete without it, so not awaited before render.
+        // Decoration under the headline; the page is complete without it, so not awaited before render.
         if (_data is { HasActivity: true })
             _ = LoadNarrativeAsync(_data.Year);
     }
@@ -231,33 +232,50 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private static List<Slide> BuildSlides(YearInReviewDto d)
+    // The grid is four columns: wide tiles take two, the feature tile (the month chart) two by
+    // two, and `dense` packing fills single tiles around it. In this order a year with every
+    // optional figure fills four full rows; a missing one leaves a gap only on the last.
+    private static List<Tile> BuildTiles(YearInReviewDto d)
     {
-        var slides = new List<Slide>
+        var tiles = new List<Tile>
         {
-            new($"{d.Year} in code", $"{d.Commits:N0} commits",
-                $"across {d.RepositoriesTouched} repositor{(d.RepositoriesTouched == 1 ? "y" : "ies")} on {d.ActiveDays} different days", "commit"),
-            new("Lines written", $"+{d.LinesAdded:N0}",
-                $"and {d.LinesRemoved:N0} removed. The portfolio went from {d.PortfolioLinesStart:N0} to {d.PortfolioLinesEnd:N0} lines.", "edit_note"),
-            new("Longest streak", $"{d.LongestStreakDays} day{(d.LongestStreakDays == 1 ? "" : "s")}",
-                "in a row with at least one commit", "local_fire_department"),
-            new("Busiest month", MonthName(d.BusiestMonth, full: true),
-                $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits", "calendar_month", ShowMonths: true,
-                FocusDay: new DateTime(d.Year, d.BusiestMonth, 15).DayOfYear - 1),
-            new(d.PeakHour is >= 21 or < 5 ? "Night owl" : d.PeakHour < 9 ? "Early bird" : "Peak hour", HourLabel(d.PeakHour),
-                $"was your most common commit hour, and {CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)d.PeakWeekday)}s your busiest day", "schedule"),
+            new("Lines written", "edit_note",
+                $"about {d.LinesAdded / Math.Max(1, d.ActiveDays):N0} a day on the days you committed",
+                Number: d.LinesAdded, Prefix: "+", Css: "yir-tile--wide"),
+            new("Lines removed", "content_cut", $"net {d.LinesAdded - d.LinesRemoved:+#,0;-#,0;0} lines",
+                Number: d.LinesRemoved, Prefix: d.LinesRemoved > 0 ? "−" : ""),
+            new("Active days", "event_available", $"{100.0 * d.ActiveDays / d.DailyCommits.Count:0}% of the year had a commit",
+                Number: d.ActiveDays),
+            new("Busiest month", "calendar_month", $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits",
+                Text: MonthName(d.BusiestMonth, full: true), FocusDay: new DateTime(d.Year, d.BusiestMonth, 15).DayOfYear - 1,
+                Css: "yir-tile--feature", ShowMonths: true),
+            new("Longest streak", "local_fire_department", "in a row with at least one commit",
+                Number: d.LongestStreakDays, Text: d.LongestStreakDays == 1 ? " day" : " days", Flame: d.LongestStreakDays > 0),
+            new(d.PeakHour is >= 21 or < 5 ? "Night owl" : d.PeakHour < 9 ? "Early bird" : "Peak hour", "schedule",
+                $"your most common commit hour; {CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)d.PeakWeekday)}s were busiest",
+                Text: HourLabel(d.PeakHour)),
         };
 
         if (d.BiggestDay is { } day)
-            slides.Add(new("Biggest day", day.ToString("MMMM d", CultureInfo.CurrentCulture), $"+{d.BiggestDayLinesAdded:N0} lines added in a single day", "bolt",
-                FocusDay: day.DayOfYear - 1));
+            tiles.Add(new("Biggest day", "bolt", $"+{d.BiggestDayLinesAdded:N0} lines added in a single day",
+                Text: day.ToString("MMMM d", CultureInfo.CurrentCulture), FocusDay: day.DayOfYear - 1));
         if (d.TopRepository is not null)
-            slides.Add(new("Most active repository", d.TopRepository, $"{d.TopRepositoryCommits:N0} commits", "star"));
-        if (d.TopGrowingExtension is not null)
-            slides.Add(new("On the rise", d.TopGrowingExtension, $"grew by {d.TopGrowingSharePoints:0.#} points of your portfolio's share", "trending_up"));
+            tiles.Add(new("Most active repository", "star", $"{d.TopRepositoryCommits:N0} commits", Text: d.TopRepository));
 
-        slides.Add(new("Your year", string.Empty, string.Empty, "auto_awesome", IsSummary: true));
-        return slides;
+        // Snapshots at the year's two ends (RepositoryTotals), so a portfolio can shrink.
+        var growth = d.PortfolioLinesEnd - d.PortfolioLinesStart;
+        tiles.Add(new("Portfolio growth", "stacked_line_chart",
+            d.PortfolioLinesStart > 0
+                ? $"from {d.PortfolioLinesStart:N0} to {d.PortfolioLinesEnd:N0} lines ({100.0 * growth / d.PortfolioLinesStart:+0;-0;0}%)"
+                : $"to {d.PortfolioLinesEnd:N0} lines",
+            Number: Math.Abs(growth), Prefix: growth < 0 ? "−" : "+", Css: "yir-tile--wide"));
+        tiles.Add(new("Repositories touched", "folder_copy", "had at least one commit this year", Number: d.RepositoriesTouched));
+
+        if (d.TopGrowingExtension is not null)
+            tiles.Add(new("On the rise", "trending_up", $"grew by {d.TopGrowingSharePoints:0.#} points of your portfolio's share",
+                Text: d.TopGrowingExtension));
+
+        return tiles;
     }
 
     private List<(string Label, string Value)> SummaryStats() =>
@@ -272,38 +290,46 @@
 
     /// <summary>
     /// The effects, all decoration: a failure (no WebGL2, an import the network refused, teardown)
-    /// leaves the slides exactly as they are. The city is mounted once per canvas element, which
-    /// Blazor replaces whenever the stage re-renders after a load, and it releases its own GL
-    /// context when that canvas leaves the page.
+    /// leaves the page exactly as it is. The city is mounted once per canvas element, which Blazor
+    /// replaces when the year changes, and it releases its own GL context when that canvas leaves
+    /// the page. Each new year celebrates once, after the tiles have cascaded in.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_loading || _data is not { HasActivity: true } || _slides.Count == 0) return;
+        if (_loading || _data is not { HasActivity: true }) return;
         try
         {
-            if (_cityCanvasId != _cityCanvas.Id)
-            {
-                _cityCanvasId = _cityCanvas.Id;
-                _shownIndex = -1;
-                _cityModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/city.js");
-                if (_city is not null) await _city.DisposeAsync();
-                _city = await _cityModule.InvokeAsync<IJSObjectReference>("mount", _cityCanvas, string.Join(',', _data.DailyCommits), _data.Year);
-            }
-
-            if (_shownIndex == _index || _city is null) return;
-            _shownIndex = _index;
-            var slide = _slides[_index];
-            await _city.InvokeVoidAsync("focus", slide.FocusDay, _index);
-            if (slide.IsSummary)
-            {
-                await JS.InvokeVoidAsync("fx.fireworks", _stage);
-                await JS.InvokeVoidAsync("fx.yearChord", string.Join(',', _data.MonthlyCommits));
-            }
+            if (_cityCanvasId == _cityCanvas.Id) return;
+            _cityCanvasId = _cityCanvas.Id;
+            _cityModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/city.js");
+            if (_city is not null) await _city.DisposeAsync();
+            _city = await _cityModule.InvokeAsync<IJSObjectReference>("mount", _cityCanvas, string.Join(',', _data.DailyCommits), _data.Year);
+            _ = CelebrateAsync(_data.Year);
         }
         catch (Exception ex)
         {
             Logger.LogDebug(ex, "Year in review effects unavailable");
         }
+    }
+
+    private async Task CelebrateAsync(int year)
+    {
+        await Task.Delay(1600);
+        if (_data?.Year != year || _city is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("fx.fireworks", _hero);
+            await JS.InvokeVoidAsync("fx.yearChord", string.Join(',', _data.MonthlyCommits));
+        }
+        catch (Exception) { }
+    }
+
+    /// <param name="framing">Which of the city's camera framings to use when there is no day to fly to.</param>
+    private async Task FocusCityAsync(int day, int framing)
+    {
+        if (_city is null) return;
+        try { await _city.InvokeVoidAsync("focus", day, framing); }
+        catch (Exception) { }
     }
 
     public async ValueTask DisposeAsync()
@@ -321,14 +347,6 @@
         {
             // JSDisconnectedException on teardown; the city disposes itself once its canvas is gone.
         }
-    }
-
-    private void Go(int step) => _index = Math.Clamp(_index + step, 0, _slides.Count - 1);
-
-    private void OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "ArrowRight") Go(1);
-        else if (e.Key == "ArrowLeft") Go(-1);
     }
 
     private void OnYearChanged(int year) => Navigation.NavigateTo($"/year-in-review/{year}");

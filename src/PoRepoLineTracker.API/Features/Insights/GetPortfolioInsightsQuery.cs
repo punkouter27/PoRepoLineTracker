@@ -3,7 +3,9 @@ using Microsoft.Extensions.Logging;
 namespace PoRepoLineTracker.API.Features.Insights;
 
 /// <summary>
-/// Aggregates every tracked repository into the single figure set the Insights dashboard renders.
+/// Aggregates every tracked repository into the single figure set the All Time Insights dashboard
+/// renders. Everything that page shows reads the whole history; the 30-day figures and the movers
+/// are for the Repositories grid, which asks the same endpoint.
 /// </summary>
 public record GetPortfolioInsightsQuery(UserId UserId);
 
@@ -11,18 +13,23 @@ public sealed class GetPortfolioInsightsQueryHandler(
     IRepositoryDataService repositoryDataService,
     ILogger<GetPortfolioInsightsQueryHandler> logger)
 {
-    /// <summary>Span of the activity heatmap, and the window the streak figures search.</summary>
+    /// <summary>The least the activity heatmap shows: a younger portfolio still gets a year of cells.</summary>
     private const int ActivityWindowDays = 365;
 
-    /// <summary>Window for the "recently" figures — movers, commit count.</summary>
+    /// <summary>Window for the Repositories grid's "recently" figures — movers, commit count.</summary>
     private const int RecentWindowDays = 30;
 
     /// <summary>Extensions shown individually in the language mix; the rest fold into "Other".</summary>
     private const int LanguageMixSize = 8;
 
-    /// <summary>Points on the portfolio growth trend line, spaced <see cref="TrendStepDays"/> apart, newest last.</summary>
-    private const int TrendPointCount = 12;
-    private const int TrendStepDays = 30;
+    /// <summary>
+    /// Most points on the lifetime growth line: one a month for a history up to three years, then
+    /// spread evenly. Each point is a snapshot lookup per repository, so the cap bounds the cost.
+    /// </summary>
+    private const int MaxTrendPoints = 36;
+
+    /// <summary>The largest outliers ever, across every repository.</summary>
+    private const int OutlierCount = 10;
 
     /// <summary>Weeks of commit cadence kept per repository for the ranking table's sparkline.</summary>
     private const int SparklineWeeks = 12;
@@ -33,7 +40,7 @@ public sealed class GetPortfolioInsightsQueryHandler(
     /// <summary>
     /// Below this many lines at BOTH endpoints, an extension is left out of the drift ranking.
     /// A file type that went from 3 lines to 9 has tripled and tops the ranking on any relative
-    /// measure, while saying nothing about how the year was spent.
+    /// measure, while saying nothing about how the time was spent.
     /// </summary>
     private const int DriftMinimumLines = 100;
 
@@ -61,23 +68,26 @@ public sealed class GetPortfolioInsightsQueryHandler(
         var recentCutoff = today.AddDays(-RecentWindowDays);
         var activityCutoff = today.AddDays(-(ActivityWindowDays - 1));
 
-        // Newest last, so the trend chart and every sparkline read left-to-right as time passing.
-        var trendDates = Enumerable.Range(0, TrendPointCount)
-            .Select(i => today.AddDays(-TrendStepDays * (TrendPointCount - 1 - i)))
-            .ToList();
-        var trendTotals = new long[TrendPointCount];
+        var analysed = commitsPerRepo.Where(p => p.Commits.Count > 0).ToList();
+        var firstCommitDay = analysed.Count > 0 ? analysed.Min(p => p.Commits[0].CommitDate.Date) : today;
+        if (analysed.Count > 0) insights.FirstCommitDate = firstCommitDay;
+
+        // Oldest first, so the trend chart and every sparkline read left-to-right as time passing.
+        var trendDates = TrendDates(firstCommitDay, today);
+        var trendTotals = new long[trendDates.Count];
 
         var movers = new List<RepositoryMovementDto>();
+        var outliers = new List<CommitOutlierDto>();
         var languageTotals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
-        // The drift baseline: the same portfolio measured a year ago. Trailing, like every other
-        // window on this page — a calendar-year edge would give one card on the dashboard a
-        // different notion of "the last year" from the twelve figures around it.
+        // The drift baseline: each repository as its first analysed commit found it. Summed, that is
+        // the portfolio as it started, so the card reads "since the beginning" like the rest of the
+        // page; a repository added years after another still contributes its own starting mix.
         var languageBaseline = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
         var commitsByDay = new Dictionary<DateTime, (int Commits, int LinesAdded)>();
 
-        long recentLinesAdded = 0;
+        long recentLinesAdded = 0, linesAdded = 0, linesRemoved = 0;
         int recentCommits = 0;
 
         foreach (var (repo, commits) in commitsPerRepo)
@@ -92,26 +102,23 @@ public sealed class GetPortfolioInsightsQueryHandler(
             var latest = commits[^1];
             var latestTotal = RepositoryTotals.LatestTotalLines(commits);
             var baseline30 = RepositoryTotals.TotalLinesAsOf(commits, recentCutoff);
-            var baseline7 = RepositoryTotals.TotalLinesAsOf(commits, today.AddDays(-7));
 
             insights.TotalLines += latestTotal;
-            insights.NetLines30Days += latestTotal - baseline30;
-            insights.NetLines7Days += latestTotal - baseline7;
+            insights.CommitsAllTime += commits.Count;
+            linesAdded += commits.Sum(c => (long)c.LinesAdded);
+            linesRemoved += commits.Sum(c => (long)c.LinesRemoved);
 
-            for (var i = 0; i < TrendPointCount; i++)
+            for (var i = 0; i < trendDates.Count; i++)
                 trendTotals[i] += RepositoryTotals.TotalLinesAsOf(commits, trendDates[i]);
 
             foreach (var (extension, lines) in latest.LinesByFileType)
                 languageTotals[extension] = languageTotals.GetValueOrDefault(extension) + lines;
 
-            // LinesByFileTypeAsOf, not a sum of per-commit deltas: the per-extension breakdown on a
-            // commit is a whole-repository snapshot, so the value a year ago is the newest snapshot
-            // at or before that date. A repository with no commit that old contributes nothing,
-            // which is correct — it had no lines to have drifted from.
-            foreach (var (extension, lines) in RepositoryTotals.LinesByFileTypeAsOf(commits, activityCutoff))
+            // The oldest commit's breakdown, a whole-repository snapshot like the newest's.
+            foreach (var (extension, lines) in commits[0].LinesByFileType)
                 languageBaseline[extension] = languageBaseline.GetValueOrDefault(extension) + lines;
 
-            insights.Outliers.AddRange(CommitOutliers.Find(repo, commits, recentCutoff));
+            outliers.AddRange(CommitOutliers.Find(repo, commits, DateTime.MinValue));
 
             var recent = commits.Where(c => c.CommitDate >= recentCutoff).ToList();
             recentCommits += recent.Count;
@@ -128,8 +135,7 @@ public sealed class GetPortfolioInsightsQueryHandler(
                 WeeklyCommits = WeeklyCadence(commits, today)
             });
 
-            // Every commit, not just the last year's: the heatmap's "All" range draws the whole
-            // history. The streak figures below still read only the year (see activeDates).
+            // Every commit: the heatmap and the streaks read the whole history.
             foreach (var commit in commits)
             {
                 var day = commit.CommitDate.Date;
@@ -140,6 +146,9 @@ public sealed class GetPortfolioInsightsQueryHandler(
 
         insights.Commits30Days = recentCommits;
         insights.LinesAdded30Days = (int)Math.Min(recentLinesAdded, int.MaxValue);
+        insights.LinesAddedAllTime = (int)Math.Min(linesAdded, int.MaxValue);
+        insights.LinesRemovedAllTime = (int)Math.Min(linesRemoved, int.MaxValue);
+        insights.Outliers = outliers.OrderByDescending(o => o.LinesAdded).Take(OutlierCount).ToList();
 
         insights.Movers = movers.OrderByDescending(m => m.NetChange30Days).ToList();
         insights.LanguageMix = BuildLanguageMix(languageTotals);
@@ -150,7 +159,6 @@ public sealed class GetPortfolioInsightsQueryHandler(
         // year is the least the heatmap has always shown. ponytail: capped at ten years so one
         // commit with a bogus 1970 author date cannot produce twenty thousand empty cells; raise
         // the cap if a portfolio really is older.
-        var firstCommitDay = commitsByDay.Count > 0 ? commitsByDay.Keys.Min() : activityCutoff;
         var activityStart = new[] { activityCutoff, firstCommitDay }.Min();
         if (activityStart < today.AddYears(-10)) activityStart = today.AddYears(-10);
         insights.Activity = BuildActivity(commitsByDay, activityStart, today);
@@ -158,7 +166,8 @@ public sealed class GetPortfolioInsightsQueryHandler(
             .Select((date, i) => new PortfolioTrendPointDto { Date = date, TotalLines = (int)Math.Min(trendTotals[i], int.MaxValue) })
             .ToList();
 
-        var activeDates = commitsByDay.Keys.Where(d => d >= activityCutoff).ToHashSet();
+        var activeDates = commitsByDay.Keys.ToHashSet();
+        insights.ActiveDaysAllTime = activeDates.Count;
         insights.ActiveDays30 = activeDates.Count(d => d >= recentCutoff);
         insights.CurrentStreakDays = CommitStreaks.Current(activeDates, today);
         insights.LongestStreakDays = CommitStreaks.Longest(activeDates);
@@ -168,6 +177,23 @@ public sealed class GetPortfolioInsightsQueryHandler(
             request.UserId, insights.RepositoryCount, insights.TotalLines, insights.Commits30Days, RecentWindowDays);
 
         return insights;
+    }
+
+    /// <summary>
+    /// Sample dates for the lifetime growth line, oldest first and ending today: one a month from
+    /// the first commit, or <see cref="MaxTrendPoints"/> spread evenly over a longer history. A
+    /// history shorter than a day is the single point today.
+    /// </summary>
+    internal static List<DateTime> TrendDates(DateTime first, DateTime today)
+    {
+        var span = (today - first).TotalDays;
+        if (span < 1) return [today];
+
+        var months = (today.Year - first.Year) * 12 + today.Month - first.Month;
+        var points = Math.Clamp(months + 1, 2, MaxTrendPoints);
+        return Enumerable.Range(0, points)
+            .Select(i => first.AddDays(Math.Round(span * i / (points - 1))))
+            .ToList();
     }
 
     /// <summary>

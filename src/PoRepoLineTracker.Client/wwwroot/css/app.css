@@ -337,7 +337,7 @@ html, body {
    z-index -1 puts the canvas above <html>'s own background and below everything in flow, so no
    stacking context in the shell has to change for it. The surfaces between it and the viewport
    are opaque, though, so they step aside — but only under `data-backdrop`, which the script sets
-   after it has drawn a frame: with WebGL2 missing or reduced motion asked for, nothing here
+   after it has drawn a frame (a still one under reduced motion): with WebGL2 missing, nothing here
    applies and the page is the one it always was. The sidebar, header and cards keep their own
    backgrounds; only the content well shows it. */
 #backdrop {
@@ -792,7 +792,7 @@ a:focus-visible {
    too, and Tab moved through the nav with nothing showing where it was. */
 .app-nav__link:focus:not(:focus-visible) { outline: none; }
 
-/* The two-word labels (Global Insights, Code Health) used to wrap onto two lines in a 220px
+/* The multi-word labels (All Time Insights, Code Health) used to wrap onto two lines in a 220px
    sidebar with the original 0.75rem side margin + 20pxpx icon padding. Holding the row to one
    line and tightening the horizontal chrome keeps them readable; this text block is the
    spare capacity once the row is single-line. */
@@ -1097,6 +1097,17 @@ a:focus-visible {
 .rz-chart svg {
     overflow: visible !important;
     background: transparent !important;
+}
+
+/* Sparklines render a `.rz-chart` too, but take their size from a small wrapper: the guard rails
+   above would give a 96x26 table cell a 220px-tall plot, drawn below the cell and clipped out of
+   sight. Opted out by wrapping the sparkline in `.app-spark`. */
+.app-spark .rz-chart {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none;
+    aspect-ratio: auto;
+    padding: 0;
 }
 
 /* Radzen exposes `--rz-chart-axis-color` (axis + grid strokes) and `--rz-chart-axis-label-color`

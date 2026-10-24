@@ -27,19 +27,21 @@ public static class ChartFormat
     }
 
     /// <summary>
-    /// A <c>?days=</c> query value as one of the ranges the selectors offer, else
-    /// <see cref="DefaultRangeDays"/>. Taken as a string and matched, not bound as an int: the router
-    /// throws on a query value it cannot parse, so a hand-edited URL would take the page down, and
-    /// the number goes straight into an API path.
+    /// A <c>?days=</c> query value as one of the ranges the selectors offer, else the page's
+    /// default (<paramref name="pageDefault"/>, <see cref="DefaultRangeDays"/> unless the page says
+    /// otherwise). Taken as a string and matched, not bound as an int: the router throws on a query
+    /// value it cannot parse, so a hand-edited URL would take the page down, and the number goes
+    /// straight into an API path.
     /// </summary>
-    public static int RangeDays(string? query) => query switch
+    public static int RangeDays(string? query, int pageDefault = DefaultRangeDays) => query switch
     {
+        "180" => DefaultRangeDays,
         "365" => 365,
         "all" => AllDays,
-        _ => DefaultRangeDays
+        _ => pageDefault
     };
 
-    /// <summary>The range a chart opens on, and the one left out of the URL.</summary>
+    /// <summary>The range a chart opens on unless its page passes another default, and the one left out of the URL.</summary>
     public const int DefaultRangeDays = 180;
 
     /// <summary>
@@ -48,9 +50,10 @@ public static class ChartFormat
     /// </summary>
     public const int AllDays = 36_500;
 
-    /// <summary>The <c>?days=</c> value for a range; null (omitted) at the default.</summary>
-    public static string? RangeQuery(int days) => days switch
+    /// <summary>The <c>?days=</c> value for a range; null (omitted) at the page's default.</summary>
+    public static string? RangeQuery(int days, int pageDefault = DefaultRangeDays) => days == pageDefault ? null : days switch
     {
+        DefaultRangeDays => "180",
         365 => "365",
         AllDays => "all",
         _ => null

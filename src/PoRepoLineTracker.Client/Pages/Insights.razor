@@ -10,9 +10,10 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-@* Portfolio dashboard. Everything here is one GET of /api/insights/portfolio — the aggregation
-   runs where the commit data already lives rather than shipping it to the browser to be reduced
-   (see PortfolioInsightsDto for the reasoning). *@
+@* Portfolio dashboard, all time: every figure reads the whole history (owner, 2026-10-24), so
+   there is no range to pick. Everything here is one GET of /api/insights/portfolio — the
+   aggregation runs where the commit data already lives rather than shipping it to the browser to
+   be reduced (see PortfolioInsightsDto for the reasoning). *@
 
 @* A plain <div>, not <RadzenStack Gap="1rem">. Two reasons, both concrete:
 
@@ -21,13 +22,13 @@
       rules that needed it (`.ins-kpi`, `.ins-empty-icon`) silently matched nothing.
    2. Rhythm. The stack hardcoded a 1rem gap at every viewport, next to a `--space-*` scale that
       exists precisely so vertical rhythm tracks the width. `.app-stack` uses the token. *@
-<PageTitle>Global Insights · PoRepoLineTracker</PageTitle>
+<PageTitle>All Time Insights · PoRepoLineTracker</PageTitle>
 
 <div class="app-stack">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <h1 class="page-hero__title ins-title">Global Insights</h1>
+                <h1 class="page-hero__title ins-title">All Time Insights</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
                     @if (_state.IsLoading)
                     {
@@ -36,7 +37,7 @@
                     else if (_state.HasData)
                     {
                         var data = _state.Data!;
-                        <span>Your tracked repositories · @data.AnalyzedCount of @data.RepositoryCount analyzed</span>
+                        <span>Every commit since @(data.FirstCommitDate?.ToString("MMMM yyyy") ?? "the start") · @data.AnalyzedCount of @data.RepositoryCount analyzed</span>
                         @if (data.RepositoryCount > data.AnalyzedCount)
                         {
                             @* Analysis runs one repository at a time in the background, so the first
@@ -102,26 +103,26 @@
     private RenderFragment RenderLoaded(PortfolioInsightsDto data) =>
         @<text>
             @* ─── KPI row ─────────────────────────────────────────────────────────────
-               Four figures, each with the context that makes it mean something: a total beside
-               its own change, a count beside how many days it was spread over. A bare number here
-               would be no more useful than the one already on the Repositories page. *@
+               Lifetime figures, each with the context that makes it mean something: the size
+               beside everything written and deleted to reach it, the commits beside how many days
+               they were spread over. *@
             <div class="app-dashboard app-dashboard--tiles">
                 <KpiTile Label="Total lines"
-                         Delta="@($"{ChartFormat.Delta(data.NetLines30Days)} in 30d")"
-                         Sub="@($"{ChartFormat.Delta(data.NetLines7Days)} in 7d")"
-                         DeltaClass="@KpiDeltaClass(data.NetLines30Days)">
+                         Delta="@($"+{data.LinesAddedAllTime:N0} written")"
+                         Sub="@($"{(data.LinesRemovedAllTime > 0 ? "−" : "")}{data.LinesRemovedAllTime:N0} removed")"
+                         DeltaClass="kpi__delta--pos">
                     @data.TotalLines.ToString("N0")
                 </KpiTile>
 
-                <KpiTile Label="Commits (30d)"
-                         Delta="@($"across {data.ActiveDays30} active {(data.ActiveDays30 == 1 ? "day" : "days")}")">
-                    @data.Commits30Days.ToString("N0")
+                <KpiTile Label="Commits"
+                         Delta="@($"across {data.ActiveDaysAllTime:N0} active {(data.ActiveDaysAllTime == 1 ? "day" : "days")}")">
+                    @data.CommitsAllTime.ToString("N0")
                 </KpiTile>
 
                 @{ var streak = Streak; }
                 <KpiTile Label="@StreakHeading"
                          Unit="@streak.Unit"
-                         Delta="@($"best {data.LongestStreakDays} d this year")">
+                         Delta="@($"best {data.LongestStreakDays} d ever")">
                     @if (data.CurrentStreakDays > 0)
                     {
                         @* Burns taller the longer the streak, full height at 30 days (effects.css). *@
@@ -132,21 +133,18 @@
             </div>
 
         @* ─── Activity heatmap ────────────────────────────────────────────────────
-           A year of commit activity at a glance. Rendered as a plain CSS grid rather than a
+           The whole history of commit activity at a glance (at least a year of cells). Rendered as a plain CSS grid rather than a
            Radzen chart: 365 cells with no axes is a calendar, and every charting primitive that
            could draw it would first have to be told not to behave like a chart. *@
         @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
            and the intensity key is exactly what its <Toolbar> slot is for. *@
         <ChartCard Title="Activity"
-                   Description="@($"Commits per day across every tracked repository, {HeatmapDays switch { ChartFormat.AllDays => "all time", 365 => "last 12 months", _ => $"last {HeatmapDays} days" }}")"
+                   Description="Commits per day across every tracked repository, all time"
                    IsEmpty="@(data.Activity.Count == 0)"
                    EmptyIcon="calendar_month"
                    EmptyText="No commit activity recorded yet.">
             <Toolbar>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
-                    <ChartRangeSelector Days="@HeatmapDays" DaysChanged="@OnHeatmapDaysChanged"
-                                        Label="@null" Size="ButtonSize.ExtraSmall" class="ins-zoom-bar" />
-
                     <div class="ins-heat__legend">
                         <span class="ins-muted">Less</span>
                         <span class="ins-heat__cell ins-heat--0"></span>
@@ -160,7 +158,7 @@
             </Toolbar>
             <ChildContent>
                 <div class="u-scroll-x ins-heat__scroll">
-                    <div class="@(HeatmapDays == ChartFormat.AllDays ? "ins-heat ins-heat--dense" : "ins-heat")" role="img" aria-label="@_heatmapSummary">
+                    <div class="ins-heat ins-heat--dense" role="img" aria-label="@_heatmapSummary">
                         @* Leading blanks so the first real cell lands on its own weekday row and every
                            column below is a genuine Sunday-to-Saturday week. *@
                         @for (var i = 0; i < _leadingBlanks; i++)
@@ -180,7 +178,7 @@
         @* ─── Portfolio growth & outliers ────────────────────────────────────── *@
         <div class="app-dashboard app-dashboard--panels">
             <ChartCard Title="Portfolio growth"
-                       Description="Total lines across every repository, sampled monthly over the last year"
+                       Description="Total lines across every repository, from the first commit to today"
                        IsEmpty="@(data.TrendLine.Count == 0)"
                        EmptyIcon="show_chart"
                        EmptyText="No history to chart yet.">
@@ -213,7 +211,7 @@
                No card at all when nothing stands out. *@
             @if (data.Outliers.Count > 0)
             {
-                <ChartCard Title="Unusually large commits (last 30 days)"
+                <ChartCard Title="Unusually large commits (all time)"
                            Description="Far more lines added than is normal for the repository">
                     <ul class="ins-outliers">
                         @foreach (var outlier in data.Outliers)
@@ -247,11 +245,11 @@
                                     Extensions="@(data.LanguageMix.Select(l => new FileExtensionPercentageDto { FileExtension = l.Extension, Percentage = l.Percentage, LineCount = l.Lines }).ToList())" />
 
             <ChartCard Title="Language drift"
-                       Description="How the mix moved over the last year, in share"
+                       Description="How the mix moved since each repository's first commit, in share"
                        IsEmpty="@(data.LanguageDrift.Count == 0)"
                        EmptyIcon="swap_vert"
                        EmptyText="No drift to report yet."
-                       EmptyHint="Needs a year of history across at least two file types.">
+                       EmptyHint="Needs history across at least two file types.">
                 @if (data.RisingLanguage is not null || data.FadingLanguage is not null)
                 {
                     <RadzenText TextStyle="TextStyle.Body2" class="ins-drift__lede">
@@ -293,31 +291,15 @@
 @code {
     private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
 
-    /// <summary>
-    /// Heatmap zoom, in the URL so Back and a reload keep it. Replaced, not pushed, and omitted
-    /// at the default. A string for the reason given on <see cref="ChartFormat.RangeDays"/>.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
-
-    private int HeatmapDays => ChartFormat.RangeDays(Days);
-
-    private void OnHeatmapDaysChanged(int days) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
-
-    // The heatmap's cells and summary, built when the data or the range changes rather than as
-    // properties: each render re-sliced the history several times over.
+    // The heatmap's cells and summary, built when the data arrives rather than as properties:
+    // each render re-walked the history several times over.
     private IReadOnlyList<ActivityDayDto> _displayedActivity = [];
     private int _leadingBlanks;
     private string _heatmapSummary = "Commit activity heatmap";
 
-    /// <summary>The range changes by navigation (selector, Back, Forward), which re-sets parameters.</summary>
-    protected override void OnParametersSet() => BuildHeatmap();
-
     private void BuildHeatmap()
     {
-        var activity = _state.HasData ? _state.Data!.Activity : [];
-        // The server sends the whole history; "All" shows it, the others take its tail.
-        _displayedActivity = HeatmapDays == ChartFormat.AllDays ? activity : activity.TakeLast(HeatmapDays).ToList();
+        _displayedActivity = _state.HasData ? _state.Data!.Activity : [];
 
         // Blank cells before the first day so each grid column is one calendar week.
         // DayOfWeek.Sunday is 0, which is exactly the offset needed.
@@ -325,15 +307,15 @@
 
         _heatmapSummary = !_state.HasData
             ? "Commit activity heatmap"
-            : $"Commit activity heatmap: {activity.Count(d => d.Commits > 0)} active days in the last year, " +
-              $"{activity.Sum(d => d.Commits):N0} commits total";
+            : $"Commit activity heatmap: {_displayedActivity.Count(d => d.Commits > 0)} active days, " +
+              $"{_displayedActivity.Sum(d => d.Commits):N0} commits in all";
     }
 
     /// <summary>
     /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
     /// streak is zero, the tile rephrases as "last active Nd ago" using the most recent
-    /// non-zero-commit day from <see cref="PortfolioInsightsDto.Activity"/>. The "best … this
-    /// year" line underneath keeps the same anchor in both states so the tile reads as one tile.
+    /// non-zero-commit day from <see cref="PortfolioInsightsDto.Activity"/>. The "best … ever"
+    /// line underneath keeps the same anchor in both states so the tile reads as one tile.
     /// </summary>
     private string StreakHeading =>
         !_state.HasData || _state.Data!.CurrentStreakDays > 0
@@ -378,18 +360,6 @@
         <= 5 => "ins-heat--2",
         <= 10 => "ins-heat--3",
         _ => "ins-heat--4"
-    };
-
-    /// <summary>
-    /// The delta's sign in KpiTile's own class names. The tile's delta row is KpiTile's markup
-    /// and carries KpiTile's scope id, so a class styled by this page can never match it — the
-    /// 30-day delta was always grey.
-    /// </summary>
-    private static string? KpiDeltaClass(int value) => value switch
-    {
-        > 0 => "kpi__delta--pos",
-        < 0 => "kpi__delta--neg",
-        _ => null
     };
 
     protected override Task OnInitializedAsync() => LoadAsync();

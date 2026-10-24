@@ -1,4 +1,4 @@
-// Year in Review backdrop: the year's commits as a city. One tower per day on a 53-week x 7-day
+// Year in Review hero: the year's commits as a city. One tower per day on a 53-week x 7-day
 // grid (the same layout as a contribution calendar), height by that day's commits. Imported by
 // YearInReview.razor only, so no other page pays for it.
 //
@@ -6,11 +6,12 @@
 // and additive glow sprites over the busiest days. Towers rise on a damped spring, staggered
 // through the year. Shading is a directional light, fake ambient occlusion darkening each
 // tower's foot, a Blinn-Phong highlight, a fresnel rim so the towers read as glass, and lit
-// windows, more of them the taller the tower. The camera eases between a framing per slide and
-// flies to the day or month a slide is about.
+// windows, more of them the taller the tower. The camera orbits slowly and flies to the day or
+// month a hovered tile is about.
 //
-// mount() always returns a controller; without WebGL2 or under reduced motion it draws nothing
-// and every method is a no-op, and the stage keeps its CSS gradient.
+// Under reduced motion it is a still picture: fully built, the camera cut (not flown) to each
+// framing, one frame drawn per change and no loop. mount() always returns a controller; without
+// WebGL2 it draws nothing, every method is a no-op, and the banner keeps its CSS gradient.
 
 const TOWER_VERTEX = `#version 300 es
 layout(location=0) in vec3 pos;
@@ -170,7 +171,8 @@ const NONE = { focus: () => { }, dispose: () => { } };
 // daily: commits per day of the year, comma-separated (365 or 366 values). year: for the weekday
 // the year starts on, which sets each day's row.
 export function mount(canvas, daily, year) {
-    if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return NONE;
+    if (!canvas) return NONE;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: true, antialias: true });
     if (!gl) return NONE;
 
@@ -223,8 +225,8 @@ export function mount(canvas, daily, year) {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-        // Camera framings by slide: azimuth, elevation, distance. A slide about one day or one
-        // month swaps the look-at point for that place and moves in.
+        // Camera framings: azimuth, elevation, distance. A tile about one day or one month swaps
+        // the look-at point for that place and moves in; any other tile picks a framing.
         const FRAMES = [[-0.5, 0.42, 66], [0.35, 0.3, 54], [-0.9, 0.55, 48], [0.7, 0.36, 50], [-0.2, 0.62, 58], [1.0, 0.3, 46]];
         const camera = { az: -1.4, el: 0.9, dist: 110, x: 0, z: 0 };
         let goal = { az: FRAMES[0][0], el: FRAMES[0][1], dist: FRAMES[0][2], x: 0, z: 0 };
@@ -236,25 +238,27 @@ export function mount(canvas, daily, year) {
             canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr));
             gl.viewport(0, 0, canvas.width, canvas.height);
         };
-        const observer = new ResizeObserver(resize);
+        const observer = new ResizeObserver(() => { resize(); redraw(); });
         observer.observe(canvas);
         resize();
 
         let controller = null;
         const draw = now => {
+            frame = 0;
             if (disposed) return;
             // Blazor removes the canvas when the page changes year or navigates away; the loop
             // and the GL context go with it rather than wait for an interop call.
             if (!canvas.isConnected) { controller.dispose(); return; }
-            frame = requestAnimationFrame(draw);
+            if (!still) frame = requestAnimationFrame(draw);
             if (document.hidden) return;
             const dt = Math.min(0.05, (now - last) / 1000);
             last = now;
-            const t = (now - start) / 1000;
+            const t = still ? 100 : (now - start) / 1000; // still: every tower already risen
 
             // Exponential ease toward the goal (frame-rate independent), plus a slow idle orbit.
-            const ease = 1 - Math.exp(-dt * 1.8);
-            goal.az += dt * 0.025;
+            // Still, the camera cuts straight to the goal.
+            const ease = still ? 1 : 1 - Math.exp(-dt * 1.8);
+            if (!still) goal.az += dt * 0.025;
             for (const key of ['az', 'el', 'dist', 'x', 'z']) camera[key] += (goal[key] - camera[key]) * ease;
 
             const target = [camera.x, 3.5, camera.z];
@@ -263,7 +267,11 @@ export function mount(canvas, daily, year) {
                 target[1] + Math.sin(camera.el) * camera.dist,
                 target[2] + Math.cos(camera.az) * Math.cos(camera.el) * camera.dist
             ];
-            const viewProj = multiply(perspective(0.75, canvas.width / canvas.height, 0.5, 400), lookAt(eye, target));
+            // On a wide banner the headline sits on the left, so the city is shifted right in clip
+            // space (x' = x + shift * w) rather than aimed off-centre, which would turn it.
+            const shift = canvas.clientWidth > 640 ? 0.3 : 0;
+            const clipShift = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, shift, 0, 0, 1];
+            const viewProj = multiply(clipShift, multiply(perspective(0.75, canvas.width / canvas.height, 0.5, 400), lookAt(eye, target)));
 
             gl.clearColor(0, 0, 0, 0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -299,12 +307,16 @@ export function mount(canvas, daily, year) {
             }
             gl.bindVertexArray(null);
         };
-        frame = requestAnimationFrame(draw);
+        // One frame on request; a no-op while the animated loop is already scheduled.
+        const redraw = () => { if (!frame && !disposed) frame = requestAnimationFrame(draw); };
+        const onVisibility = () => { if (!document.hidden) redraw(); };
+        document.addEventListener('visibilitychange', onVisibility);
+        redraw();
 
         return controller = {
-            // day: 0-based day of the year to fly to and light up, or -1 for the slide's framing.
-            focus(day, slide) {
-                const f = FRAMES[slide % FRAMES.length];
+            // day: 0-based day of the year to fly to and light up, or -1 for the given framing.
+            focus(day, framing) {
+                const f = FRAMES[framing % FRAMES.length];
                 if (day >= 0 && day < days.length) {
                     const [x, z] = position(day);
                     goal = { az: goal.az + 0.4, el: 0.38, dist: 30, x, z };
@@ -313,12 +325,14 @@ export function mount(canvas, daily, year) {
                     goal = { az: f[0] + (goal.az - (goal.az % (2 * Math.PI))), el: f[1], dist: f[2], x: 0, z: 0 };
                     focusDay = -100;
                 }
+                redraw();
             },
             dispose() {
                 if (disposed) return;
                 disposed = true;
                 cancelAnimationFrame(frame);
                 observer.disconnect();
+                document.removeEventListener('visibilitychange', onVisibility);
                 const lose = gl.getExtension('WEBGL_lose_context');
                 if (lose) lose.loseContext();
             }

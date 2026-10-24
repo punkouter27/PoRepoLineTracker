@@ -119,23 +119,49 @@ public class GetPortfolioInsightsQueryHandlerTests
         insights.AnalyzedCount.Should().Be(2);
     }
 
-    // ─── Net change ──────────────────────────────────────────────────────────
+    // ─── Lifetime totals ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The All Time Insights page reads the whole history: every commit and every line written or
+    /// removed counts, however old, and the growth line starts at the first commit.
+    /// </summary>
     [Fact]
-    public async Task NetLines_MeasuresAgainstSnapshotsAndHandlesNewRepositories()
+    public async Task LifetimeTotals_CountEveryCommit_AndTheGrowthLineStartsAtTheFirst()
     {
-        GivenRepositories(GivenRepository("acme", "api",
-            Commit(daysAgo: 60, totalLines: 1_000),   // before both windows
-            Commit(daysAgo: 20, totalLines: 1_400),   // inside 30d, before 7d
-            Commit(daysAgo: 2, totalLines: 1_500)));
+        GivenRepositories(
+            GivenRepository("acme", "api",
+                Commit(daysAgo: 900, totalLines: 1_000, linesAdded: 1_000),
+                Commit(daysAgo: 20, totalLines: 1_400, linesAdded: 500, linesRemoved: 100),
+                Commit(daysAgo: 2, totalLines: 1_500, linesAdded: 150, linesRemoved: 50)),
+            GivenRepository("acme", "web",
+                Commit(daysAgo: 10, totalLines: 300, linesAdded: 300)));
 
         var insights = await WhenQueried();
-        insights.NetLines30Days.Should().Be(500);
-        insights.NetLines7Days.Should().Be(100);
 
-        GivenRepositories(GivenRepository("acme", "brand-new", Commit(daysAgo: 3, totalLines: 900)));
-        var brandNew = await WhenQueried();
-        brandNew.NetLines30Days.Should().Be(900);
+        insights.CommitsAllTime.Should().Be(4);
+        insights.LinesAddedAllTime.Should().Be(1_950);
+        insights.LinesRemovedAllTime.Should().Be(150);
+        insights.ActiveDaysAllTime.Should().Be(4);
+        insights.FirstCommitDate.Should().Be(Today.AddDays(-900));
+        insights.Commits30Days.Should().Be(3, "the Repositories grid's 30-day figure is unchanged");
+
+        insights.TrendLine.First().Date.Should().Be(Today.AddDays(-900));
+        insights.TrendLine.Last().Date.Should().Be(Today);
+        insights.TrendLine.First().TotalLines.Should().Be(1_000);
+        insights.TrendLine.Last().TotalLines.Should().Be(1_800, "snapshots, summed across repositories");
+        insights.TrendLine.Should().HaveCountLessThanOrEqualTo(36);
+    }
+
+    [Fact]
+    public void TrendDates_AreMonthlyUpToThreeYears_ThenCappedAndSpreadEvenly()
+    {
+        GetPortfolioInsightsQueryHandler.TrendDates(Today, Today).Should().Equal(Today);
+        GetPortfolioInsightsQueryHandler.TrendDates(Today.AddMonths(-6), Today).Should().HaveCount(7);
+
+        var decade = GetPortfolioInsightsQueryHandler.TrendDates(Today.AddYears(-10), Today);
+        decade.Should().HaveCount(36).And.BeInAscendingOrder().And.OnlyHaveUniqueItems();
+        decade[0].Should().Be(Today.AddYears(-10));
+        decade[^1].Should().Be(Today);
     }
 
     // ─── Movers ──────────────────────────────────────────────────────────────
@@ -202,7 +228,7 @@ public class GetPortfolioInsightsQueryHandlerTests
     public async Task LanguageDrift_RanksBySharePointsNotLines_AndNamesTheRisingAndFadingTypes()
     {
         GivenRepositories(GivenRepository("acme", "api",
-            // The baseline the drift window reads: the newest snapshot at or before 365 days ago.
+            // The baseline drift reads: the repository's first analysed snapshot.
             Commit(daysAgo: 400, totalLines: 400, byFileType: new Dictionary<string, int> { [".js"] = 400 }),
             Commit(daysAgo: 1, totalLines: 2_000, byFileType: new Dictionary<string, int>
             {
@@ -225,19 +251,17 @@ public class GetPortfolioInsightsQueryHandlerTests
 
     /// <summary>
     /// Two ways there is no drift to report, both of which must yield an EMPTY card rather than a
-    /// card full of zeroes. A portfolio younger than the window has no share to have moved from —
-    /// every extension would read "+100%", a fact about the baseline. And a portfolio that only
-    /// grew uniformly has moved no shares at all.
+    /// card full of zeroes. A repository with one snapshot has nothing to have moved from. And a
+    /// portfolio that only grew uniformly has moved no shares at all.
     /// </summary>
     [Fact]
-    public async Task LanguageDrift_IsEmpty_WhenThePortfolioIsYoungerThanTheWindow_OrDidNotMove()
+    public async Task LanguageDrift_IsEmpty_WithASingleSnapshot_OrWhenNothingMoved()
     {
         GivenRepositories(GivenRepository("acme", "new",
-            Commit(daysAgo: 30, totalLines: 300, byFileType: new Dictionary<string, int> { [".cs"] = 300 }),
-            Commit(daysAgo: 1, totalLines: 900, byFileType: new Dictionary<string, int> { [".cs"] = 900 })));
+            Commit(daysAgo: 1, totalLines: 900, byFileType: new Dictionary<string, int> { [".cs"] = 600, [".js"] = 300 })));
 
         var young = await WhenQueried();
-        young.LanguageDrift.Should().BeEmpty("there is no snapshot a year back to measure against");
+        young.LanguageDrift.Should().BeEmpty("its first snapshot is its newest");
         young.RisingLanguage.Should().BeNull();
         young.FadingLanguage.Should().BeNull();
 
@@ -297,9 +321,9 @@ public class GetPortfolioInsightsQueryHandlerTests
         activity.Activity.Select(a => a.Date).Should().BeInAscendingOrder();
         activity.Activity.Should().OnlyHaveUniqueItems(a => a.Date);
         activity.Activity.Count(a => a.Commits > 0).Should().Be(4);
-        // The streak figures still read only the trailing year: the 400-day-old commit is drawn
-        // on the heatmap but is not an "active day" for them.
+        // The streaks read the whole history: the 400-day-old commit is an active day like the rest.
         activity.LongestStreakDays.Should().Be(1);
+        activity.ActiveDaysAllTime.Should().Be(4);
         activity.Activity.Single(a => a.Date == Today.AddDays(-1)).LinesAdded.Should().Be(60);
         activity.Commits30Days.Should().Be(3);
         activity.ActiveDays30.Should().Be(2);

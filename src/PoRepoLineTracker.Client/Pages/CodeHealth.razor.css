@@ -55,4 +55,29 @@
     background: var(--bg-primary) !important;
 }
 
+/* All-time trend cell: the sparkline beside the change from the first point to the newest. The
+   sparkline needs a sized box; Radzen draws it to fill whatever it is given. */
+.ch-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 
+.ch-trend__spark {
+    width: 96px;
+    height: 26px;
+    flex: none;
+}
+.ch-trend__delta {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.ch-trend__delta--up {
+    color: var(--status-pos);
+}
+
+.ch-trend__delta--down {
+    color: var(--status-neg);
+}

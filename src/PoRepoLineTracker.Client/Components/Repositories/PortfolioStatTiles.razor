@@ -44,12 +44,16 @@
            trend costs no extra request. *@
         @if (Trend.Count > 1)
         {
-            <div class="rp-stat-spark">
-                <RadzenSparkline Data="@Trend"
-                                 CategoryProperty="Date"
-                                 ValueProperty="TotalLines"
-                                 Stroke="var(--status-info)"
-                                 Fill="color-mix(in srgb, var(--status-info) 16%, transparent)" />
+            @* The series is a child of the sparkline. These were set on RadzenSparkline itself, which
+               took them as plain HTML attributes and drew an empty chart. *@
+            <div class="rp-stat-spark app-spark">
+                <RadzenSparkline>
+                    <RadzenAreaSeries Data="@Trend"
+                                      CategoryProperty="Date"
+                                      ValueProperty="TotalLines"
+                                      Stroke="var(--status-info)"
+                                      Fill="color-mix(in srgb, var(--status-info) 16%, transparent)" />
+                </RadzenSparkline>
             </div>
         }
     </KpiTile>

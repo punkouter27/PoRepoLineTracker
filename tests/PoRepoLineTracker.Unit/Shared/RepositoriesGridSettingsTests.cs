@@ -65,5 +65,11 @@ public class RepositoriesGridSettingsTests
         ChartFormat.RangeQuery(ChartFormat.DefaultRangeDays).Should().BeNull();
         foreach (var days in new[] { 365, ChartFormat.AllDays })
             ChartFormat.RangeDays(ChartFormat.RangeQuery(days)).Should().Be(days);
+
+        // A page that opens on "All" (Repositories) leaves that out instead, and writes 180 down.
+        ChartFormat.RangeDays(null, ChartFormat.AllDays).Should().Be(ChartFormat.AllDays);
+        ChartFormat.RangeQuery(ChartFormat.AllDays, ChartFormat.AllDays).Should().BeNull();
+        foreach (var days in new[] { ChartFormat.DefaultRangeDays, 365, ChartFormat.AllDays })
+            ChartFormat.RangeDays(ChartFormat.RangeQuery(days, ChartFormat.AllDays), ChartFormat.AllDays).Should().Be(days);
     }
 }

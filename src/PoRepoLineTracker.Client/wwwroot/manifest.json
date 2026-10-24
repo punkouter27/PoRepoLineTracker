@@ -12,7 +12,7 @@
   "categories": ["developer", "productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "Global Insights",
+      "name": "All Time Insights",
       "short_name": "Insights",
       "url": "/insights"
     },
