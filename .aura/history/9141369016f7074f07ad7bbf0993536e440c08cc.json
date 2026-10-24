@@ -1,1 +1,0 @@
-{"hash":"9141369016f7074f07ad7bbf0993536e440c08cc","date":"2026-02-09T20:02:03-05:00","message":"Fix Bicep: correct resource names, use PoShared RG for AppInsights/LogAnalytics, fix location to eastus2","author":"punkouter26","added":[],"removed":[],"modified":{}}

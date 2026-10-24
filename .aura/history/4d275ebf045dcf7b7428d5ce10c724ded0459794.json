@@ -1,1 +1,0 @@
-{"hash":"4d275ebf045dcf7b7428d5ce10c724ded0459794","date":"2026-03-09T13:39:26-04:00","message":"fix: switch to Docker container deployment (Dockerfile has git pre-installed)","author":"GitHub Copilot","added":[],"removed":[],"modified":{}}

@@ -1,1 +1,0 @@
-{"hash":"5850359c97814d27f4f0e61575e15462de300f18","date":"2026-09-21T23:53:13-04:00","message":"ci: drop test-suite caps step from pipeline","author":"punkouter26","added":[],"removed":[],"modified":{"docs/ci.md":{"id":"docs/ci.md","linesOfCode":49,"complexity":1,"language":"documentation","linksOut":[]}}}

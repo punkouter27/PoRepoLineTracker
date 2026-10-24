@@ -1,1 +1,0 @@
-{"hash":"e0abe0bcea32143c7b4c5e1b440ce7f553435412","date":"2026-05-19T00:34:17-04:00","message":"ci: use synchronous zip deploy without --clean (avoids Kudu 504 from --clean restart)","author":"punkouter26","added":[],"removed":[],"modified":{}}

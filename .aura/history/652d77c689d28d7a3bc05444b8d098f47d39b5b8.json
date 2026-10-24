@@ -1,1 +1,0 @@
-{"hash":"652d77c689d28d7a3bc05444b8d098f47d39b5b8","date":"2026-05-05T22:07:22-04:00","message":"fix: health check continue-on-error (App Service returns 403 due to subscription state; code and tests pass)","author":"punkouter26","added":[],"removed":[],"modified":{}}

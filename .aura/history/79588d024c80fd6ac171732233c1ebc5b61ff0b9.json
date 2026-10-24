@@ -1,1 +1,0 @@
-{"hash":"79588d024c80fd6ac171732233c1ebc5b61ff0b9","date":"2026-05-19T00:11:14-04:00","message":"ci: use --async deploy to avoid Kudu 504 GatewayTimeout on App Service restart","author":"punkouter26","added":[],"removed":[],"modified":{}}
