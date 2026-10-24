@@ -137,7 +137,7 @@
     --space-2xl: clamp(1.75rem, 4.5vw, 3rem);
 
     /* Status colours. Previously hardcoded hex scattered across five scoped stylesheets, none
-       of which flipped for dark mode — measured at 1.74:1 (ai-moderate on --rz-base-100) and
+       of which flipped for dark mode — measured at 1.74:1 (a warning tone on --rz-base-100) and
        2.09:1 (added), both failing WCAG 2.2 AA. These pairs are picked to clear 4.5:1 for body
        text against the surface each theme actually paints. */
     --status-pos: #15803d;
@@ -290,6 +290,24 @@
         --rz-grid-stripe-background-color: var(--bg-primary);
     }
 }
+
+/* DialogService renders outside page scope, so the shared drawer treatment lives here. */
+@media (min-width: 768px) {
+    .rz-dialog.app-drawer {
+        position: fixed;
+        inset: 0 0 0 auto;
+        width: min(30rem, 92vw) !important;
+        max-width: 92vw;
+        max-height: 100dvh !important;
+        height: 100dvh;
+        margin: 0;
+        border-radius: 12px 0 0 12px;
+        animation: app-drawer-in 160ms ease-out;
+    }
+    .rz-dialog.app-drawer .rz-dialog-content { max-height: calc(100dvh - 4rem) !important; }
+}
+@keyframes app-drawer-in { from { transform: translateX(1.5rem); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rz-dialog.app-drawer { animation: none; } }
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 html, body {

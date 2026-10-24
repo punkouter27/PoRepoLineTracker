@@ -102,24 +102,6 @@
 .digest__trend--up   { color: var(--status-pos); }
 .digest__trend--down { color: var(--status-neg); }
 
-/* ── AI summary ─────────────────────────────────────────────────────────────────────────────── */
-.digest__narrative {
-    margin: 0;
-    font-size: var(--text-sm, 0.875rem);
-    color: var(--text-secondary);
-}
-
-.digest__narrative-label {
-    margin-right: 0.35rem;
-    padding: 0.05rem 0.4rem;
-    border: 1px solid var(--border-medium);
-    border-radius: 999px;
-    font-size: var(--text-xs);
-    font-weight: 600;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-
 /* ── Busiest repositories ───────────────────────────────────────────────────────────────────── */
 .digest__repos {
     display: flex;

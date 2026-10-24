@@ -1,6 +1,5 @@
 @inject HttpClient Http
 @inject ILogger<DigestBanner> Logger
-@inject PoRepoLineTracker.Client.Services.AssistantClient Assistant
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Shared.Serialization
 @using Radzen
@@ -95,17 +94,6 @@
                     }
                 </div>
             }
-
-            @* Optional, and absent on a deployment with no assistant: nothing is reserved for it.
-               Plain text on purpose — it is model output with repository names put back into it,
-               so it is never rendered as markup. Labelled in words, not by colour. *@
-            @if (_narrative is not null)
-            {
-                <p class="digest__narrative u-enter" aria-live="polite">
-                    <span class="digest__narrative-label">AI summary</span>
-                    @_narrative
-                </p>
-            }
         </RadzenCard>
     </div>
 }
@@ -113,7 +101,6 @@
 @code {
     private WeeklyDigestDto? _digest;
     private bool _dismissed;
-    private string? _narrative;
 
     /// <summary>
     /// Guards the "mark seen" write. The component can re-render many times per second while an
@@ -148,12 +135,6 @@
         if (_visitRecorded || _digest is not { HasActivity: true }) return;
 
         _visitRecorded = true;
-
-        // BEFORE the "seen" write below, not alongside it: the server builds the summary over the
-        // window that starts at the stored last visit, so once the visit is stamped it would
-        // describe the trailing week under a banner showing "since your last visit". Never throws.
-        _narrative = await Assistant.GetDigestNarrativeAsync();
-        if (_narrative is not null) StateHasChanged();
 
         try
         {

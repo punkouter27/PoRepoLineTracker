@@ -4,7 +4,6 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
-@inject AssistantClient Assistant
 @inject NotificationService Notifications
 @inject ILogger<YearInReview> Logger
 @implements IAsyncDisposable
@@ -74,10 +73,6 @@
                 <p class="yir-caption">
                     across @_data.RepositoriesTouched repositor@(_data.RepositoriesTouched == 1 ? "y" : "ies") on @_data.ActiveDays different days
                 </p>
-                @if (_narrative is not null)
-                {
-                    <p class="yir-narrative">@_narrative</p>
-                }
             </div>
         </section>
 
@@ -163,7 +158,6 @@
     private List<Tile> _tiles = [];
     private bool _loading = true;
     private string? _error;
-    private string? _narrative;
     private int _offsetMinutes;
     private int? _loadedYear;
     private ElementReference _card;
@@ -203,7 +197,6 @@
     {
         _loading = true;
         _error = null;
-        _narrative = null;
         try
         {
             _data = await Http.GetAppJsonAsync($"/api/insights/year/{_loadedYear}?offset={_offsetMinutes}", AppJsonSerializerContext.Default.YearInReviewDto);
@@ -218,18 +211,6 @@
         {
             _loading = false;
         }
-
-        // Decoration under the headline; the page is complete without it, so not awaited before render.
-        if (_data is { HasActivity: true })
-            _ = LoadNarrativeAsync(_data.Year);
-    }
-
-    private async Task LoadNarrativeAsync(int year)
-    {
-        var text = await Assistant.GetYearNarrativeAsync(year, _offsetMinutes);
-        if (_data?.Year != year) return;
-        _narrative = text;
-        await InvokeAsync(StateHasChanged);
     }
 
     // The grid is four columns: wide tiles take two, the feature tile (the month chart) two by

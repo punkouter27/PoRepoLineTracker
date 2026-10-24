@@ -162,7 +162,6 @@ public static class InfrastructureServiceExtensions
         // ever substituted the interfaces they used to hide behind. The line-counter catalog
         // lives in SourceLineCounter.DefaultSet (one counter per tracked extension plus the "*"
         // fallback — see the type remarks for why every extension gets the same treatment).
-        services.AddSingleton<ClaudeAssistant>();
         services.AddScoped<GitClient>();
         services.AddScoped<FileIgnoreFilter>();
 
@@ -236,7 +235,6 @@ public static class InfrastructureServiceExtensions
                     context.User.UserKey(),
                     _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1) }));
             PerUserPerMinute(RateLimitPolicies.Analysis, 30);
-            PerUserPerMinute(RateLimitPolicies.Assistant, 10);
             options.AddPolicy(RateLimitPolicies.Health, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
@@ -264,9 +262,6 @@ internal static class RateLimitPolicies
 {
     /// <summary>Per user: the endpoints that queue a clone + history walk.</summary>
     public const string Analysis = "analysis";
-
-    /// <summary>Per user: the endpoints that make a paid Claude API call.</summary>
-    public const string Assistant = "assistant";
 
     /// <summary>Per client address: the anonymous health probe.</summary>
     public const string Health = "health";

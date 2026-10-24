@@ -243,7 +243,7 @@
                     <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(newExtensionValue))" />
                 </RadzenStack>
             </RadzenStack>,
-            new DialogOptions { Width = "min(350px, 95vw)", AutoFocusFirstElement = true });
+            new DialogOptions { Width = "min(350px, 95vw)", AutoFocusFirstElement = true, CssClass = "app-drawer" });
 
         if (result is string { Length: > 0 } typed && ValidateExtension(typed) is { } ext)
         {

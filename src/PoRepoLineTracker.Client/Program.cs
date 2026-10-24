@@ -37,7 +37,6 @@ builder.Services.AddScoped<AnalysisFeedClient>();
 // Registered after DialogService/NotificationService below purely for readability — DI resolves
 // by type, not by registration order.
 builder.Services.AddScoped<RepositoryCommandClient>();
-builder.Services.AddScoped<AssistantClient>();
 
 // Add authentication services
 builder.Services.AddScoped<ApiAuthenticationStateProvider>(sp =>

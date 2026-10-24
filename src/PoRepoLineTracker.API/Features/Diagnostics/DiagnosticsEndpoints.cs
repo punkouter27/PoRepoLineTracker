@@ -94,9 +94,6 @@ internal static class DiagnosticsEndpoints
             {
                 TotalConnections = 6,
                 ConfiguredCount = configuredCount,
-                // "AI code detection" used to be listed here. The AiDetection slice and its
-                // service are gone, so the string was advertising a capability the app no longer
-                // has — on the one page a user opens specifically to find out what it talks to.
                 ApplicationPurpose = "Repository line tracking, line-count history, contributor statistics"
             }
         });

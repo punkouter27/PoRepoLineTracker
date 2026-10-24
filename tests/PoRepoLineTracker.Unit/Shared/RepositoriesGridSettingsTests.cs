@@ -33,25 +33,6 @@ public class RepositoriesGridSettingsTests
         RepositoriesGrid.ParseSettings(null).SortProperty.Should().BeNull();
     }
 
-    /// <summary>"Ask" hands back the server's sort names; the grid throws on a property it lacks.</summary>
-    [Fact]
-    public void SortProperty_maps_the_servers_names_and_drops_the_rest()
-    {
-        (string? SortBy, string? Expected)[] cases =
-        [
-            ("TotalLines", "TotalLinesSortValue"),
-            ("LastCommit", "LastAnalyzedCommitDate"),
-            ("NetChange30Days", "NetChange30Days"),
-            ("Name", "Name"),
-            ("Repository.CloneUrl", null),
-            ("", null),
-            (null, null),
-        ];
-
-        foreach (var (sortBy, expected) in cases)
-            RepositoriesGrid.SortProperty(sortBy).Should().Be(expected, $"for '{sortBy}'");
-    }
-
     [Fact]
     public void RangeDays_accepts_only_the_offered_ranges_and_round_trips_through_the_url()
     {

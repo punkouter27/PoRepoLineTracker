@@ -75,13 +75,6 @@
     opacity: 0.9;
 }
 
-.yir-narrative {
-    margin: 0;
-    font-size: var(--text-base);
-    font-style: italic;
-    opacity: 0.95;
-}
-
 /* ── Bento grid ───────────────────────────────────────────────────────────────
    Four columns: a wide tile spans two, the feature tile (the month chart) two by two, and
    `dense` lets the single tiles fill around it. Two columns below --bp-well, one below --bp-tiles

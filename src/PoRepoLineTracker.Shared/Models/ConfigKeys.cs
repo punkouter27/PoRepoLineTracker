@@ -33,16 +33,6 @@ public static class ConfigKeys
         public const string TablesConnectionString = "ConnectionStrings:tables";
     }
 
-    /// <summary>
-    /// The optional Claude integration (digest narrative, natural-language grid filter). With no
-    /// API key configured both features are simply absent — nothing is sent anywhere.
-    /// </summary>
-    public static class Anthropic
-    {
-        public const string ApiKey = "Anthropic:ApiKey";
-        public const string Model = "Anthropic:Model";
-    }
-
     /// <summary>GitHub OAuth credentials and API access.</summary>
     public static class GitHub
     {

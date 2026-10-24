@@ -51,6 +51,10 @@
                               ButtonStyle="ButtonStyle.Primary"
                               Size="ButtonSize.Medium"
                               Click="@OpenAddRepositoryDialog" />
+                <RadzenButton Text="@(IsOverview ? "Repositories" : "Overview")"
+                              Icon="@(IsOverview ? "storage" : "dashboard")"
+                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Size="ButtonSize.Medium"
+                              Click="@ToggleWorkspaceView" aria-label="@(IsOverview ? "Show repository workspace" : "Show portfolio overview")" />
                 <RadzenSplitButton Text="Export"
                                    Icon="download"
                                    ButtonStyle="ButtonStyle.Light"
@@ -79,8 +83,16 @@
        shape from the page it stood in for, and everything snapped when the data arrived. *@
     @if (!pageState.IsLoadingRepositories && !pageState.Repositories.Any())
     {
-        @* Animated onboarding empty state (markup + styles: OnboardingEmptyState.razor) *@
         <OnboardingEmptyState OnClick="OpenAddRepositoryDialog" />
+    }
+    else if (IsOverview)
+    {
+        <RadzenTabs RenderMode="TabRenderMode.Client" SelectedIndex="@WorkspaceTabIndex" SelectedIndexChanged="@OnWorkspaceTabChanged" class="rp-workspace-tabs">
+            <Tabs>
+                <RadzenTabsItem Text="Portfolio" Icon="dashboard"><PortfolioOverview /></RadzenTabsItem>
+                <RadzenTabsItem Text="Code health" Icon="health_and_safety"><PortfolioHealth /></RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
     }
     else
     {
@@ -159,6 +171,18 @@
 
     /// <summary>Grid search text.</summary>
     [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
+    [SupplyParameterFromQuery(Name = "tab")] public string? WorkspaceTab { get; set; }
+    private bool IsOverview => View == "overview";
+    private int WorkspaceTabIndex => WorkspaceTab == "health" ? 1 : 0;
+
+    private void ToggleWorkspaceView() => Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+    {
+        ["view"] = IsOverview ? null : "overview", ["tab"] = null
+    }));
+
+    private void OnWorkspaceTabChanged(int index) => Navigation.NavigateTo(
+        Navigation.GetUriWithQueryParameter("tab", index == 1 ? "health" : null), replace: true);
 
     /// <summary>
     /// Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string. Opens on "All"
@@ -528,7 +552,8 @@
                 Width = "min(680px, 95vw)",
                 Style = "max-height: calc(100dvh - 2rem); overflow: auto;",
                 CloseDialogOnOverlayClick = true,
-                ShowClose = true
+                ShowClose = true,
+                CssClass = "app-drawer"
             });
 
         if (result is true)

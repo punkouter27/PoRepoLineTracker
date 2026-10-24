@@ -36,3 +36,7 @@ AzuriteConfig
 infra/*.json
 
 node_modules/
+
+# Editor-extension caches and per-machine MCP config (absolute local paths)
+.aura/
+.vscode/mcp.json

@@ -1,0 +1,40 @@
+@inject HttpClient Http
+@inject ILogger<PortfolioHealth> Logger
+
+<ChartCard Title="Maintainability ranking" Description="Healthiest repositories first; scoring runs only when requested"
+           IsLoading="@_loading" ErrorMessage="@_error" OnRetry="@LoadAsync" IsEmpty="@(_rows is null or { Count: 0 })"
+           EmptyText="Analyze your repositories to compare their maintainability.">
+    <Toolbar><RadzenButton Text="@(_rows is null ? "Analyze all" : "Re-run")" Icon="health_and_safety" Size="ButtonSize.Small" Variant="Variant.Outlined" Disabled="@_loading" Click="@LoadAsync" /></Toolbar>
+    <ChildContent>
+        @if (_rows is not null)
+        {
+            <div class="ph-list">
+                @foreach (var row in _rows)
+                {
+                    <a class="ph-row" href="@($"/repositories/{row.RepositoryId}?tab=health")">
+                        <span class="ph-row__name">@row.Owner/@row.Name</span>
+                        <span class="ph-row__metric"><small>Health</small><RadzenBadge BadgeStyle="@HealthBadgeStyle(row.Score)" Text="@(row.Measured ? row.Score.ToString() : "—")" /></span>
+                        <span class="ph-row__metric"><small>Grade</small><strong>@(row.Measured ? row.Grade : "—")</strong></span>
+                        <span class="ph-row__metric"><small>Complexity</small><strong>@(row.Measured ? row.CyclomaticComplexity.ToString("N0") : "—")</strong></span>
+                        <RadzenIcon Icon="chevron_right" aria-hidden="true" />
+                    </a>
+                }
+            </div>
+        }
+    </ChildContent>
+</ChartCard>
+
+@code {
+    private List<CodeHealthSummaryDto>? _rows;
+    private bool _loading;
+    private string? _error;
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _rows = await Http.GetAppJsonAsync("api/code-health", AppJsonSerializerContext.Default.ListCodeHealthSummaryDto); }
+        catch (Exception ex) { Logger.LogError(ex, "Failed to load portfolio health"); _error = "Could not load code health. Try again."; }
+        finally { _loading = false; }
+    }
+    private static BadgeStyle HealthBadgeStyle(int score) => score switch { >= 80 => BadgeStyle.Success, >= 60 => BadgeStyle.Info, >= 40 => BadgeStyle.Warning, _ => BadgeStyle.Danger };
+}

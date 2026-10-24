@@ -15,7 +15,6 @@
     <PackageReference Include="AspNet.Security.OAuth.GitHub" />
     <PackageReference Include="Azure.Data.Tables" />
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
-    <PackageReference Include="Anthropic" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
     <PackageReference Include="LibGit2Sharp" />

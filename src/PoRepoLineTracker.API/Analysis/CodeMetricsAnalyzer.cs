@@ -20,8 +20,7 @@ namespace PoRepoLineTracker.API.Analysis;
 /// answers it. The absolute number is a rough guide; the ordering is the useful part, and the
 /// per-file breakdown is what the UI leads with for that reason.</para>
 ///
-/// <para>There is no model and no inference anywhere in this — see CLAUDE.md. Every figure below
-/// is arithmetic over the file's own characters, and the same input always yields the same
+/// <para>Every figure below is arithmetic over the file's own characters, and the same input always yields the same
 /// score.</para>
 /// </summary>
 public sealed class CodeMetricsAnalyzer

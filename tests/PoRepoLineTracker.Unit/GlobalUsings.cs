@@ -1,5 +1,5 @@
 global using PoRepoLineTracker.API.Analysis;
-global using PoRepoLineTracker.API.Features;
+global using PoRepoLineTracker.API.Features.Dev;
 global using PoRepoLineTracker.API.Features.Contributors;
 global using PoRepoLineTracker.API.Features.Diagnostics;
 global using PoRepoLineTracker.API.Features.Repositories;

@@ -92,8 +92,8 @@ jobs:
         run: dotnet restore
       - name: Build (Release, no-restore, treat-warnings-as-errors)
         run: dotnet build --no-restore -c Release
-      # Unit-only on purpose. See docs/ci.md for the full rationale.
-      - name: Test (Unit only — see docs/ci.md for why)
+      # Unit-only on purpose. See README.md "CI" for the full rationale.
+      - name: Test (Unit only — see README.md "CI")
         run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal -p:RunSettingsFilePath=
       # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
       # the step above had already done, compiling every project twice per pipeline.
@@ -194,62 +194,12 @@ jobs:
 
       # The deploy step returns once the package is ACCEPTED, not once the site is serving it —
       # so without this a crash-on-startup shipped green and nobody knew until someone opened the
-      # page. Polls /health (anonymous, and the same endpoint Azure's own probe uses) until it
-      # answers, then checks that an app route and a static asset are really being served.
+      # page. Same script a developer runs by hand; 30 tries x 10 s rides out the container swap.
       - name: Smoke test the deployed site
-        run: |
-          set -euo pipefail
-          echo "Waiting for ${{ env.AZURE_WEBAPP_URL }}/health …"
-          for attempt in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/health" || echo 000)
-            if [ "$code" = "200" ]; then
-              echo "health OK after ${attempt} attempt(s)"
-              break
-            fi
-            if [ "$attempt" = "30" ]; then
-              echo "::error::Site did not become healthy after the deploy (last status: $code)"
-              exit 1
-            fi
-            sleep 10
-          done
-
-          # Each probe retries for up to three minutes. /health answering 200 straight after the
-          # deploy step does not mean the NEW build is serving: the old process answers it (and the
-          # first probes) until App Service swaps the container, and for the half-minute or more of
-          # that swap every route answers 5xx. A single-shot check, and then a 25-second retry,
-          # both failed good deploys on exactly that ("unknown API route returned 500") while the
-          # site came up correct moments later. A wrong status that persists still fails.
-          expect() {
-            local path="$1" want="$2" what="$3" got=000
-            for attempt in $(seq 1 18); do
-              got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}$path" || echo 000)
-              [ "$got" = "$want" ] && { echo "$what OK ($got)"; return 0; }
-              sleep 10
-            done
-            echo "::error::$what returned $got, expected $want"
-            exit 1
-          }
-
-          # The shell must be reachable without signing in, or the sign-in page cannot load.
-          expect /login 200 "/login"
-
-          # A protected API route must say 401, not redirect an XHR off-origin.
-          expect /api/repositories 401 "/api/repositories"
-
-          # An unknown API route must say 404 — not 401, and above all not 200 carrying the HTML
-          # shell, which is what a JSON caller used to receive for a typo. GET only: see the known
-          # limit documented on ApiNotFoundMiddleware.
-          expect /api/no-such-route-smoke-test 404 "unknown API route"
-
-          # An unauthenticated page must land on THIS origin's login page, not at the OAuth
-          # provider — the installed PWA starts at "/" and would otherwise leave its own scope.
-          root_target=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 20 "${{ env.AZURE_WEBAPP_URL }}/")
-          case "$root_target" in
-            ""|"${{ env.AZURE_WEBAPP_URL }}"*) echo "root OK (${root_target:-200 served})" ;;
-            *) echo "::error::/ redirected off-origin to $root_target"; exit 1 ;;
-          esac
-
-          echo "Smoke test passed."
+        shell: pwsh
+        env:
+          PoRepoLineTracker_VerifyUrl: ${{ env.AZURE_WEBAPP_URL }}
+        run: ./infra/verify-deploy.ps1 -Attempts 30
 
   # Apply infrastructure (resource group, app settings, role assignments) from Bicep.
   # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This is the path for

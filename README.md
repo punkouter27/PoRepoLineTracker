@@ -23,7 +23,7 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 - Repository management: repositories are added in bulk via `POST /api/repositories/bulk` — the single-add path was removed because it did not dedupe — then analyzed in the background by `AnalysisQueue` (two workers; queued work survives a restart; clone/pull network failures are retried; a revoked token shows as "Sign-in needed").
 - Account: `DELETE /api/account` removes everything stored for the user and revokes the GitHub OAuth grant; Settings also offers the JSON/CSV export of `GET /api/repositories/export`.
 - Hotspots: `GET /api/repositories/{id}/hotspots/{days}` ranks files by commits × code lines, read from the clone (`git log --numstat`).
-- Year in Review: `GET /api/insights/year/{year}?offset=<minutes>` (page `/year-in-review`), with an optional Claude caption at `/api/insights/year/{year}/narrative`.
+- Year in Review: `GET /api/insights/year/{year}?offset=<minutes>` (page `/year-in-review`).
 - Public badges (opt-in per repository via `PUT /api/repositories/{id}/visibility`): anonymous `GET /badge/{id}/lines.svg`, `/badge/{id}/health.svg` and the share page `/share/{id}`. Rate-limited per address; nothing is public until the owner switches it on.
 - Analysis pipeline: the app clones or pulls repositories locally (no working-tree checkout), filters files by user-selected extensions and the vendored-code ignore rules, computes commit-level totals, and writes derived records back to Azure Table Storage.
 - Presentation: the client reads repository history, extension percentages, contributor stats, and user preferences from the same API host.
@@ -57,13 +57,6 @@ worked examples including the antiforgery pair required by writes.
 
 In a browser, Development also has a sign-in bypass: `/auth/login` signs you in as a fixed
 "DevUser" when no GitHub OAuth app is configured, or when called with `?dev=true`.
-
-### Optional: Claude features
-
-The digest summary, the Year in Review caption and the "Ask" button on the repositories grid appear only when an Anthropic API
-key is configured: `Anthropic:ApiKey` in `appsettings.Development.local.json`
-locally, the Key Vault secret `PoRepoLineTracker--Anthropic--ApiKey` when deployed. Without it
-nothing is sent anywhere and no assistant UI is rendered. See SPEC.md for exactly what is sent.
 
 ## CI
 

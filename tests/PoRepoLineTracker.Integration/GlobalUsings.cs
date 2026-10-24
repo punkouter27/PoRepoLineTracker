@@ -1,7 +1,7 @@
 global using PoRepoLineTracker.API;
 global using PoRepoLineTracker.API.Analysis;
 global using PoRepoLineTracker.API.Auth;
-global using PoRepoLineTracker.API.Features;
+global using PoRepoLineTracker.API.Features.Dev;
 global using PoRepoLineTracker.API.Features.Contributors;
 global using PoRepoLineTracker.API.Features.Repositories;
 global using PoRepoLineTracker.API.Middleware;
