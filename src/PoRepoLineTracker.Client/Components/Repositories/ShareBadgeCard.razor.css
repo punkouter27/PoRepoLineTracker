@@ -19,11 +19,30 @@
     color: var(--rz-text-secondary-color);
 }
 
+/* The same violet-to-magenta as the Year in Review card, so a shared thing looks like one. */
+.share-card__plate {
+    display: grid;
+    gap: 0.6rem;
+    justify-self: start;
+    min-width: min(100%, 18rem);
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, #312e81 0%, #6750a4 55%, #c02d76 100%);
+    box-shadow: 0 10px 24px rgb(76 29 149 / 0.35);
+}
+
+.share-card__plate-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
+}
+
 .share-card__badges {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    padding: var(--space-sm, 0.5rem) 0;
 }
 
 .share-card__label {

@@ -32,6 +32,7 @@ public sealed class GetYearInReviewQueryHandler(IRepositoryDataService repositor
         {
             Year = year,
             MonthlyCommits = [.. new int[12]],
+            DailyCommits = [.. new int[DateTime.IsLeapYear(year) ? 366 : 365]],
             AvailableYears = data.SelectMany(d => d.Commits)
                 .Select(c => (c.CommitDate + offset).Year)
                 .Distinct()
@@ -70,6 +71,7 @@ public sealed class GetYearInReviewQueryHandler(IRepositoryDataService repositor
                 result.LinesAdded += commit.LinesAdded;
                 result.LinesRemoved += commit.LinesRemoved;
                 result.MonthlyCommits[local.Month - 1]++;
+                result.DailyCommits[local.DayOfYear - 1]++;
                 hours[local.Hour]++;
                 weekdays[(int)local.DayOfWeek]++;
                 activeDates.Add(local.Date);

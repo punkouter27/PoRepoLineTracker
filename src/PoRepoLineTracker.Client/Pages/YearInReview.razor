@@ -7,6 +7,7 @@
 @inject AssistantClient Assistant
 @inject NotificationService Notifications
 @inject ILogger<YearInReview> Logger
+@implements IAsyncDisposable
 @using Microsoft.AspNetCore.Authorization
 @using System.Globalization
 
@@ -64,40 +65,47 @@
 
         @* The stage takes the arrow keys once focused; the buttons below do the same for pointer
            and screen-reader users, and the live region announces each new figure. *@
-        <div class="yir-stage" tabindex="0" @onkeydown="OnKeyDown" aria-roledescription="carousel" aria-label="Year in review slides">
+        <div class="yir-stage" @ref="_stage" tabindex="0" @onkeydown="OnKeyDown" aria-roledescription="carousel" aria-label="Year in review slides">
+            @* The year as a 3D city behind the slides (js/city.js). Outside the keyed slide, so it
+               survives slide changes; the camera flies to whatever each slide is about. *@
+            <canvas @ref="_cityCanvas" class="yir-city" aria-hidden="true"></canvas>
             <div class="yir-slide u-enter" @key="_index" aria-live="polite">
                 @if (slide.IsSummary)
                 {
                     <div class="yir-summary">
-                        <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
-                             aria-label="@($"{_data.Year} summary card")">
-                            @* Plain hex colours and system fonts, not theme tokens: this SVG is also
-                               exported as a standalone image, where the page's CSS does not exist. *@
-                            <defs>
-                                <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
-                                    <stop offset="0" stop-color="#4c1d95" />
-                                    <stop offset="0.55" stop-color="#6750a4" />
-                                    <stop offset="1" stop-color="#c02d76" />
-                                </linearGradient>
-                            </defs>
-                            <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
-                            <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
-                                <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
-                                <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
-                                @{ var stats = SummaryStats(); }
-                                @for (var i = 0; i < stats.Count; i++)
-                                {
-                                    var (label, value) = stats[i];
-                                    var x = 72 + (i % 3) * 360;
-                                    var y = 330 + (i / 3) * 130;
-                                    <g>
-                                        <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
-                                        <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
-                                    </g>
-                                }
-                                <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
-                            </g>
-                        </svg>
+                        @* Foil that tilts toward the pointer (.u-holo). On a wrapper, so the exported
+                           PNG is the plain card. *@
+                        <div class="yir-holo u-holo">
+                            <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
+                                 aria-label="@($"{_data.Year} summary card")">
+                                @* Plain hex colours and system fonts, not theme tokens: this SVG is also
+                                   exported as a standalone image, where the page's CSS does not exist. *@
+                                <defs>
+                                    <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0" stop-color="#4c1d95" />
+                                        <stop offset="0.55" stop-color="#6750a4" />
+                                        <stop offset="1" stop-color="#c02d76" />
+                                    </linearGradient>
+                                </defs>
+                                <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
+                                <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
+                                    <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
+                                    <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
+                                    @{ var stats = SummaryStats(); }
+                                    @for (var i = 0; i < stats.Count; i++)
+                                    {
+                                        var (label, value) = stats[i];
+                                        var x = 72 + (i % 3) * 360;
+                                        var y = 330 + (i / 3) * 130;
+                                        <g>
+                                            <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
+                                            <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
+                                        </g>
+                                    }
+                                    <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
+                                </g>
+                            </svg>
+                        </div>
                         @if (_narrative is not null)
                         {
                             <p class="yir-narrative">@_narrative</p>
@@ -162,8 +170,15 @@
     private int _offsetMinutes;
     private int? _loadedYear;
     private ElementReference _card;
+    private ElementReference _stage;
+    private ElementReference _cityCanvas;
+    private IJSObjectReference? _cityModule;
+    private IJSObjectReference? _city;
+    private string? _cityCanvasId;
+    private int _shownIndex = -1;
 
-    private sealed record Slide(string Kicker, string Value, string Caption, string Icon, bool ShowMonths = false, bool IsSummary = false);
+    /// <param name="FocusDay">0-based day of the year the city's camera flies to, or -1 for the slide's own framing.</param>
+    private sealed record Slide(string Kicker, string Value, string Caption, string Icon, bool ShowMonths = false, bool IsSummary = false, int FocusDay = -1);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -227,13 +242,15 @@
             new("Longest streak", $"{d.LongestStreakDays} day{(d.LongestStreakDays == 1 ? "" : "s")}",
                 "in a row with at least one commit", "local_fire_department"),
             new("Busiest month", MonthName(d.BusiestMonth, full: true),
-                $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits", "calendar_month", ShowMonths: true),
+                $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits", "calendar_month", ShowMonths: true,
+                FocusDay: new DateTime(d.Year, d.BusiestMonth, 15).DayOfYear - 1),
             new(d.PeakHour is >= 21 or < 5 ? "Night owl" : d.PeakHour < 9 ? "Early bird" : "Peak hour", HourLabel(d.PeakHour),
                 $"was your most common commit hour, and {CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)d.PeakWeekday)}s your busiest day", "schedule"),
         };
 
         if (d.BiggestDay is { } day)
-            slides.Add(new("Biggest day", day.ToString("MMMM d", CultureInfo.CurrentCulture), $"+{d.BiggestDayLinesAdded:N0} lines added in a single day", "bolt"));
+            slides.Add(new("Biggest day", day.ToString("MMMM d", CultureInfo.CurrentCulture), $"+{d.BiggestDayLinesAdded:N0} lines added in a single day", "bolt",
+                FocusDay: day.DayOfYear - 1));
         if (d.TopRepository is not null)
             slides.Add(new("Most active repository", d.TopRepository, $"{d.TopRepositoryCommits:N0} commits", "star"));
         if (d.TopGrowingExtension is not null)
@@ -252,6 +269,59 @@
         ("Peak hour", HourLabel(_data.PeakHour)),
         ("Top repository", Truncate(_data.TopRepository ?? "—", 14))
     ];
+
+    /// <summary>
+    /// The effects, all decoration: a failure (no WebGL2, an import the network refused, teardown)
+    /// leaves the slides exactly as they are. The city is mounted once per canvas element, which
+    /// Blazor replaces whenever the stage re-renders after a load, and it releases its own GL
+    /// context when that canvas leaves the page.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading || _data is not { HasActivity: true } || _slides.Count == 0) return;
+        try
+        {
+            if (_cityCanvasId != _cityCanvas.Id)
+            {
+                _cityCanvasId = _cityCanvas.Id;
+                _shownIndex = -1;
+                _cityModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/city.js");
+                if (_city is not null) await _city.DisposeAsync();
+                _city = await _cityModule.InvokeAsync<IJSObjectReference>("mount", _cityCanvas, string.Join(',', _data.DailyCommits), _data.Year);
+            }
+
+            if (_shownIndex == _index || _city is null) return;
+            _shownIndex = _index;
+            var slide = _slides[_index];
+            await _city.InvokeVoidAsync("focus", slide.FocusDay, _index);
+            if (slide.IsSummary)
+            {
+                await JS.InvokeVoidAsync("fx.fireworks", _stage);
+                await JS.InvokeVoidAsync("fx.yearChord", string.Join(',', _data.MonthlyCommits));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Year in review effects unavailable");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_city is not null)
+            {
+                await _city.InvokeVoidAsync("dispose");
+                await _city.DisposeAsync();
+            }
+            if (_cityModule is not null) await _cityModule.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // JSDisconnectedException on teardown; the city disposes itself once its canvas is gone.
+        }
+    }
 
     private void Go(int step) => _index = Math.Clamp(_index + step, 0, _slides.Count - 1);
 

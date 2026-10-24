@@ -4,13 +4,14 @@
 @inject NotificationService Notifications
 @inject DialogService Dialogs
 @inject ILogger<AccountDataCard> Logger
+@inject IJSRuntime JS
 
 @* The user's own data: take it with them, or delete it. Its own component so the Settings page,
    which is about counted extensions, does not grow a second job in its @code block.
 
    The confirmation is a typed word, not a Yes/No dialog. Everything here is irreversible and a
    dialog's default button is one Enter away; typing DELETE is not something done by accident. *@
-<div class="account-card">
+<div class="account-card" @ref="_card">
     <RadzenCard class="rz-mt-4">
         <RadzenStack Gap="0.75rem">
             <h2 class="account-card__title">Your data</h2>
@@ -48,6 +49,7 @@
 @code {
     private string _confirmation = string.Empty;
     private bool _deleting;
+    private ElementReference _card;
 
     /// <summary>
     /// A full navigation, not a fetch: the endpoint answers with Content-Disposition: attachment,
@@ -74,6 +76,12 @@
 
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.AccountDeletedDto);
+
+            // Only now, with the server's confirmation in hand: the card dissolves into dust
+            // (fx.js). Decoration; the promise settles at once without motion, and a failure
+            // here must not stand between a deleted account and the sign-in page.
+            try { await JS.InvokeVoidAsync("fx.disintegrate", _card); }
+            catch (Exception) { }
 
             if (result?.GrantRevoked != true)
             {

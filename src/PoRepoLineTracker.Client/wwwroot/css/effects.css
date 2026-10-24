@@ -34,6 +34,10 @@
    with the `@property` registrations that existed solely to make those gradients
    animatable, and the canvas/view-transition rules belonging to the WebGL layer
    that is now gone. If you add a utility here, apply it in the same change.
+
+   Sections 4 and 5 are the owner-approved effects layer of 2026-10-23 (SPEC delta "GFX &
+   sound"): js/fx.js drives them through custom properties and data attributes, and each one
+   reads as a finished, still surface when that script is not running.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -231,7 +235,158 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   4. REDUCED MOTION / REDUCED TRANSPARENCY
+   4. POINTER-DRIVEN SURFACES (js/fx.js sets the custom properties)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* A soft specular highlight that follows the pointer across a glass panel. */
+.u-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, -50%), var(--glass-highlight), transparent 70%);
+    opacity: 0;
+    transition: opacity var(--dur-slow) var(--ease-standard);
+}
+
+.u-glass:hover::after {
+    opacity: 0.8;
+}
+
+/* Liquid glass: the panel refracts what is behind it at its rim, like a thick lens, instead of
+   only blurring it (#fx-liquid in fx.js: blur, an edge displacement map, saturation). Chromium
+   alone takes an SVG filter as a backdrop-filter, so fx.js sets data-liquid only there; every
+   other engine keeps the plain blur above. Inside the no-preference query so the reduced
+   transparency rule below still switches it off. */
+@media (prefers-reduced-transparency: no-preference) {
+    :root[data-liquid] .u-glass {
+        backdrop-filter: url(#fx-liquid);
+    }
+}
+
+/* Holographic foil, like a trading card: the surface tilts toward the pointer on a spring
+   (--rx/--ry), and a rainbow band plus a glare spot slide with it (--fx/--fy), stronger toward
+   the edges (--hyp). color-dodge is what makes the band read as foil catching the light rather
+   than a coloured overlay. Without fx.js running it is a still card with a faint sheen. */
+.u-holo {
+    position: relative;
+    isolation: isolate;
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+
+.u-holo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), rgb(255 255 255 / 0.55), transparent 45%),
+        repeating-linear-gradient(115deg,
+            rgb(255 0 128 / 0) 0%, rgb(255 92 170 / 0.45) 3%, rgb(92 200 255 / 0.45) 6%,
+            rgb(120 255 160 / 0.45) 9%, rgb(255 230 90 / 0.45) 12%, rgb(255 0 128 / 0) 15%);
+    background-size: 100% 100%, 400% 400%;
+    background-position: center, var(--fx, 50%) var(--fy, 50%);
+    mix-blend-mode: color-dodge;
+    opacity: calc(0.2 + var(--hyp, 0) * 0.55);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. DATA-DRIVEN DECORATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Odometer (AnimatedNumber): every digit is a reel of 0-9, one per line, clipped to one line and
+   moved by --d. The units roll first and each place to the left 45ms later (--p), like a carry.
+   `word-break: break-all` at min-content width is what stacks the ten digits of the strip. */
+.odo {
+    position: relative;
+    display: inline-flex;
+}
+
+.odo__value {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.odo__reels {
+    display: inline-flex;
+    font-variant-numeric: tabular-nums;
+}
+
+.odo__reel,
+.odo__sep {
+    display: inline-block;
+    height: 1.15em;
+    line-height: 1.15em;
+    overflow: hidden;
+}
+
+.odo__strip {
+    display: block;
+    width: min-content;
+    word-break: break-all;
+    transform: translateY(calc(var(--d) * -1.15em));
+    transition: transform 0.9s var(--ease-spring) calc((var(--p) - 1) * 45ms);
+}
+
+/* Streak flame: two teardrops of fire gradient flickering out of step, displaced by animated
+   turbulence (#fx-flame) once fx.js has put the filter in the page. Taller the longer the streak:
+   --flame is 0-1. */
+.u-flame {
+    position: relative;
+    display: inline-block;
+    width: calc(0.5em + var(--flame, 0) * 0.3em);
+    height: calc(0.75em + var(--flame, 0) * 0.65em);
+    margin-inline: 0.1em 0.2em;
+    vertical-align: -0.05em;
+}
+
+:root[data-fx] .u-flame {
+    filter: url(#fx-flame);
+}
+
+.u-flame::before,
+.u-flame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50% 50% 45% 45% / 62% 62% 38% 38%;
+    background: radial-gradient(ellipse at 50% 88%, #fff7c2 0%, #ffd23f 24%, #ff7a1a 52%, rgb(224 38 38 / 0.7) 72%, transparent 80%);
+    transform-origin: 50% 100%;
+    animation: flameFlicker 1.3s ease-in-out infinite alternate;
+}
+
+.u-flame::after {
+    inset: 35% 24% 0;
+    background: radial-gradient(ellipse at 50% 80%, #fff 0%, rgb(255 255 255 / 0.3) 55%, transparent 70%);
+    animation-duration: 0.85s;
+}
+
+@keyframes flameFlicker {
+    0%   { transform: scale(1, 1) skewX(0deg); }
+    50%  { transform: scale(0.93, 1.07) skewX(2deg); }
+    100% { transform: scale(1.04, 0.95) skewX(-2deg); }
+}
+
+/* The Total Lines tile catching analysis particles (fx.js restarts this on each arrival).
+   `filter` per frame against the rule at the top of this file: 600ms, on one tile, only while
+   an analysis is running. */
+.fx-hit {
+    animation: fxHit 600ms var(--ease-out-quint);
+}
+
+@keyframes fxHit {
+    0%   { transform: scale(1.025); filter: brightness(1.2) drop-shadow(0 0 14px var(--primary-color)); }
+    100% { transform: none; filter: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. REDUCED MOTION / REDUCED TRANSPARENCY
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* app.css already zeroes durations globally. What it cannot do is stop the
@@ -240,7 +395,10 @@
 @media (prefers-reduced-motion: reduce) {
     .u-pulse-dot,
     .rz-skeleton,
-    .rz-dialog.rz-open {
+    .rz-dialog.rz-open,
+    .u-flame::before,
+    .u-flame::after,
+    .fx-hit {
         animation: none !important;
     }
 

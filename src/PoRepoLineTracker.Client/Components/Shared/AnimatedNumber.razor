@@ -1,78 +1,79 @@
 @inject IJSRuntime JS
 
-@* Counts up (or down) to a new Value instead of popping straight to it. Purely a text-content
-   tween — no canvas, no extra DOM — so it drops into any stat tile that currently renders a bare
-   number.
+@* A number on a mechanical odometer: each digit is a reel of 0-9 that rolls to its new place when
+   the value changes, the units first and each place to its left a beat later, the way a carry
+   travels through real wheels (styles: .odo in effects.css). A change also clicks once per digit
+   that moved, and crossing a power of ten from 1,000 up fires a milestone (js/fx.js).
 
-   The first value a given instance ever sees is shown immediately, not animated from zero: a
-   stat tile appearing for the first time should not visibly count up from nothing, it should just
-   state the number. Only a CHANGE to an already-displayed value animates. *@
-<span class="@Class">@_display.ToString(Format)</span>
+   The first value an instance sees is simply shown: a tile appearing for the first time states its
+   number rather than rolling up to it. Reduced motion needs nothing here: app.css zeroes every
+   transition, so the reels jump. The reels are aria-hidden and the plain value beside them is
+   what a screen reader (and a copy) gets. *@
+<span class="odo @Class" @ref="_root">
+    <span class="odo__value">@_text</span>
+    <span class="odo__reels" aria-hidden="true">
+        @for (var i = 0; i < _text.Length; i++)
+        {
+            // Keyed by place from the right, so 999 → 1,000 rolls the existing three reels and
+            // adds the new ones on the left, instead of re-keying every digit.
+            var place = _text.Length - i;
+            var c = _text[i];
+            if (char.IsAsciiDigit(c))
+            {
+                <span class="odo__reel" @key="place" style="--d:@c;--p:@place"><span class="odo__strip">0123456789</span></span>
+            }
+            else
+            {
+                <span class="odo__sep" @key="-place">@c</span>
+            }
+        }
+    </span>
+</span>
 
 @code {
     [Parameter] public int Value { get; set; }
     [Parameter] public string Format { get; set; } = "N0";
     [Parameter] public string? Class { get; set; }
 
-    private int _display;
-    private bool _initialized;
-    private bool _reducedMotion;
-    private int _generation;
+    private string _text = string.Empty;
+    private int? _shown;
+    private ElementReference _root;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!_initialized)
-        {
-            _initialized = true;
-            _display = Value;
-            _reducedMotion = await SafeReducedMotionAsync();
-            return;
-        }
+        var previous = _shown;
+        var text = Value.ToString(Format);
+        _shown = Value;
+        if (previous == Value && text == _text) return;
 
-        if (Value == _display) return;
-        _ = AnimateToAsync(Value);
+        var changed = ChangedDigits(_text, text);
+        _text = text;
+        if (previous is not { } old) return;
+
+        // Decoration: an interop failure (prerendering, teardown) costs the click, nothing else.
+        try { await JS.InvokeVoidAsync("fx.odometer", _root, changed, CrossedMilestone(old, Value)); }
+        catch (Exception) { }
     }
 
-    private async Task<bool> SafeReducedMotionAsync()
+    /// <summary>Digits that differ between two renderings, compared from the right as the reels are keyed.</summary>
+    public static int ChangedDigits(string before, string after)
     {
-        // Best-effort: a JS interop failure (e.g. prerendering) just means the number pops
-        // instead of tweening, which is the same outcome reduced-motion asks for anyway.
-        try { return await JS.InvokeAsync<bool>("prefersReducedMotion"); }
-        catch (JSException) { return false; }
+        var changed = 0;
+        for (var i = 1; i <= Math.Max(before.Length, after.Length); i++)
+        {
+            var a = i <= before.Length ? before[^i] : ' ';
+            var b = i <= after.Length ? after[^i] : ' ';
+            if (a != b && (char.IsAsciiDigit(a) || char.IsAsciiDigit(b))) changed++;
+        }
+        return changed;
     }
 
-    /// <summary>
-    /// Eases from the current displayed value to <paramref name="target"/> over a fixed duration.
-    ///
-    /// <para>Guarded by <c>generation</c> rather than a CancellationToken: a stat can change again
-    /// mid-tween (e.g. two progress frames landing close together), and the loop must stop
-    /// updating a value that is no longer the target rather than fight the newer animation for the
-    /// same field.</para>
-    /// </summary>
-    private async Task AnimateToAsync(int target)
+    /// <summary>True when a rise passes 1,000, 10,000, 100,000 and so on.</summary>
+    public static bool CrossedMilestone(int before, int after)
     {
-        if (_reducedMotion)
-        {
-            _display = target;
-            StateHasChanged();
-            return;
-        }
-
-        var generation = ++_generation;
-        var start = _display;
-        var delta = target - start;
-        const int steps = 24;
-        const int stepDelayMs = 16;
-
-        for (var i = 1; i <= steps; i++)
-        {
-            await Task.Delay(stepDelayMs);
-            if (generation != _generation) return;
-
-            var t = i / (double)steps;
-            var eased = 1 - Math.Pow(1 - t, 3);
-            _display = start + (int)Math.Round(delta * eased);
-            StateHasChanged();
-        }
+        if (after <= before || after < 1000) return false;
+        for (long m = 1000; m <= after; m *= 10)
+            if (before < m) return true;
+        return false;
     }
 }

@@ -53,6 +53,11 @@ public class YearInReviewTests
         review.PortfolioLinesEnd.Should().Be(1485);
         review.TopGrowingExtension.Should().Be(".ts");
         review.AvailableYears.Should().Equal(2026, 2025);
+        // One slot per local day: the New Year's Eve commit is 31 December's, not 1 January's.
+        review.DailyCommits.Should().HaveCount(365);
+        review.DailyCommits.Sum().Should().Be(5);
+        review.DailyCommits[new DateTime(2026, 3, 1).DayOfYear - 1].Should().Be(1);
+        review.DailyCommits[364].Should().Be(1);
     }
 
     [Fact]

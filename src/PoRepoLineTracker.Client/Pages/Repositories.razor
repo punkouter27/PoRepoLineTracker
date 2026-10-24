@@ -279,6 +279,11 @@
                 var insights = await Http.GetAppJsonAsync("/api/insights/portfolio", AppJsonSerializerContext.Default.PortfolioInsightsDto);
                 if (_disposed || insights is null) return;
 
+                // The backdrop's aurora: how many of the last 30 days had commits, and how much
+                // code was added relative to the portfolio's size (an eighth of it reads as hot).
+                _ = FxAsync("backdrop.mood", insights.ActiveDays30 / 30.0,
+                    insights.TotalLines > 0 ? Math.Min(1, 8.0 * insights.LinesAdded30Days / insights.TotalLines) : 0);
+
                 // Last one wins rather than ToDictionary: a duplicate id must not throw away the lot.
                 var movements = new Dictionary<RepositoryId, RepositoryMovementDto>();
                 foreach (var mover in insights.Movers) movements[mover.RepositoryId] = mover;
@@ -317,6 +322,13 @@
 
         if (progress.IsRunning)
         {
+            // Particles from the row into the Total Lines tile, and a tick, per frame's progress.
+            if (wasRunning)
+                _ = FxAsync("fx.progress", progress.RepositoryId.ToString(),
+                    progress.CommitsProcessed - previous!.CommitsProcessed,
+                    progress.LinesCounted - previous.LinesCounted,
+                    string.Join(',', progress.Extensions));
+
             // The grid is the only place progress shows, so a job for a row it has not loaded
             // (started in another tab, or by the startup resume) would run invisibly. Load the
             // list on its first frame — once, since every later frame finds the row.
@@ -339,11 +351,11 @@
         _reanalysisStartTimes.Remove(progress.RepositoryId);
         _watcher.StopWatching(progress.RepositoryId);
 
-        // The audible half of the transition, for a job left running in a background tab. Silent
-        // unless the header's sound toggle is on — playCue in index.html checks, and never throws
-        // for its own reasons; the catch is for interop during teardown.
-        try { await JS.InvokeVoidAsync("playCue", progress.ErrorMessage is null ? "done" : "failed"); }
-        catch (Exception) { }
+        // The audible half of the transition, for a job left running in a background tab: the
+        // repository's own chord, picked by its top file types. Silent unless the header's sound
+        // toggle is on; playCue (js/fx.js) checks. The terminal frame may not carry the types.
+        var extensions = string.Join(',', progress.Extensions.Count > 0 ? progress.Extensions : previous!.Extensions);
+        await FxAsync("playCue", progress.ErrorMessage is null ? "done" : "failed", extensions);
 
         if (progress.ErrorMessage is null)
         {
@@ -370,6 +382,21 @@
 
         await InvokeAsync(StateHasChanged);
         if (_grid is not null && _grid.Grid is not null) await InvokeAsync(_grid.Grid.Reload);
+
+        // After the reload, so the row is in place and its size is known: a shockwave and
+        // confetti from the row, scaled by the repository's size.
+        if (progress.ErrorMessage is null)
+            await FxAsync("fx.supernova", progress.RepositoryId.ToString(), _repoLatestLineCounts.GetValueOrDefault(progress.RepositoryId), extensions);
+    }
+
+    /// <summary>
+    /// Calls an effect in js/backdrop.js or js/fx.js. Decoration only: never an error on the page,
+    /// including during teardown, when the interop itself is what throws.
+    /// </summary>
+    private async Task FxAsync(string identifier, params object?[] args)
+    {
+        try { await JS.InvokeVoidAsync(identifier, args); }
+        catch (Exception) { }
     }
 
     private async Task LoadLatestLineCounts()
@@ -441,6 +468,7 @@
     {
         args.Attributes["style"] = "cursor: pointer;";
         args.Attributes["tabindex"] = "0";
+        args.Attributes["data-repo"] = args.Data.Id.ToString(); // where fx.js finds a repository's row
         args.Attributes["onkeydown"] = "if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}";
     }
 

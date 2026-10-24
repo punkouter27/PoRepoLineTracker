@@ -11,8 +11,8 @@
 @using Radzen
 @using Radzen.Blazor
 
-<div class="kpi">
-    <RadzenCard class="kpi__surface">
+<div class="kpi" @attributes="Attributes">
+    <RadzenCard class="kpi__surface u-glass">
         @if (!string.IsNullOrWhiteSpace(Label))
         {
             <RadzenText TextStyle="TextStyle.Caption" class="kpi__label">@Label</RadzenText>
@@ -57,4 +57,7 @@
 
     /// <summary>Optional trailing text after the delta — typically a smaller sub-period ("· 12 in 7d").</summary>
     [Parameter] public string? Sub { get; set; }
+
+    /// <summary>Anything else lands on the root, e.g. <c>data-fx="lines"</c>, which marks the tile analysis particles fly into.</summary>
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Attributes { get; set; }
 }

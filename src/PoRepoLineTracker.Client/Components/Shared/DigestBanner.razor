@@ -76,7 +76,7 @@
                 @if (digest.CurrentStreakDays > 0)
                 {
                     <div class="digest__stat">
-                        <span class="digest__stat-value">@digest.CurrentStreakDays.ToString("N0")</span>
+                        <span class="digest__stat-value"><span class="u-flame" style="--flame:@ChartFormat.StreakFlame(digest.CurrentStreakDays)" aria-hidden="true"></span>@digest.CurrentStreakDays.ToString("N0")</span>
                         <span class="digest__stat-label">day streak</span>
                     </div>
                 }

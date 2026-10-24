@@ -31,7 +31,21 @@
     outline-offset: 3px;
 }
 
+/* The city fills the stage behind the slide; transparent where there are no towers, so the
+   gradient above shows through, and that gradient is all there is without WebGL2. */
+.yir-city {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* Above the city, with a soft shadow so white text stays legible over a lit tower. */
 .yir-slide {
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 2px 14px rgb(30 10 60 / 0.55);
     display: grid;
     justify-items: center;
     gap: var(--space-sm);
@@ -92,6 +106,12 @@
     justify-items: center;
     gap: var(--space-md);
     width: 100%;
+}
+
+.yir-holo {
+    width: 100%;
+    max-width: 720px;
+    border-radius: 18px;
 }
 
 .yir-card {

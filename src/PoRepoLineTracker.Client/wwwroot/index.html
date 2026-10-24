@@ -50,6 +50,9 @@
     <!-- Animated background; on unless localStorage 'backdrop' is 'off'. Deferred, so
          it runs after the boot script below has stamped data-theme — it reads the theme's colours. -->
     <script src="js/backdrop.js" defer></script>
+    <!-- Sound, the particle overlay, SVG filters and pointer effects (js/fx.js). Deferred for the
+         same reason: it reads prefersReducedMotion and soundOn from the boot script below. -->
+    <script src="js/fx.js" defer></script>
     <script>
         // Paint a theme without recording a choice. `data-theme` is what app.css keys
         // off, so it must be set on every path — previously it was only set when the
@@ -168,14 +171,12 @@
             return choice.outcome === 'accepted';
         }
 
-        // ── Sound cue ───────────────────────────────────────────────────────────────
+        // ── Sound switch ────────────────────────────────────────────────────────────
         //
         // Off unless the header toggle has stored 'sound' = 'on' — the same shape as the theme:
-        // setSound records the choice, playCue reads it, so the page that raises a cue needs to
-        // know nothing about the toggle. Synthesised (two oscillators at most), no audio files.
-        // Every path is a silent no-op when Web Audio or storage is unavailable.
-        var audioContext = null;
-
+        // setSound records the choice, and every cue in js/fx.js reads it, so the page that raises
+        // a cue needs to know nothing about the toggle. Here rather than in fx.js because
+        // MainLayout reads it on first render, and a switch must not depend on the decoration.
         function soundOn() {
             try { return localStorage.getItem('sound') === 'on'; } catch (e) { return false; }
         }
@@ -184,36 +185,7 @@
             try { localStorage.setItem('sound', on ? 'on' : 'off'); } catch (e) { }
             // Called from the toggle's click: a context created or resumed inside a user gesture
             // is one the browser's autoplay policy lets play later, when an analysis finishes.
-            if (on) playCue('done');
-        }
-
-        // kind: 'done' (two rising notes) or 'failed' (one lower note).
-        function playCue(kind) {
-            try {
-                if (!soundOn()) return;
-                var Ctx = window.AudioContext || window.webkitAudioContext;
-                if (!Ctx) return;
-                audioContext = audioContext || new Ctx();
-                if (audioContext.state === 'suspended') audioContext.resume().catch(function () { });
-
-                (kind === 'failed' ? [196] : [659.25, 880]).forEach(function (frequency, i) {
-                    var start = audioContext.currentTime + i * 0.14;
-                    var oscillator = audioContext.createOscillator();
-                    var gain = audioContext.createGain();
-                    oscillator.frequency.value = frequency;
-                    // Exponential ramps cannot start from or reach 0, and a note cut off at full
-                    // gain clicks — so fade in and out through a value just above it.
-                    gain.gain.setValueAtTime(0.0001, start);
-                    gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
-                    oscillator.connect(gain);
-                    gain.connect(audioContext.destination);
-                    oscillator.start(start);
-                    oscillator.stop(start + 0.34);
-                });
-            } catch (e) {
-                // A cue that cannot play is not worth a console error, let alone a broken page.
-            }
+            if (on && window.playCue) playCue('done');
         }
 
         // Network status detection for offline read mode.

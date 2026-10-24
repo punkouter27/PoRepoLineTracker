@@ -112,4 +112,11 @@ public static class ChartFormat
         var spanDays = (max - min).TotalDays;
         return TimeSpan.FromDays(Math.Max(1, Math.Ceiling(spanDays / Math.Max(1, targetTicks))));
     }
+
+    /// <summary>
+    /// A streak flame's height for <c>.u-flame</c>'s <c>--flame</c>, 0-1, full at 30 days. Invariant,
+    /// so a comma-decimal culture cannot write "0,5" into the CSS.
+    /// </summary>
+    public static string StreakFlame(int streakDays) =>
+        Math.Clamp(streakDays / 30.0, 0, 1).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }

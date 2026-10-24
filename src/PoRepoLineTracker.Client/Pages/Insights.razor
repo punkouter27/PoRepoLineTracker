@@ -122,6 +122,11 @@
                 <KpiTile Label="@StreakHeading"
                          Unit="@streak.Unit"
                          Delta="@($"best {data.LongestStreakDays} d this year")">
+                    @if (data.CurrentStreakDays > 0)
+                    {
+                        @* Burns taller the longer the streak, full height at 30 days (effects.css). *@
+                        <span class="u-flame" style="--flame:@ChartFormat.StreakFlame(data.CurrentStreakDays)" aria-hidden="true"></span>
+                    }
                     @streak.Value
                 </KpiTile>
             </div>

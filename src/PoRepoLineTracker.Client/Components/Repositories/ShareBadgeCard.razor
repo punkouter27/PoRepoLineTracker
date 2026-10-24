@@ -23,9 +23,13 @@
 
                 @if (_isPublic)
                 {
-                    <div class="share-card__badges">
-                        <img src="@($"/badge/{Repository.Id}/lines.svg?v={_version}")" alt="lines of code badge" height="20" />
-                        <img src="@($"/badge/{Repository.Id}/health.svg?v={_version}")" alt="code health badge" height="20" />
+                    @* The live badges on a foil plate that tilts toward the pointer (.u-holo, fx.js). *@
+                    <div class="share-card__plate u-holo">
+                        <span class="share-card__plate-name">@Repository.Owner/@Repository.Name</span>
+                        <div class="share-card__badges">
+                            <img src="@($"/badge/{Repository.Id}/lines.svg?v={_version}")" alt="lines of code badge" height="20" />
+                            <img src="@($"/badge/{Repository.Id}/health.svg?v={_version}")" alt="code health badge" height="20" />
+                        </div>
                     </div>
 
                     <label class="share-card__label" for="share-markdown">README markdown</label>

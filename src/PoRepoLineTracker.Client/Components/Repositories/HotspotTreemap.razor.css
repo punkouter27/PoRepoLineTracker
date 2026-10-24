@@ -29,6 +29,12 @@
 .hotspots__heat-3 { fill: color-mix(in srgb, var(--status-neg) 70%, var(--rz-base-200)); }
 .hotspots__heat-4 { fill: var(--status-neg); }
 
+/* The hottest tiles shimmer like air over a fire (#fx-haze, put in the page by fx.js, which sets
+   data-fx only once it exists and never under reduced motion). */
+:root[data-fx] .hotspots__heat-4 {
+    filter: url(#fx-haze);
+}
+
 .hotspots__label,
 .hotspots__sub {
     pointer-events: none;

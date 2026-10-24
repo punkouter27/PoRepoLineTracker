@@ -180,7 +180,7 @@ These are referenced from production paths; a lazy cleanup must keep them.
 ## 9. Out of scope (explicit non-goals)
 
 1. Microsoft/Entra sign-in (no GitHub credential → can't read repos).
-2. WebGL backdrop + Web Audio feedback (UI; removed in cleanup).
+2. WebGL backdrop + Web Audio feedback (UI; removed in cleanup). *Reversed: see the 2026-10-04 and 2026-10-23 "GFX & sound" deltas.*
 3. Commit tagging (`CommitTaggerService`, the badge row it fed).
 4. Single-add `POST /api/repositories` — `/bulk` is the only write path.
 5. SmartAlerts, Failed Operations, AI model selector (removed; reasons documented).
@@ -352,3 +352,21 @@ Five owner-requested features (F2, F3, F5, F9, F10). No new table, Bicep resourc
   - Exposes only owner/name, latest total lines, the **memoised** code-health grade (an anonymous request never triggers a clone walk) and the newest commit date. Missing and private answer the same 404.
   - Outside `/api` by design; `/badge` and `/share` are on `ProductionAuthEnforcementMiddleware`'s public list and the published service worker's server-route list. Rate limit `public`: 120/min per address. Cards cached 10 min and evicted when visibility changes.
   - This is the first anonymous data surface: §8 "Validation at trust boundaries" now includes it.
+
+---
+
+## Delta: GFX & sound 2026-10-23
+
+Owner-requested ("G1–G10"). Extends the 2026-10-04 Web Audio cue and WebGL backdrop; §9 item 2 stays reversed. All decoration: nothing here is on a data path, every entry point swallows its own failures, and a page behaves exactly as before if the scripts never load. No new endpoint, config key or dependency.
+
+- **Files.** `wwwroot/js/backdrop.js` (behind the page), `wwwroot/js/fx.js` (deferred, global `window.fx` + `playCue`: sound, a WebGL2 particle overlay above the page, the SVG filters the stylesheets use, pointer surfaces), `wwwroot/js/city.js` (ES module imported by Year in Review only). Pages call them through `JS.InvokeVoidAsync` inside try/catch. Lists go over interop as comma-joined strings, not arrays (trimmed client).
+- **Switches.** Sound: header toggle, `localStorage["sound"]`, off by default (`soundOn`/`setSound` stay in index.html so the toggle never depends on fx.js). Motion: nothing animates under `prefers-reduced-motion`. Visual effects: `localStorage["fx"] = "off"` (by hand, like `backdrop`). Animated SVG filters are referenced only under `:root[data-fx]` and refraction only under `:root[data-liquid]` (Chromium), both set by fx.js once the filters exist.
+- **G1 commit river / G2 sonification.** Each running progress frame (`Repositories.razor`) sends its commit and line deltas: particles in the file types' colours stream from the row (`data-repo`) to the Total Lines tile (`data-fx="lines"`), and a pentatonic tick plays, pitched by lines per commit.
+- **G3 supernova.** On a successful completion, after the grid reload: a shockwave ring in the backdrop shader (chromatic refraction) and confetti scaled by `log10(total lines)` that collides with card tops. The completion cue is the repository's own chord (its top three file types pick the notes); failure is a detuned falling fifth.
+- **G4 liquid glass.** `.u-glass` (now also on KPI tiles) refracts the backdrop at its rim via an SVG `backdrop-filter` in Chromium, plus a pointer-following highlight everywhere. `prefers-reduced-transparency` still turns it off.
+- **G5 health aurora.** The backdrop is a domain-warped fbm aurora at half resolution, ~10 fps, rAF only while a shockwave spreads. `backdrop.mood(energy, heat)` from `/api/insights/portfolio` (active days / 30; 8 × lines added in 30d / total lines, capped at 1), persisted in `localStorage["backdrop-mood"]`.
+- **G6 hotspots.** Heat-4 tiles shimmer (`#fx-haze`); a hovered tile (`data-heat`) sheds embers at a rate set by its heat and rumbles once.
+- **G7 Year in Review city.** `YearInReviewDto.DailyCommits` (new, 365/366 entries, viewer-local days) drives one instanced tower per day; the camera eases to each slide's subject (`Slide.FocusDay`); the summary slide fires fireworks and plays a 12-note phrase loud where the month was busy. The exported PNG is unchanged (the foil is on a wrapper).
+- **G8 holographic foil.** `.u-holo` on the share-tab badge plate and the Year in Review card: spring tilt toward the pointer (device tilt on Android), colour-dodge rainbow band and glare.
+- **G9 disintegration.** Only after `DELETE /api/account` succeeds: noise-masked erosion plus dust, whoosh and thump, then the existing redirect. The promise settles within ~2.2 s whatever happens.
+- **G10 odometer and streak flame.** `AnimatedNumber` is a set of CSS digit reels (no C# tween loop); a change clicks once per moved digit, and a rise past 1,000 / 10,000 / … fires a milestone (burst, fanfare, vibration). Streak tiles (Insights, digest banner) carry a flame sized by `ChartFormat.StreakFlame`.

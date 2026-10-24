@@ -27,7 +27,8 @@
                     {
                         var file = _data.Files[tile.Index];
                         <a href="@BlobUrl(file.Path)" target="_blank" rel="noopener noreferrer">
-                            <rect class="hotspots__tile hotspots__heat-@Heat(file.Commits)"
+                            @* data-heat: fx.js sheds embers from a hovered tile at a rate set by it. *@
+                            <rect class="hotspots__tile hotspots__heat-@Heat(file.Commits)" data-heat="@Heat(file.Commits)"
                                   x="@F(tile.X)" y="@F(tile.Y)" width="@F(tile.W)" height="@F(tile.H)">
                                 <title>@file.Path — @file.CodeLines.ToString("N0") lines, @file.Commits commit@(file.Commits == 1 ? "" : "s"), @file.LinesChanged.ToString("N0") lines changed, complexity ~@file.Complexity</title>
                             </rect>

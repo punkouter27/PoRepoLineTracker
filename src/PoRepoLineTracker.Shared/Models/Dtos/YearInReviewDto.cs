@@ -28,6 +28,9 @@ public sealed class YearInReviewDto
     /// <summary>Commits per month, January first; always twelve entries.</summary>
     public List<int> MonthlyCommits { get; set; } = [];
 
+    /// <summary>Commits per day, indexed by day of the year from 0; 365 or 366 entries. Draws the page's city.</summary>
+    public List<int> DailyCommits { get; set; } = [];
+
     /// <summary>1–12; 0 when there was no activity.</summary>
     public int BusiestMonth { get; set; }
 

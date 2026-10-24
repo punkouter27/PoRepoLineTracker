@@ -25,7 +25,7 @@
             <AnimatedNumber Value="@RepositoryCount" />
         }
     </KpiTile>
-    <KpiTile Label="Total Lines">
+    <KpiTile Label="Total Lines" data-fx="lines">
         @* Three states, not one number: a 0 while the request is still in flight read
            as "you have no code" for several seconds on every page load. *@
         @if (Loading || !TotalsLoaded)
