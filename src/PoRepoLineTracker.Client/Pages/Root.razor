@@ -1,0 +1,7 @@
+@page "/"
+
+@* The app root used to be a second @page on the repository list, so the front door had two
+   addresses and the brand link pointed at the one that was not the nav's. One canonical URL per
+   page now: "/repositories". *@
+
+<RedirectTo To="@AppRoutes.Repositories" />

@@ -117,7 +117,7 @@
                     Description="This repository is not in your tracked list — it may have been deleted or never added.">
             <Actions>
                 <RadzenButton Text="Back to Repositories" Icon="arrow_back"
-                              Click="@(() => Navigation.NavigateTo("/"))" />
+                              Click="@(() => Navigation.NavigateTo(AppRoutes.Repositories))" />
             </Actions>
         </EmptyState>
     }
@@ -238,8 +238,12 @@
 
     private int ChartDays => ChartFormat.RangeDays(Days);
 
-    /// <summary>Tab order as rendered; the first is the default and stays out of the URL.</summary>
-    private static readonly string[] TabNames = ["activity", "composition", "health", "hotspots", "share"];
+    /// <summary>
+    /// Tab order as rendered; the first is the default and stays out of the URL. The list lives in
+    /// <see cref="AppRoutes"/> beside the route itself, so a link that names a tab and the page
+    /// that renders it cannot drift apart.
+    /// </summary>
+    private static readonly string[] TabNames = AppRoutes.RepositoryTabs;
 
     /// <summary>An unknown name falls back to the first tab rather than selecting none.</summary>
     private int TabIndex => Math.Max(0, Array.IndexOf(TabNames, Tab));
@@ -308,7 +312,7 @@
     private async Task GoBackAsync()
     {
         if (await JS.GetValueAsync<int>("history.length") > 1) await JS.InvokeVoidAsync("history.back");
-        else Navigation.NavigateTo("/");
+        else Navigation.NavigateTo(AppRoutes.Repositories);
     }
 
     private void OnChartRangeChanged(int days) =>
@@ -434,7 +438,7 @@
         // running (409) surfaced as "Delete failed: Conflict".
         if (_repo != null && await Commands.ConfirmDeleteAsync(_repo)
             && await Commands.DeleteAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo(AppRoutes.Repositories);
     }
 
     public async ValueTask DisposeAsync()

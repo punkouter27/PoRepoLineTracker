@@ -18,6 +18,14 @@ public sealed record RepositoryGridRow(
     public RepositoryId Id => Repository?.Id ?? default;
     public string Owner => Repository?.Owner!;
     public string Name => Repository?.Name!;
+
+    /// <summary>
+    /// "owner/name" — the string the Repository column shows, and the one its filter matches on.
+    /// The column sorts on <see cref="Name"/> but filters on this, so a search covers the owner
+    /// half too.
+    /// </summary>
+    public string OwnerName => $"{Owner}/{Name}";
+
     public DateTime? LastAnalyzedCommitDate => Repository?.LastAnalyzedCommitDate;
     public int? NetChange30Days => Movement?.NetChange30Days;
     public int? Commits30Days => Movement?.Commits30Days;

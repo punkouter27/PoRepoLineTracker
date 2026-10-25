@@ -13,7 +13,7 @@
                      aria-label="Chart time range" @attributes="AdditionalAttributes">
         <Items>
             <RadzenSelectBarItem Text="180d" Value="@ChartFormat.DefaultRangeDays" />
-            <RadzenSelectBarItem Text="1yr" Value="365" />
+            <RadzenSelectBarItem Text="1yr" Value="@ChartFormat.OneYearDays" />
             <RadzenSelectBarItem Text="All" Value="@ChartFormat.AllDays" />
         </Items>
     </RadzenSelectBar>

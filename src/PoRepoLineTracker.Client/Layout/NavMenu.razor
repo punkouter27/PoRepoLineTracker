@@ -7,71 +7,41 @@
 @* The app's navigable destinations — every one of them, and the only place they are listed.
    A mobile bottom-nav bar used to carry a second copy; it was deleted rather than kept in sync.
 
+   The list itself lives in AppNav, next to the routes it points at, so a page that exists but
+   is not listed is a deliberate omission rather than an oversight.
+
    Each item is a plain <NavLink>, not a <RadzenPanelMenuItem>. Radzen's component renders
    the visual chrome but does not emit aria-current="page" on the active link, which left
    screen-reader users navigating blind. <NavLink> sets aria-current="page" automatically,
    so the active item is announced as such. The .rz-panelmenu-header / .rz-state-active
    classes in app.css are still applied so the visual is identical to the previous render. *@
 <ul class="rz-panelmenu app-nav">
-    <li>
-        @* /repositories with a prefix match, so the item stays lit on /repositories/{id}. It was
-           href="/" with Match.All, which matches the home URL and nothing else — on a repository's
-           detail page no nav item was highlighted at all. "/" is the same page under its other
-           @page route and a prefix of every URL, so it cannot be the href; IsHome marks it. *@
-        <NavLink href="/repositories" Match="NavLinkMatch.Prefix" class="rz-panelmenu-header app-nav__link"
-                 aria-current="@(IsHome ? "page" : null)">
-            <RadzenIcon Icon="storage" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">Repositories</span>
-        </NavLink>
-    </li>
-    <li>
-        <NavLink href="/repositories?view=overview" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
-            <RadzenIcon Icon="dashboard" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">Portfolio Overview</span>
-        </NavLink>
-    </li>
-    <li>
-        <NavLink href="/insights" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
-            <RadzenIcon Icon="insights" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">All Time Insights</span>
-        </NavLink>
-    </li>
-    <li>
-        <NavLink href="/code-health" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
-            <RadzenIcon Icon="health_and_safety" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">Code Health</span>
-        </NavLink>
-    </li>
-    <li>
-        @* Prefix: the page also lives at /year-in-review/{year}. *@
-        <NavLink href="/year-in-review" Match="NavLinkMatch.Prefix" class="rz-panelmenu-header app-nav__link">
-            <RadzenIcon Icon="auto_awesome" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">Year in Review</span>
-        </NavLink>
-    </li>
+    @foreach (var group in AppNav.Groups)
+    {
+        @* A list item, not a heading. It was an <h2>, but the sidebar precedes <main> in the
+           document, so that put an h2 ahead of every page's h1 — a heading outline that starts at
+           level 2 (AccessibilityUiTests pins "first heading is the h1"). As plain list-item text it
+           is still read out, in order, immediately before the links it labels. *@
+        @if (group.Heading is not null)
+        {
+            <li><span class="nav-section-label">@group.Heading</span></li>
+        }
 
-    @* A list item, not a heading. It was an <h2>, but the sidebar precedes <main> in the
-       document, so that put an h2 ahead of every page's h1 — a heading outline that starts at
-       level 2 (AccessibilityUiTests pins "first heading is the h1"). As plain list-item text it
-       is still read out, in order, immediately before the links it labels. *@
-    <li><span class="nav-section-label">Config</span></li>
-
-    <li>
-        <NavLink href="/settings" Match="NavLinkMatch.All" class="rz-panelmenu-header app-nav__link">
-            <RadzenIcon Icon="tune" class="rz-menuitem-icon" />
-            <span class="rz-navigation-item-text">Settings</span>
-        </NavLink>
-    </li>
-    @* No Diagnostics link, by the owner's choice: the page is an operator's tool, reachable at
-       /diag, and not something to offer every signed-in user from the sidebar. *@
+        @foreach (var item in group.Items)
+        {
+            <li>
+                <NavLink href="@item.Href" Match="@item.Match" class="rz-panelmenu-header app-nav__link">
+                    <RadzenIcon Icon="@item.Icon" class="rz-menuitem-icon" />
+                    <span class="rz-navigation-item-text">@item.Label</span>
+                </NavLink>
+            </li>
+        }
+    }
 </ul>
 
 @code {
-    /// <summary>True at the app root, with or without a query string or fragment.</summary>
-    private bool IsHome => Navigation.ToBaseRelativePath(Navigation.Uri) is "" or ['?' or '#', ..];
-
-    // NavLink re-renders itself on navigation; the aria-current handed to it above is this
-    // component's output, so this component has to re-render too.
+    // NavLink re-renders itself on navigation; this component has to re-render too, because the
+    // groups are read once and the sidebar highlights whatever the current route matches.
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => StateHasChanged();

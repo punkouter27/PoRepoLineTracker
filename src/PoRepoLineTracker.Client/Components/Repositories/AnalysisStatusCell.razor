@@ -128,7 +128,7 @@
                     <RadzenIcon Icon="key_off" class="rp-error-icon" />
                     <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Sign-in needed" title="@error" />
                 </RadzenStack>
-                <a class="rp-reauth-link" href="/auth/login?returnUrl=%2Frepositories">Sign in again with GitHub</a>
+                <a class="rp-reauth-link" href="@($"/auth/login?returnUrl={Uri.EscapeDataString(AppRoutes.Repositories)}")">Sign in again with GitHub</a>
             </RadzenStack>
         }
         else if (!string.IsNullOrEmpty(error))

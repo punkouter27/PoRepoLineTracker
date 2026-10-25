@@ -92,7 +92,7 @@
             }
 
             // A full load: the session cookie is gone, and the WASM app's cached auth state is not.
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo(AppRoutes.Login, forceLoad: true);
         }
         catch (Exception ex)
         {

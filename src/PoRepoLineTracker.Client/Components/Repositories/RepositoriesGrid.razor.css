@@ -114,6 +114,16 @@
 
 .rp-sort { width: 8.5rem; min-width: 8.5rem; height: 2.5rem; flex: none; }
 
+/* The Radzen grid sorts from its column headers (each sortable one carries its own sort
+   arrow) and filters from the funnel on that header. The hand-rolled select and direction
+   button therefore duplicate the table's own controls and are hidden from it — they stay
+   for the card list below 768px, which is custom markup with no header row to click. */
+.rp-sort-controls { display: flex; align-items: center; gap: 0.35rem; }
+
+@media (min-width: 768px) {
+    .rp-sort-controls { display: none; }
+}
+
 .rp-card-list { display: none; }
 .rp-repo-card__identity,
 .rp-repo-card__footer,

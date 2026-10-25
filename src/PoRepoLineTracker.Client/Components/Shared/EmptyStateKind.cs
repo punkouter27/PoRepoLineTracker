@@ -13,4 +13,10 @@ public enum EmptyStateKind
     NoInsights,
     /// <summary>Target resource (typically a single repository) could not be found. Icon <c>search_off</c>.</summary>
     NotFound,
+    /// <summary>
+    /// First run: nothing is set up yet. The one kind with a second presentation — a three-step
+    /// "connect → analyse → track" panel and one call to action, because "there is nothing here"
+    /// is not a useful thing to say to someone who has not started.
+    /// </summary>
+    Onboarding,
 }

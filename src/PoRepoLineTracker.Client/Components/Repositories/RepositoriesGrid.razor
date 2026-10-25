@@ -49,15 +49,22 @@
                 <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
                               Click="@(() => SearchChanged.InvokeAsync(string.Empty))" title="Clear search" aria-label="Clear search" />
             }
-            <label class="rp-sort-label"><span class="rz-helper-hidden-accessible">Sort repositories</span>
-                <select class="rz-inputtext rp-sort" value="@_sortProperty" @onchange="@(args => OnSortSelected(args.Value?.ToString() ?? "Name"))">
-                    @foreach (var option in SortOptions) { <option value="@option.Value">@option.Label</option> }
-                </select>
-            </label>
-            <RadzenButton Icon="@(_sortDescending ? "arrow_downward" : "arrow_upward")" Size="ButtonSize.Small"
-                          ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Click="@ToggleSortDirection"
-                          title="@(_sortDescending ? "Sort ascending" : "Sort descending")"
-                          aria-label="@(_sortDescending ? "Sort ascending" : "Sort descending")" />
+            @* The table sorts from its column headers and filters from the funnel on each of
+               them, so these two controls are only here for the card list below 768px —
+               custom markup with no header row to click. Hidden from the table view by CSS.
+               Both write the same _sortProperty the grid's own Sort event writes, so the two
+               views never disagree about which column is sorted. *@
+            <div class="rp-sort-controls">
+                <label class="rp-sort-label"><span class="rz-helper-hidden-accessible">Sort repositories</span>
+                    <select class="rz-inputtext rp-sort" value="@_sortProperty" @onchange="@(args => OnSortSelected(args.Value?.ToString() ?? "Name"))">
+                        @foreach (var option in SortOptions) { <option value="@option.Value">@option.Label</option> }
+                    </select>
+                </label>
+                <RadzenButton Icon="@(_sortDescending ? "arrow_downward" : "arrow_upward")" Size="ButtonSize.Small"
+                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Click="@ToggleSortDirection"
+                              title="@(_sortDescending ? "Sort ascending" : "Sort descending")"
+                              aria-label="@(_sortDescending ? "Sort ascending" : "Sort descending")" />
+            </div>
         </RadzenStack>
     </RadzenStack>
 </div>
@@ -125,7 +132,7 @@ else
                     class="rp-grid">
         <EmptyTemplate><span class="rp-table-empty">No matching repositories.</span></EmptyTemplate>
         <Columns>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Name" Title="Repository" MinWidth="160px" Width="180px" Sortable="true" Filterable="false" Pickable="false">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Name" Title="Repository" MinWidth="160px" Width="180px" Sortable="true" Filterable="true" FilterProperty="OwnerName" FilterOperator="FilterOperator.Contains" Pickable="false">
                 <Template Context="row">
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
                         <RadzenText class="rp-repo-name" title="@($"{row.Owner}/{row.Name}")">@($"{row.Owner}/{row.Name}")</RadzenText>
@@ -135,7 +142,7 @@ else
                     </RadzenStack>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Total Lines")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="TotalLinesSortValue" Title="Total Lines" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="true" Visible="@Visible("Total Lines")">
                 <Template Context="row">
                     @if (row.TotalLinesSortValue.HasValue)
                     {
@@ -156,7 +163,7 @@ else
             </RadzenDataGridColumn>
             @* The 30-day columns. "—" until the page's insights request lands: it is fetched
                after the grid is on screen, so these never hold up the rows themselves. *@
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Net (30d)")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="NetChange30Days" Title="Net (30d)" Width="100px" TextAlign="TextAlign.Right" Sortable="true" Filterable="true" Visible="@Visible("Net (30d)")">
                 <Template Context="row">
                     @if (row.NetChange30Days is { } net)
                     {
@@ -168,7 +175,7 @@ else
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="false" Visible="@Visible("Commits (30d)")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="Commits30Days" Title="Commits (30d)" Width="110px" TextAlign="TextAlign.Right" Sortable="true" Filterable="true" Visible="@Visible("Commits (30d)")">
                 <Template Context="row">
                     @if (row.Commits30Days is { } commits)
                     {
@@ -201,7 +208,7 @@ else
             </RadzenDataGridColumn>
             @* "Last commit", not "Last Analyzed": the value is the newest analysed commit's own
                date, so a repository analysed a minute ago read "3 months ago" under the old title. *@
-            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last commit" Width="120px" Sortable="true" Filterable="false" Visible="@Visible("Last commit")">
+            <RadzenDataGridColumn TItem="RepositoryGridRow" Property="LastAnalyzedCommitDate" Title="Last commit" Width="120px" Sortable="true" Filterable="true" Visible="@Visible("Last commit")">
                 <Template Context="row">
                     @if (row.LastAnalyzedCommitDate.HasValue)
                     {

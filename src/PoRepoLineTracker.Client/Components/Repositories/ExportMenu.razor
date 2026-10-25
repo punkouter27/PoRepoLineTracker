@@ -1,0 +1,54 @@
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@* The portfolio export menu: CSV, JSON, or a print/PDF of the page.
+
+   It was inline in Repositories.razor with its own format-switching and download logic — forty
+   lines of a page whose job is the repository grid. A page-level action is a component. *@
+
+<RadzenSplitButton Text="Export"
+                   Icon="download"
+                   ButtonStyle="ButtonStyle.Light"
+                   Variant="Variant.Outlined"
+                   Size="ButtonSize.Medium"
+                   Click="@(args => ExportAsync(args))">
+    <ChildContent>
+        <RadzenSplitButtonItem Text="Export CSV" Value="csv" Icon="download" />
+        <RadzenSplitButtonItem Text="Export JSON" Value="json" Icon="data_object" />
+        <RadzenSplitButtonItem Text="Print / PDF" Value="print" Icon="print" />
+    </ChildContent>
+</RadzenSplitButton>
+
+@code {
+    /// <summary>
+    /// Trigger a browser download of the portfolio in the requested format. Navigates with
+    /// <c>forceLoad: true</c> rather than fetching in-process: the response is a file (with a
+    /// Content-Disposition the browser honours), and the in-process path would surface a BLOB
+    /// round-trip where a plain navigation just works.
+    /// </summary>
+    /// <remarks>
+    /// Radzen's SplitButton <c>Click</c> callback's argument type has changed across versions
+    /// (a stringified item-value in older ones, a <see cref="RadzenSplitButtonItem"/> reference
+    /// in newer ones). Accepting <see cref="object"/> and inspecting keeps this resilient against
+    /// either shape: a menu item passes <c>"csv"</c> / <c>"json"</c> / <c>"print"</c>, the main
+    /// button passes <c>null</c>. Defaulting to <c>"csv"</c> makes the main button act as a CSV
+    /// shortcut, and <c>"print"</c> forwards to the browser's print dialog.
+    /// </remarks>
+    private async Task ExportAsync(object? args)
+    {
+        var format = args switch
+        {
+            string s => s,
+            RadzenSplitButtonItem item => item.Value as string ?? "csv",
+            _ => "csv"
+        };
+
+        if (format == "print")
+        {
+            await JS.InvokeVoidAsync("window.print");
+            return;
+        }
+
+        await Task.Run(() => Navigation.NavigateTo($"/api/repositories/export?format={format}", forceLoad: true));
+    }
+}

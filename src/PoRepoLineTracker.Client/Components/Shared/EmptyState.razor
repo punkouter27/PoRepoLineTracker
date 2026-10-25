@@ -7,6 +7,12 @@
    from its own page CSS. Consolidating here deletes five copies of ~12 lines and stops the next
    "no data" block from rendering in body-text size by default.
 
+   Kind = Onboarding is the one kind with a second presentation: a three-step "connect → analyse →
+   track" panel and one call to action, because "there is nothing here" is not a useful thing to
+   say to someone who has not started. It used to be a separate component (OnboardingEmptyState)
+   with the same job and its own copy of the card chrome — two components that had to agree, and
+   one of them only had a single caller.
+
    Rooted at a plain <div> so this file's scope id has an element to attach to. .::deep rules in
    the stylesheet then reach Radzen's rendered descendants, mirroring the contract used by
    ChartCard.razor.css. *@
@@ -14,28 +20,70 @@
 @using Radzen
 @using Radzen.Blazor
 
-<div class="empty-state">
-    <RadzenCard class="empty-state__surface">
-        <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem" class="empty-state__stack">
-            <RadzenIcon Icon="@IconForKind" class="empty-state__icon" />
-            @if (!string.IsNullOrWhiteSpace(Title))
-            {
-                <RadzenText TextStyle="TextStyle.H6" class="empty-state__title">@Title</RadzenText>
-            }
-            @if (!string.IsNullOrWhiteSpace(Description))
-            {
-                <RadzenText TextStyle="TextStyle.Body2" class="empty-state__description">@Description</RadzenText>
-            }
-            @if (Actions is not null)
-            {
-                <div class="empty-state__actions">@Actions</div>
-            }
-        </RadzenStack>
+<div class="@RootClass">
+    <RadzenCard class="@SurfaceClass">
+        @if (IsOnboarding)
+        {
+            <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
+                <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenIcon Icon="code" class="onboarding__icon" />
+                    <RadzenText TextStyle="TextStyle.H5" class="onboarding__title">@Title</RadzenText>
+                    @if (!string.IsNullOrWhiteSpace(Description))
+                    {
+                        <RadzenText TextStyle="TextStyle.Body1" class="onboarding__lede">@Description</RadzenText>
+                    }
+                </RadzenStack>
+
+                <div class="onboarding__steps">
+                    @for (var i = 0; i < Steps.Count; i++)
+                    {
+                        var s = Steps[i];
+                        <div class="onboarding-step">
+                            <div class="onboarding-step-icon">
+                                <RadzenIcon Icon="@s.Icon" />
+                            </div>
+                            <RadzenText TextStyle="TextStyle.Subtitle2" class="onboarding-step__title">@s.Title</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" class="onboarding-step__caption">@s.Caption</RadzenText>
+                        </div>
+
+                        @* Connector after each step except the last. *@
+                        @if (i < Steps.Count - 1)
+                        {
+                            <div class="onboarding-connector" aria-hidden="true"></div>
+                        }
+                    }
+                </div>
+
+                <RadzenButton Text="@CtaText"
+                              Icon="@CtaIcon"
+                              ButtonStyle="ButtonStyle.Primary"
+                              class="onboarding-cta-pulse onboarding__cta"
+                              Click="@(() => OnClick.InvokeAsync())" />
+            </RadzenStack>
+        }
+        else
+        {
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem" class="empty-state__stack">
+                <RadzenIcon Icon="@IconForKind" class="empty-state__icon" />
+                @if (!string.IsNullOrWhiteSpace(Title))
+                {
+                    <RadzenText TextStyle="TextStyle.H6" class="empty-state__title">@Title</RadzenText>
+                }
+                @if (!string.IsNullOrWhiteSpace(Description))
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="empty-state__description">@Description</RadzenText>
+                }
+                @if (Actions is not null)
+                {
+                    <div class="empty-state__actions">@Actions</div>
+                }
+            </RadzenStack>
+        }
     </RadzenCard>
 </div>
 
 @code {
-    /// <summary>What kind of empty state this is — drives the icon.</summary>
+    /// <summary>What kind of empty state this is — drives the icon and the presentation.</summary>
     [Parameter] public EmptyStateKind Kind { get; set; } = EmptyStateKind.NoData;
 
     /// <summary>Headline. Required — the whole point of the block is to say something is missing.</summary>
@@ -46,6 +94,27 @@
 
     /// <summary>Optional CTA slot — typically a single RadzenButton. Page owns click handlers.</summary>
     [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>
+    /// The onboarding variant's three steps. Ignored by every other kind.
+    /// </summary>
+    [Parameter] public IReadOnlyList<OnboardingStep> Steps { get; set; } = OnboardingStep.RepositoriesDefault;
+
+    /// <summary>The onboarding variant's button label. Ignored by every other kind.</summary>
+    [Parameter] public string CtaText { get; set; } = "Get All My Repositories";
+
+    /// <summary>The onboarding variant's button icon. Ignored by every other kind.</summary>
+    [Parameter] public string CtaIcon { get; set; } = "cloud_download";
+
+    /// <summary>The onboarding variant's button click. Ignored by every other kind.</summary>
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private bool IsOnboarding => Kind == EmptyStateKind.Onboarding;
+
+    /// <summary>The host class — the onboarding panel carries its own chrome, the plain kind its own.</summary>
+    private string RootClass => IsOnboarding ? "onboarding" : "empty-state";
+
+    private string SurfaceClass => IsOnboarding ? "onboarding__card" : "empty-state__surface";
 
     /// <summary>Icon used for the chosen <see cref="Kind"/>. Centralised here so callers don't restate it.</summary>
     private string IconForKind => Kind switch

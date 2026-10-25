@@ -190,7 +190,7 @@
         // Landing on /year-in-review in a quiet year (early January, say) would open on an empty
         // page while last year has a story. Only for the default year: an explicit one is honoured.
         if (Year is null && _data is { HasActivity: false, AvailableYears.Count: > 0 })
-            Navigation.NavigateTo($"/year-in-review/{_data.AvailableYears[0]}", replace: true);
+            Navigation.NavigateTo($"{AppRoutes.YearInReview}/{_data.AvailableYears[0]}", replace: true);
     }
 
     private async Task LoadAsync()
@@ -330,7 +330,7 @@
         }
     }
 
-    private void OnYearChanged(int year) => Navigation.NavigateTo($"/year-in-review/{year}");
+    private void OnYearChanged(int year) => Navigation.NavigateTo($"{AppRoutes.YearInReview}/{year}");
 
     private async Task DownloadCardAsync()
     {

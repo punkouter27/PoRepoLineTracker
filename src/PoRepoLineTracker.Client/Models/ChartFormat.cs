@@ -36,13 +36,16 @@ public static class ChartFormat
     public static int RangeDays(string? query, int pageDefault = DefaultRangeDays) => query switch
     {
         "180" => DefaultRangeDays,
-        "365" => 365,
+        "365" => OneYearDays,
         "all" => AllDays,
         _ => pageDefault
     };
 
     /// <summary>The range a chart opens on unless its page passes another default, and the one left out of the URL.</summary>
     public const int DefaultRangeDays = 180;
+
+    /// <summary>"1yr": the second range the selectors offer, and the page default on the Repositories growth chart.</summary>
+    public const int OneYearDays = 365;
 
     /// <summary>
     /// "All": a window longer than any repository's history. The endpoints take a day count, so
@@ -54,7 +57,7 @@ public static class ChartFormat
     public static string? RangeQuery(int days, int pageDefault = DefaultRangeDays) => days == pageDefault ? null : days switch
     {
         DefaultRangeDays => "180",
-        365 => "365",
+        OneYearDays => "365",
         AllDays => "all",
         _ => null
     };

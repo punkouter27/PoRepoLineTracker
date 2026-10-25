@@ -1,4 +1,3 @@
-@page "/"
 @page "/repositories"
 @attribute [Authorize]
 @implements IAsyncDisposable
@@ -51,22 +50,7 @@
                               ButtonStyle="ButtonStyle.Primary"
                               Size="ButtonSize.Medium"
                               Click="@OpenAddRepositoryDialog" />
-                <RadzenButton Text="@(IsOverview ? "Repositories" : "Overview")"
-                              Icon="@(IsOverview ? "storage" : "dashboard")"
-                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Outlined" Size="ButtonSize.Medium"
-                              Click="@ToggleWorkspaceView" aria-label="@(IsOverview ? "Show repository workspace" : "Show portfolio overview")" />
-                <RadzenSplitButton Text="Export"
-                                   Icon="download"
-                                   ButtonStyle="ButtonStyle.Light"
-                                   Variant="Variant.Outlined"
-                                   Size="ButtonSize.Medium"
-                                   Click="@(args => ExportAsync(args))">
-                    <ChildContent>
-                        <RadzenSplitButtonItem Text="Export CSV" Value="csv" Icon="download" />
-                        <RadzenSplitButtonItem Text="Export JSON" Value="json" Icon="data_object" />
-                        <RadzenSplitButtonItem Text="Print / PDF" Value="print" Icon="print" />
-                    </ChildContent>
-                </RadzenSplitButton>
+                <ExportMenu />
             }
         </Actions>
     </PageHero>
@@ -83,16 +67,9 @@
        shape from the page it stood in for, and everything snapped when the data arrived. *@
     @if (!pageState.IsLoadingRepositories && !pageState.Repositories.Any())
     {
-        <OnboardingEmptyState OnClick="OpenAddRepositoryDialog" />
-    }
-    else if (IsOverview)
-    {
-        <RadzenTabs RenderMode="TabRenderMode.Client" SelectedIndex="@WorkspaceTabIndex" SelectedIndexChanged="@OnWorkspaceTabChanged" class="rp-workspace-tabs">
-            <Tabs>
-                <RadzenTabsItem Text="Portfolio" Icon="dashboard"><PortfolioOverview /></RadzenTabsItem>
-                <RadzenTabsItem Text="Code health" Icon="health_and_safety"><PortfolioHealth /></RadzenTabsItem>
-            </Tabs>
-        </RadzenTabs>
+        <EmptyState Kind="EmptyStateKind.Onboarding" Title="No repositories yet"
+                    Description="Add your first GitHub repository and start tracking lines of code over time."
+                    OnClick="@OpenAddRepositoryDialog" />
     }
     else
     {
@@ -152,7 +129,7 @@
                                  IsLoading="@(!_totalsLoaded)"
                                  ErrorMessage="@_historyError"
                                  OnRetry="@LoadLatestLineCounts"
-                                 Days="@ChartFormat.RangeDays(Days, ChartFormat.AllDays)"
+                                 Days="@ChartFormat.RangeDays(Days, ChartFormat.OneYearDays)"
                                  DaysChanged="@OnChartDaysChanged" />
     }
 
@@ -171,22 +148,11 @@
 
     /// <summary>Grid search text.</summary>
     [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
-    [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
-    [SupplyParameterFromQuery(Name = "tab")] public string? WorkspaceTab { get; set; }
-    private bool IsOverview => View == "overview";
-    private int WorkspaceTabIndex => WorkspaceTab == "health" ? 1 : 0;
-
-    private void ToggleWorkspaceView() => Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
-    {
-        ["view"] = IsOverview ? null : "overview", ["tab"] = null
-    }));
-
-    private void OnWorkspaceTabChanged(int index) => Navigation.NavigateTo(
-        Navigation.GetUriWithQueryParameter("tab", index == 1 ? "health" : null), replace: true);
 
     /// <summary>
-    /// Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string. Opens on "All"
-    /// here (owner, 2026-10-24), the whole history being what the portfolio overview is for.
+    /// Growth chart range; see <see cref="ChartFormat.RangeDays"/> for why a string. Opens on "1yr"
+    /// here (owner, 2026-10-24): a year of history is the readable window on a chart of this many
+    /// series, and "All" is still one click away for anyone who wants the whole span.
     /// </summary>
     [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
 
@@ -194,7 +160,7 @@
         Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(value) ? null : value), replace: true);
 
     private void OnChartDaysChanged(int days) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days, ChartFormat.AllDays)), replace: true);
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days, ChartFormat.OneYearDays)), replace: true);
 
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;
@@ -488,7 +454,7 @@
 
     private void OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args)
     {
-        Navigation.NavigateTo($"/repositories/{args.Data.Id}");
+        Navigation.NavigateTo(AppRoutes.ForRepository(args.Data.Id));
     }
 
     /// <summary>
@@ -508,40 +474,6 @@
     }
 
     // ToRelativeTime moved to ChartFormat — it was duplicated verbatim on RepositoryDetail.
-
-    private async Task PrintReportAsync()
-    {
-        await JS.InvokeVoidAsync("window.print");
-    }
-
-    /// <summary>
-    /// Trigger a browser download of the portfolio in the requested format. Navigates with
-    /// <c>forceLoad: true</c> rather than fetching in-process: the response is a file (with a
-    /// Content-Disposition the browser honours), and the in-process path would surface a BLOB
-    /// round-trip where a plain navigation just works.
-    /// </summary>
-    /// <remarks>
-    /// Radzen's SplitButton <c>Click</c> callback's argument type has changed across versions
-    /// (a stringified item-value in older ones, a <see cref="RadzenSplitButtonItem"/> reference
-    /// in newer ones). Accepting <see cref="object"/> and inspecting keeps this resilient against
-    /// either shape: a menu item passes <c>"csv"</c> / <c>"json"</c> / <c>"print"</c>, the main
-    /// button passes <c>null</c>. Defaulting to <c>"csv"</c> makes the main button act as a CSV
-    /// shortcut, and <c>"print"</c> forwards to <see cref="PrintReportAsync"/>.
-    /// </remarks>
-    private Task ExportAsync(object? args)
-    {
-        var format = args switch
-        {
-            string s => s,
-            RadzenSplitButtonItem item => item.Value as string ?? "csv",
-            _ => "csv"
-        };
-        return format switch
-        {
-            "print" => PrintReportAsync(),
-            _ => Task.Run(() => Navigation.NavigateTo($"/api/repositories/export?format={format}", forceLoad: true))
-        };
-    }
 
     private async Task OpenAddRepositoryDialog()
     {

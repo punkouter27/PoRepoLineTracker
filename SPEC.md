@@ -92,9 +92,11 @@ src/
 
   PoRepoLineTracker.Client/       ← Blazor WASM (Radzen + scoped .razor.css)
     App.razor                     ← Router + CascadingAuthenticationState
-    Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav)
-    Pages/                        ← Login, Repositories, RepositoryDetail, CodeHealth, ExtensionsCounted, Diagnostics, Insights
-    Components/                   ← AllReposComparisonChart, ContributorChart, Repositories/* (incl. CodeHealthRadar, CommitActivityHeatmap, RepositoriesGrid), Shared/* (incl. OfflineIndicator)
+    Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav), NavMenu
+    Models/                       ← AppRoutes (every route, one place), AppNav (the sidebar's groups), RepositoryGridRow, ChartFormat, LoadingState
+    Pages/                        ← Root (redirects to /repositories), Repositories, RepositoryDetail, CodeHealth, Settings, Insights, YearInReview, Login
+    Pages/Operator/               ← Diagnostics (not in the sidebar)
+    Components/                   ← Account/*, Auth/*, Charts/*, Repositories/* (incl. RepositoriesGrid), Shared/* (incl. OfflineIndicator, EmptyState)
     Services/                     ← ApiAuthenticationStateProvider, RepositoryCommandClient, UserPreferencesClient, AntiforgeryHandler, AnalysisFeedClient, AnalysisWatcher, AppHttpJsonExtensions
     wwwroot/                      ← service-worker.js (dev no-op), service-worker.published.js (real cache, server-route prefix exceptions)
 
@@ -374,4 +376,30 @@ Owner request: "Global Insights" is renamed **All Time Insights** (page title, h
 - `PortfolioInsightsDto` gains `CommitsAllTime`, `LinesAddedAllTime`, `LinesRemovedAllTime`, `ActiveDaysAllTime`, `FirstCommitDate`; `NetLines7Days` / `NetLines30Days` are removed (the page was their only reader).
 - Redefined to lifetime: `TrendLine` (first commit → today, monthly up to 36 points, then spread evenly), `Outliers` (largest 10 ever, across repositories), `LanguageDrift` / `RisingLanguage` / `FadingLanguage` (baseline = each repository's first analysed snapshot, summed), `CurrentStreakDays` / `LongestStreakDays` (whole history, so a streak can exceed a year). `Activity` already covered the whole history (ten-year cap unchanged).
 - Unchanged, because the Repositories page reads them from the same response: `Commits30Days`, `LinesAdded30Days`, `ActiveDays30`, `Movers` (grid columns and the backdrop mood).
-- **Follow-ups (same day).** The Repositories growth chart opens on "All" (`ChartFormat.RangeDays/RangeQuery` take a per-page default; `?days=180` now names 180 explicitly, and other pages still default to 180). The Code Health trend (`GET /api/code-health/{id}/trend`) covers the whole history: every 1st from the first commit, at most 48 points (thinned evenly beyond four years, first and newest kept), and a commit measured once in a run is reused by later months of that run. The Code Health ranking gains an "All-time trend" sparkline column (three trend requests at a time, cancelled on re-run or navigation). Sparklines need the `.app-spark` wrapper (app.css), which exempts them from the global `.rz-chart` sizing; the Total Lines tile's sparkline had never rendered for that reason and for passing its series as attributes, and its series now carries each repository's last snapshot forward instead of summing only the repositories that committed that day.
+- **Follow-ups (same day).** The Repositories growth chart opens on "1yr" (`ChartFormat.RangeDays/RangeQuery` take a per-page default; `?days=180` names 180 explicitly, `?days=all` names the whole history, and other pages still default to 180). The Code Health trend (`GET /api/code-health/{id}/trend`) covers the whole history: every 1st from the first commit, at most 48 points (thinned evenly beyond four years, first and newest kept), and a commit measured once in a run is reused by later months of that run. The Code Health ranking gains an "All-time trend" sparkline column (three trend requests at a time, cancelled on re-run or navigation). Sparklines need the `.app-spark` wrapper (app.css), which exempts them from the global `.rz-chart` sizing; the Total Lines tile's sparkline had never rendered for that reason and for passing its series as attributes, and its series now carries each repository's last snapshot forward instead of summing only the repositories that committed that day.
+
+---
+
+## Delta: the grid's own sort and filter, growth chart on 1yr 2026-10-24
+
+Owner request: let the Radzen grid do the sorting and filtering. No new endpoint, config key, dependency or column — the table already was a `RadzenDataGrid`.
+
+- **Growth chart opens on 1yr.** The Repositories growth chart's page default moves from "All" to "1yr" (`ChartFormat.OneYearDays`); the range selector still offers 180d, 1yr and All, and the default is left out of the URL as before. Other pages still default to 180d.
+- **The grid sorts and filters itself.** The Repositories table is a `RadzenDataGrid`; it already sorted from its column headers and filtered per column, so the hand-rolled sort `<select>` and its direction button — a second, worse way to do the same thing — are gone from the table view. Every column with something to filter is now `Filterable`: Repository (on `RepositoryGridRow.OwnerName`, so the owner half matches too), Total Lines, Net (30d), Commits (30d), Last commit and Status. The filters run in the browser over the rows the page already has.
+- **The card list keeps its controls.** Below 768px the table is replaced by the card list — custom markup with no header row to click — so the select and the arrow stay there (CSS hides them from the table view only). Both write the same `_sortProperty`, so the two views never disagree about which column is sorted, and the choice still persists to `localStorage["repoGrid"]`.
+- **The search box stays everywhere.** It is the URL's `?q=`, so it must always be visible enough to be cleared.
+
+---
+
+## Delta: one route per page, one owner per dataset 2026-10-24
+
+Owner request: organise the app's links, pages and components logically. No new endpoint, config key or dependency; this is structure, not behaviour. The grid and the 1yr default above are unchanged by it.
+
+- **One route per page.** `Repositories.razor` answered `/`, `/repositories` and `/repositories?view=overview` — three addresses, two of them the same screen, and the third a different mode of it. Now: `/repositories` is the repository list and `/` redirects to it (`Pages/Root.razor`). The `?view=` mode is gone, so the page has one job and the "Overview" toggle button went with it. The portfolio export menu moved out to `Components/Repositories/ExportMenu.razor` — a page-level action is a component, and it was forty lines of a page whose job is the grid.
+- **One owner per dataset.** `PortfolioOverview.razor` and `PortfolioHealth.razor` are deleted. `PortfolioOverview` was a 100% duplicate of the All Time Insights page — same endpoint (`/api/insights/portfolio`), same KPI row, same Portfolio growth chart, same Activity heatmap, and the same Language mix card — so deleting it loses nothing. `PortfolioHealth` was the Code Health page's data in a narrower widget, and `/code-health` keeps it. The sidebar's "Portfolio Overview" entry went with them; `/insights` and `/code-health` were already listed.
+- **Routes live in one place.** `Client/Models/AppRoutes.cs` holds every route, the repository detail page's tab names, and helpers for building a repository's URL. The sidebar reads `AppNav.Groups`, which is built from those same constants. The routes used to be literals in eleven files: `PortfolioHealth` had to spell `?tab=health` by hand and keep it in step with the tab array in `RepositoryDetail`, and renaming a tab broke the link with no error anywhere.
+- **The sidebar is grouped by intent.** "Portfolio" (Repositories, All Time Insights, Code Health, Year in Review) and "Configure" (Settings). The nav no longer offers two entries for one page.
+- **Names match what they are.** `Pages/ExtensionsCounted.razor` is the Settings page and is now `Pages/Settings.razor`; `/diag` is `/diagnostics`. The old paths redirect (`Components/RedirectTo.razor`).
+- **Operator pages are apart.** `Pages/Diagnostics.razor` moved to `Pages/Operator/`, so the eight files in `Pages/` are all user destinations. It is still not in the sidebar, by the owner's choice.
+- **Components are filed by kind.** `Components/Charts/` holds the seven chart components (AllReposComparisonChart, ContributorChart, CodeHealthRadar, CodeHealthTrendCard, CommitActivityHeatmap, HotspotTreemap, ExtensionBreakdownCard), which had been split between the folder root and `Components/Repositories/`. `Components/Auth/` holds LoginDisplay and RedirectToLogin (components, not layouts) and `Components/Account/` holds AccountDataCard.
+- **One empty state.** `OnboardingEmptyState` became `EmptyStateKind.Onboarding` — the first-run panel is the one kind of `EmptyState` with a second presentation, rather than a second component with the same job and its own copy of the card chrome.

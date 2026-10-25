@@ -38,18 +38,18 @@ public sealed class StaticAssetsApiTests
     [
         ("login-cta-btn", "Login.razor.css"),
         ("nav-section-label", "NavMenu.razor.css"),
-        ("login-display__avatar", "LoginDisplay.razor.css"),
+        ("login-display__avatar", "Auth/LoginDisplay.razor.css"),
         ("add-repo-title", "AddRepository.razor.css"),
         ("brand-wordmark", "MainLayout.razor.css"),
-        ("ext-code", "ExtensionsCounted.razor.css"),
+        ("ext-code", "Settings.razor.css"),
         // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
         // `.mobile-only` / `.desktop-only` classes written to switch it in were unused too.
         // Radzen's own responsive DataGrid covers the case it was built for.
-        ("xc-env-card", "Diagnostics.razor.css"),
-        ("arc-legend__swatch", "AllReposComparisonChart.razor.css"),
+        ("xc-env-card", "Operator/Diagnostics.razor.css"),
+        ("arc-legend__swatch", "Charts/AllReposComparisonChart.razor.css"),
         ("chart-card__title", "ChartCard.razor.css"),
         ("page-hero__actions", "PageHero.razor.css"),
-        ("cc-bar", "ContributorChart.razor.css"),
+        ("cc-bar", "Charts/ContributorChart.razor.css"),
         ("rd-ext-bar", "RepositoryDetail.razor.css"),
         ("rp-lines-value", "Repositories.razor.css"),
         ("rp-stat-spark", "PortfolioStatTiles.razor.css"),

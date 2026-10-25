@@ -86,7 +86,7 @@
                         Description="Add and analyze a repository and this page fills in.">
                 <Actions>
                     <RadzenButton Text="Go to Repositories" Icon="storage"
-                                  Click="@(() => Navigation.NavigateTo("/"))" />
+                                  Click="@(() => Navigation.NavigateTo(AppRoutes.Repositories))" />
                 </Actions>
             </EmptyState>
             break;
@@ -227,7 +227,7 @@
                     <p class="ins-outliers__hint">
                         These are usually vendored or generated files. Folders that look like a whole vendored
                         project are already skipped; for anything else, drop its file type from the counted
-                        extensions in <a href="/settings">Settings</a> and re-analyze.
+                        extensions in <a href="@AppRoutes.Settings">Settings</a> and re-analyze.
                     </p>
                 </ChartCard>
             }
@@ -235,7 +235,7 @@
 
         @* The "All repositories" table that sat here was the Repositories grid a second time —
            same rows, fewer columns. Its 30-day columns moved into that grid. *@
-        <a class="ins-all-link" href="/repositories">View all repositories →</a>
+        <a class="ins-all-link" href="@AppRoutes.Repositories">View all repositories →</a>
 
         @* ─── Language mix & Language drift ──────────────────────────────────── *@
         <div class="app-dashboard app-dashboard--panels">

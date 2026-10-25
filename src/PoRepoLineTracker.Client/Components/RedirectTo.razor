@@ -1,0 +1,22 @@
+@* Redirects to another route on first render.
+
+   Used where a URL used to be a page of its own and is now somewhere else: the app root ("/")
+   and the old diagnostics path ("/diag"). A redirect rather than a second @page on the target,
+   so the old address stops being a place that can drift away from the page it stands for.
+
+   replace: true, because the old address is not a history entry the user should be able to
+   step back to — Back should land where they were before, not on the address that redirects
+   to where they were before. *@
+
+@inject NavigationManager Navigation
+
+@code {
+    /// <summary>Where to send the visitor.</summary>
+    [Parameter, EditorRequired] public string To { get; set; } = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(To))
+            Navigation.NavigateTo(To, replace: true);
+    }
+}

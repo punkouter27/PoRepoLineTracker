@@ -141,7 +141,7 @@ namespace PoRepoLineTracker.Integration
                     {"GitHub:CallbackPath", "/signin-github"},
                     // Server-side PAT fallback. Without it the user-repositories endpoint short
                     // circuits with 400 before it ever reaches IGitHubService, which would make
-                    // the caching tests assert nothing. Also exercises /diag masking.
+                    // the caching tests assert nothing. Also exercises diagnostics masking.
                     {"GitHub:PAT", "test-pat-value-must-never-be-echoed"},
                     // Disable Key Vault to prevent DefaultAzureCredential from throwing
                     {"KeyVault:Uri", ""},

@@ -42,3 +42,68 @@
     justify-content: center;
     gap: 0.5rem;
 }
+
+/* ── The onboarding presentation ──────────────────────────────────────────────────────────
+   Merged in from OnboardingEmptyState.razor.css when that component became
+   EmptyStateKind.Onboarding. The class names dropped the `rp-` (repositories) prefix when it
+   moved into Shared/ — the prefix made sense when it was the one repositories-only onboarding
+   block, but the same styles now apply wherever the kind is used, where the `rp-` would lie.
+
+   Rules target Radzen-rendered descendants of the plain <div class="onboarding"> root, hence
+   ::deep + doubled classes. The .onboarding-step / .onboarding-connector chrome itself lives in
+   app.css. */
+
+::deep .onboarding__card.onboarding__card {
+    padding: 1.75rem 1.5rem !important;
+}
+
+::deep .onboarding__icon.onboarding__icon {
+    font-size: 2rem !important;
+    color: var(--primary-on-surface) !important;
+    animation: fadeSlideUp 0.4s ease both !important;
+}
+
+::deep .onboarding__title.onboarding__title {
+    margin: 0 !important;
+    animation: fadeSlideUp 0.4s ease 0.05s both !important;
+}
+
+::deep .onboarding__lede.onboarding__lede {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+    max-width: 380px !important;
+    animation: fadeSlideUp 0.4s ease 0.1s both !important;
+}
+
+::deep .onboarding-step__title.onboarding-step__title {
+    margin: 0 !important;
+    text-align: center !important;
+}
+
+::deep .onboarding-step__caption.onboarding-step__caption {
+    color: var(--rz-text-secondary-color) !important;
+    text-align: center !important;
+}
+
+::deep .onboarding__cta.onboarding__cta {
+    padding: 0.75rem 2rem !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+}
+
+.onboarding__steps {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 520px;
+}
+
+@media print {
+    .onboarding-step-icon {
+        display: none !important;
+    }
+}
