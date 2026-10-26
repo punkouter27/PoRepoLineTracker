@@ -36,8 +36,8 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  AZURE_WEBAPP_NAME: app-porepolinetracker
-  AZURE_WEBAPP_URL: https://app-porepolinetracker.azurewebsites.net
+  AZURE_WEBAPP_NAME: app-porepolinetracker2
+  AZURE_WEBAPP_URL: https://app-porepolinetracker2.azurewebsites.net
   # Casing matters: the runner is Linux, and the project is .API (not .Api).
   API_PROJECT_PATH: src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj
 

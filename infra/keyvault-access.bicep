@@ -1,6 +1,6 @@
 // Grants the web app's managed identity secret get/list on the shared Key Vault.
 //
-// Its own module because kv-poshared lives in the PoShared resource group, and a cross-RG
+// Its own module because kv-poshared2 lives in the PoShared resource group, and a cross-RG
 // child resource needs a scoped module.
 //
 // This used to be a comment in resources.bicep telling a human to go and do it by hand. Nobody
@@ -9,7 +9,7 @@
 // and the F1 plan cut the site off at WPStopRequests 15/15, which presents as HTTP 403
 // "Web App - Unavailable" rather than anything mentioning Key Vault.
 //
-// kv-poshared runs in access-policy mode (enableRbacAuthorization: false), so this is a policy
+// kv-poshared2 runs in access-policy mode (enableRbacAuthorization: false), so this is a policy
 // and not a role assignment. Name 'add' is the additive operation — it appends to the vault's
 // existing policies rather than replacing them, which matters because ~70 other identities
 // depend on the ones already there.

@@ -7,7 +7,7 @@
     "A GitHub OAuth App has exactly ONE Authorization callback URL, and GitHub requires the",
     "redirect_uri's host AND port to match it exactly (subdirectories are allowed; different hosts",
     "and ports are not). The production OAuth App Ov23liKNXw9OAOkwgDNG is registered against",
-    "https://app-porepolinetracker.azurewebsites.net/signin-github, so it can never authorize",
+    "https://app-porepolinetracker2.azurewebsites.net/signin-github, so it can never authorize",
     "http://localhost:5002/signin-github. Local development therefore needs its own OAuth App.",
     "",
     "Program.cs loads this file AFTER Azure Key Vault, so whatever you put here wins locally while",

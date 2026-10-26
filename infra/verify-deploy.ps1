@@ -26,7 +26,7 @@ $ErrorActionPreference = 'Stop'
 $Url = if ($env:PoRepoLineTracker_VerifyUrl) {
     $env:PoRepoLineTracker_VerifyUrl.TrimEnd('/')
 } else {
-    'https://app-porepolinetracker.azurewebsites.net'
+    'https://app-porepolinetracker2.azurewebsites.net'
 }
 
 function Get-Probe([string]$Path) {

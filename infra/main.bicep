@@ -9,15 +9,15 @@ param location string = 'eastus2'
 // so a provision does not create a duplicate, empty resource group.
 var resourceGroupName = 'PoRepoLineTracker'
 var sharedResourceGroupName = 'PoShared'
-var storageAccountName = 'stporepolinetracker'  // Existing storage account in PoRepoLineTracker RG
+var storageAccountName = 'stporepolinetracker2'  // Existing storage account in PoRepoLineTracker RG
 var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
-var webAppName = 'app-porepolinetracker'  // App Service in PoRepoLineTracker RG
+var webAppName = 'app-porepolinetracker2'  // App Service in PoRepoLineTracker RG
 // Dedicated F1 (Free) plan, created and owned by this template in the PoRepoLineTracker RG.
 // Previously this referenced the shared B1 in PoShared; the app now runs on its own free plan
 // so it costs nothing and cannot contend with the other Po* sites. See the F1 constraints
 // documented on the plan resource in resources.bicep — Always On is not one of them.
 var appServicePlanName = 'asp-porepolinetracker-f1'
-var keyVaultName = 'kv-poshared'  // Existing Key Vault in PoShared RG
+var keyVaultName = 'kv-poshared2'  // Existing Key Vault in PoShared RG
 
 // The app resource group — created here if it does not exist.
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
