@@ -1,5 +1,10 @@
 using System.Net;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace PoRepoLineTracker.Integration;
 
@@ -15,10 +20,28 @@ namespace PoRepoLineTracker.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public class AuthorizationFallbackTests
 {
+    // Every route that opts out of the FallbackPolicy. A new public route fails
+    // Anonymous_surface_is_exactly_the_allow_list until it is added here on purpose. Static files
+    // and the Blazor framework files are public by design and are identified by their metadata.
+    private static readonly string[] AnonymousAllowList =
+    [
+        "/api/antiforgery/token",
+        "/auth/login",
+        "/auth/logout",
+        "/auth/me",
+        "/badge/{repositoryId:guid}/{kind}.svg",
+        "/health",
+        "/health/live",
+        "/share/{repositoryId:guid}",
+        "/{*path:nonfile}",
+    ];
+
+    private readonly CustomWebApplicationFactory _factory;
     private readonly HttpClient _anonymous;
 
     public AuthorizationFallbackTests(CustomWebApplicationFactory factory)
     {
+        _factory = factory;
         _anonymous = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -52,6 +75,28 @@ public class AuthorizationFallbackTests
     }
 
     // ─── Explicitly public ──────────────────────────────────────────────
+
+    [Fact]
+    public void Anonymous_surface_is_exactly_the_allow_list()
+    {
+        var policy = _factory.Services.GetRequiredService<IOptions<AuthorizationOptions>>().Value.FallbackPolicy;
+        policy.Should().NotBeNull();
+        policy!.Requirements.Should().Contain(r => r is DenyAnonymousAuthorizationRequirement);
+
+        var anonymous = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+            .Where(e => !IsHostOrStaticAsset(e))
+            .Select(e => "/" + e.RoutePattern.RawText!.TrimStart('/'))
+            .Distinct()
+            .Order(StringComparer.Ordinal);
+
+        Assert.Equal(AnonymousAllowList, anonymous);
+    }
+
+    private static bool IsHostOrStaticAsset(RouteEndpoint endpoint) =>
+        endpoint.RoutePattern.RawText!.TrimStart('/').StartsWith("_framework", StringComparison.Ordinal)
+        || endpoint.Metadata.Any(m => m.GetType().Name is "StaticAssetDescriptor" or "ComponentTypeMetadata" or "RootComponentMetadata");
 
     [Fact]
     public async Task BlazorFrameworkFile_Anonymous_IsNotGatedByAuth()

@@ -2,6 +2,11 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
+    <!-- Fail the build on a NuGet advisory, direct or transitive, rather than emitting a warning
+         nobody reads. Fix one by bumping the version in Directory.Packages.props. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <!-- Target is C# 15, but the SDK pinned in global.json (10.0.100) ships a Roslyn that
          rejects LangVersion=15.0 — C# 14 is its newest numbered version. "preview" selects the
          newest language version the installed compiler supports, so this picks up C# 15 the

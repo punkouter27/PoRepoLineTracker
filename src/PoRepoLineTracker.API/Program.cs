@@ -95,8 +95,28 @@ namespace PoRepoLineTracker.API
 
             var app = builder.Build();
 
+            // Fail at startup, where the deploy's health gate sees it, rather than at the first
+            // sign-in or table read: without these Production falls back to cookie-only auth and
+            // to Azurite, neither of which works there. The GitHub pair comes from Key Vault
+            // (PoRepoLineTracker--GitHub--*), the storage URL from an App Setting.
+            if (app.Environment.IsProduction())
+            {
+                string[] required = [ConfigKeys.GitHub.ClientId, ConfigKeys.GitHub.ClientSecret, ConfigKeys.AzureTableStorage.ServiceUrl];
+                var missing = required.Where(key => string.IsNullOrWhiteSpace(app.Configuration[key])).ToArray();
+                if (missing.Length > 0)
+                    throw new InvalidOperationException($"Missing required Production configuration: {string.Join(", ", missing)}");
+            }
+
             // Middleware pipeline
             app.UseForwardedHeaders();
+            // The commit this build came from (SDK-stamped as "<version>+<sha>"), so a deploy can
+            // prove which build is answering: CI checks /health/live for X-Commit equal to the pushed sha.
+            var commit = PoPlatform.Version.Split('+') is [_, var sha, ..] ? sha : "unknown";
+            app.Use((context, next) =>
+            {
+                context.Response.Headers["X-Commit"] = commit;
+                return next(context);
+            });
             app.UseMiddleware<LogEnrichmentMiddleware>();
             app.UseMiddleware<SecurityHeadersMiddleware>();
             app.UseMiddleware<ExceptionHandlingMiddleware>();
