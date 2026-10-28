@@ -48,7 +48,7 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <!-- OpenAPI -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.13.20" />
     <!-- Authentication -->
     <PackageVersion Include="AspNet.Security.OAuth.GitHub" Version="9.3.0" />
