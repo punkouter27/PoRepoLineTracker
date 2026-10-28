@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+@AGENTS.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 `AGENTS.md` (writing ruleset + owner's project rules; `.github/copilot-instructions.md` is a verbatim copy, so keep the two in sync) and `SPEC.md` (contracts, boundaries, load-bearing edge cases) are the source of truth. Read SPEC §8 "Boundaries" and §10 "Edge cases" before changing behaviour; the dated "Delta" sections at the end of SPEC override earlier sections.

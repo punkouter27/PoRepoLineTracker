@@ -36,8 +36,8 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  AZURE_WEBAPP_NAME: app-porepolinetracker2
-  AZURE_WEBAPP_URL: https://app-porepolinetracker2.azurewebsites.net
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+  AZURE_WEBAPP_URL: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
   # Casing matters: the runner is Linux, and the project is .API (not .Api).
   API_PROJECT_PATH: src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj
 
@@ -195,6 +195,20 @@ jobs:
       # The deploy step returns once the package is ACCEPTED, not once the site is serving it —
       # so without this a crash-on-startup shipped green and nobody knew until someone opened the
       # page. Same script a developer runs by hand; 30 tries x 10 s rides out the container swap.
+      # Same gate in every Po web repo: the process is up (/health/live) and its dependencies answer (/health).
+      - name: Health gate (/health/live, /health)
+        shell: bash
+        run: |
+          base="https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          for path in /health/live /health; do
+            for attempt in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$base$path" || echo 000)
+              [ "$code" = "200" ] && { echo "$path -> 200 (attempt $attempt)"; break; }
+              [ "$attempt" = "60" ] && { echo "::error::$path never returned 200 (last: $code)"; exit 1; }
+              sleep 15
+            done
+          done
+
       - name: Smoke test the deployed site
         shell: pwsh
         env:
