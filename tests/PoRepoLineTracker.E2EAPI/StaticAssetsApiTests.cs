@@ -39,7 +39,7 @@ public sealed class StaticAssetsApiTests
         ("login-cta-btn", "Login.razor.css"),
         ("nav-section-label", "NavMenu.razor.css"),
         ("login-display__avatar", "Auth/LoginDisplay.razor.css"),
-        ("add-repo-title", "AddRepository.razor.css"),
+        ("add-repo-progress-message", "AddRepository.razor.css"),
         ("brand-wordmark", "MainLayout.razor.css"),
         ("ext-code", "Settings.razor.css"),
         // MobileRepoCard.razor(.css) was deleted: no page ever referenced the component, and the
