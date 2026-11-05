@@ -6,7 +6,7 @@ namespace PoRepoLineTracker.E2EUI;
 /// <summary>
 /// Regression cover for the shell-layout and repo-detail defects fixed in the mobile-first
 /// pass. The chart-axes / chart-theme tests that used to live here were dropped when the
-/// portfolio trend chart was removed from /code-health — what is left is the shell layout
+/// portfolio trend chart was removed from the Code Health view — what is left is the shell layout
 /// (sidebar beside body on desktop, drawer on mobile) and the repo detail page's panel set.
 ///
 /// Each one asserts on the rendered result rather than on the CSS text: a rule that never matched

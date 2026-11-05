@@ -88,7 +88,7 @@ async function onFetch(event) {
         return fetch(event.request);
     }
 
-    // A client-side route (/insights, /code-health, /repositories/<guid>) has no file behind it —
+    // A client-side route (/insights, /insights/health, /repositories/<guid>) has no file behind it —
     // the server answers it with index.html via MapFallbackToFile, and so do we.
     const shouldServeIndexHtml = event.request.mode === 'navigate';
     const request = shouldServeIndexHtml ? 'index.html' : event.request;

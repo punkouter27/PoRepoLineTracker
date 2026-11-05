@@ -1,6 +1,7 @@
 @page "/insights"
 @page "/insights/{Year:int}"
 @page "/insights/all"
+@page "/insights/health"
 @attribute [Authorize]
 @inject HttpClient Http
 @inject IJSRuntime JS
@@ -12,11 +13,11 @@
 @using System.Globalization
 @using PoRepoLineTracker.Client.Components.Insights
 
-<PageTitle>Insights @(_allTime ? "· All time" : _data?.Year.ToString()) · PoRepoLineTracker</PageTitle>
+<PageTitle>Insights @(_health ? "· Code health" : _allTime ? "· All time" : _data?.Year.ToString()) · PoRepoLineTracker</PageTitle>
 
-@* Insights: a year across every tracked repository by default, or "All time" from the same
-   picker (/insights/all, AllTimeDashboard). The two used to be separate pages, Year in Review and
-   All Time Insights, each with its own hero and KPI tiles.
+@* Insights: a year across every tracked repository by default; the same picker offers "All time"
+   (/insights/all, AllTimeDashboard) and "Code health" (/insights/health, CodeHealthDashboard). They
+   used to be three pages (Year in Review, All Time Insights, Code Health), each with its own hero.
 
    The year view, on one screen: a hero banner with the headline number
    over a 3D city of the year (js/city.js), a bento grid of the other figures, and the card that
@@ -31,7 +32,11 @@
             <RadzenStack Gap="0.125rem">
                 <h1 class="page-hero__title yir-title">Insights</h1>
                 <RadzenText TextStyle="TextStyle.Body1" class="yir-lede">
-                    @if (_allTime)
+                    @if (_health)
+                    {
+                        <span>How maintainable each repository's code is, compared</span>
+                    }
+                    else if (_allTime)
                     {
                         <span>Your whole history across every tracked repository</span>
                     }
@@ -48,18 +53,27 @@
         </Heading>
         <Actions>
             @* A native select, as the grid's sort uses: no reflection-bound TextProperty for the trimmer to break. *@
-            <select class="rz-dropdown yir-scope" aria-label="Year or all time" value="@(_allTime ? "all" : _data?.Year.ToString())"
+            <select class="rz-dropdown yir-scope" aria-label="Insights view" value="@(_health ? "health" : _allTime ? "all" : _data?.Year.ToString())"
                     @onchange="@(e => OnScopeChanged(e.Value?.ToString()))">
-                @foreach (var year in _data?.AvailableYears ?? [])
-                {
-                    <option value="@year">@year</option>
-                }
-                <option value="all">All time</option>
+                <optgroup label="Activity">
+                    @foreach (var year in _data?.AvailableYears ?? [])
+                    {
+                        <option value="@year">@year</option>
+                    }
+                    <option value="all">All time</option>
+                </optgroup>
+                <optgroup label="Quality">
+                    <option value="health">Code health</option>
+                </optgroup>
             </select>
         </Actions>
     </PageHero>
 
-    @if (_allTime)
+    @if (_health)
+    {
+        <CodeHealthDashboard />
+    }
+    else if (_allTime)
     {
         <AllTimeDashboard />
     }
@@ -179,6 +193,10 @@
     private int _offsetMinutes;
     private int? _loadedYear;
     private bool _allTime;
+    private bool _health;
+
+    /// <summary>A view other than the year: the year's redirect and its 3D city stay out of it.</summary>
+    private bool NotYearView => _allTime || _health;
     private ElementReference _card;
     private ElementReference _hero;
     private ElementReference _cityCanvas;
@@ -197,7 +215,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        _allTime = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/') == "insights/all";
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+        _allTime = path == "insights/all";
+        _health = path == "insights/health";
         var year = Year ?? DateTime.Now.Year;
         if (_loadedYear == year) return;
         _loadedYear = year;
@@ -209,7 +229,7 @@
 
         // Landing on /insights in a quiet year (early January, say) would open on an empty
         // page while last year has a story. Only for the default year: an explicit one is honoured.
-        if (Year is null && !_allTime && _data is { HasActivity: false, AvailableYears.Count: > 0 })
+        if (Year is null && !NotYearView && _data is { HasActivity: false, AvailableYears.Count: > 0 })
             Navigation.NavigateTo($"{AppRoutes.Insights}/{_data.AvailableYears[0]}", replace: true);
     }
 
@@ -297,7 +317,7 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_allTime || _loading || _data is not { HasActivity: true }) return;
+        if (NotYearView || _loading || _data is not { HasActivity: true }) return;
         try
         {
             if (_cityCanvasId == _cityCanvas.Id) return;
@@ -351,7 +371,7 @@
     }
 
     private void OnScopeChanged(string? value) =>
-        Navigation.NavigateTo(value == "all" ? $"{AppRoutes.Insights}/all" : $"{AppRoutes.Insights}/{value}");
+        Navigation.NavigateTo($"{AppRoutes.Insights}/{value}"); // a year, "all" or "health"
 
     private async Task DownloadCardAsync()
     {

@@ -12,14 +12,14 @@
   "categories": ["developer", "productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "All Time Insights",
+      "name": "Insights",
       "short_name": "Insights",
       "url": "/insights"
     },
     {
       "name": "Code Health",
       "short_name": "Health",
-      "url": "/code-health"
+      "url": "/insights/health"
     }
   ],
   "icons": [

@@ -1,7 +1,5 @@
-@page "/code-health"
-@attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<CodeHealth> Logger
+@inject ILogger<CodeHealthDashboard> Logger
 @implements IDisposable
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using PoRepoLineTracker.Shared.Domain
@@ -11,7 +9,7 @@
 @using Radzen.Blazor
 @using Microsoft.AspNetCore.Authorization
 
-@* Every repository scored against every other. The per-repository card answers "how is this one";
+@* The "Code health" view of the Insights page: every repository scored against every other. The per-repository card answers "how is this one";
    this answers "how do they compare", which is the question the score is actually reliable for —
    the absolute number is a guide, the ranking holds up. Ordered healthiest first.
 
@@ -20,30 +18,21 @@
    in contrast, is memoised per SHA in storage and is cheap to fetch — auto-loading it on mount
    replaces an empty chart card with a populated one on every visit past the first, at no extra
    user-visible cost. *@
-<PageTitle>Code Health · PoRepoLineTracker</PageTitle>
-
 <div class="app-stack">
-    <PageHero>
-        <Heading>
-            <RadzenStack Gap="0.125rem">
-                <h1 class="page-hero__title">Code Health</h1>
-                <RadzenText TextStyle="TextStyle.Body1">
-                    @if (_isLoading)
-                    {
-                        <span>Parsing every repository — this walks each tree, so give it a moment…</span>
-                    }
-                    else if (_rows is not null)
-                    {
-                        <span>@_measuredCount of @_rows.Count repositories measured · healthiest first</span>
-                    }
-                    else
-                    {
-                        <span>Rank every repository you track by how maintainable its code is</span>
-                    }
-                </RadzenText>
-            </RadzenStack>
-        </Heading>
-    </PageHero>
+    <RadzenText TextStyle="TextStyle.Body1">
+        @if (_isLoading)
+        {
+            <span>Parsing every repository — this walks each tree, so give it a moment…</span>
+        }
+        else if (_rows is not null)
+        {
+            <span>@_measuredCount of @_rows.Count repositories measured · healthiest first</span>
+        }
+        else
+        {
+            <span>Rank every repository you track by how maintainable its code is</span>
+        }
+    </RadzenText>
 
     <ChartCard Title="Repositories"
                IsLoading="@_isLoading"

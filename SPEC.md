@@ -17,7 +17,7 @@ One deployable: the ASP.NET Core API hosts the Blazor WebAssembly client, keeps 
 3. **Watch analysis.** Progress frames go over SignalR (`/hubs/analysis`); a fallback poll synthesises the same frames when the hub is unreachable. The UI shows live tallies, never a percentage alone.
 4. **Stay current.** After a successful analysis the app registers a GitHub push webhook on the repository. A push to the default branch queues an incremental run. Rows with a hook show a green bolt in the grid (§10 "Webhooks").
 5. **Read the portfolio.** `/repositories` lists every repository with totals and 30-day movement. `/repositories/{id}` has tabs: activity, composition, health, hotspots, share.
-6. **Insights.** `/insights` opens on the current year (or the last year with commits) and offers "All time" from the same picker (`/insights/{year}`, `/insights/all`). `/code-health` ranks maintainability across repositories.
+6. **Insights.** One page, one picker: `/insights` opens on the current year (or the last year with commits); the picker also offers "All time" (`/insights/all`) and "Code health" (`/insights/health`, every repository ranked by maintainability). `/insights/{year}` names a year.
 7. **Share.** Per repository, opt in to anonymous badges (`/badge/{id}/lines.svg`, `/badge/{id}/health.svg`) and a share page (`/share/{id}`).
 8. **Own your data.** Settings exports the portfolio (JSON/CSV, `GET /api/repositories/export`) and deletes the account (`DELETE /api/account`).
 9. **Survive a network drop.** The PWA shell is cached; `OfflineIndicator` shows when the connection is gone. Read-only offline.
@@ -69,8 +69,9 @@ src/
     Telemetry/                    OpenTelemetry wiring
   PoRepoLineTracker.Client/
     Pages/                        Root (→ /repositories), Repositories, RepositoryDetail, Insights,
-                                  CodeHealth, Settings, Login; Operator/Diagnostics
-    Components/                   Account, Auth, Charts, Insights (AllTimeDashboard), Repositories, Shared
+                                  Settings, Login; Operator/Diagnostics
+    Components/                   Account, Auth, Charts, Insights (AllTimeDashboard, CodeHealthDashboard),
+                                  Repositories, Shared
     Models/                       AppRoutes (every route), AppNav (sidebar), RepositoryGridRow, ChartFormat
     Services/                     auth state, API clients, antiforgery handler, analysis feed
     wwwroot/js/                   backdrop.js, fx.js, city.js (decoration, §10 "Effects")
@@ -159,6 +160,7 @@ Files that look deletable but are not: `src/PoRepoLineTracker.API/startup.sh` (A
 **Code health**
 - Proxies, not a parser; the card says so. Measuring (`CodeMetricsAnalyzer`) and judging (`CodeHealthScoring`) are separate types.
 - Nesting is the 90th-percentile line depth, not the maximum. Markup is scored on its own nesting band.
+- The portfolio ranking is the Insights "Code health" view; scoring every repository is a wait the user starts ("Analyze all"), not a load on navigation.
 - The trend covers the whole history: every 1st of the month from the first commit, at most 48 points.
 
 **Analysis queue**
