@@ -54,7 +54,7 @@
     <PackageVersion Include="AspNet.Security.OAuth.GitHub" Version="9.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.14" />
     <!-- Git-Driven Versioning -->
-    <PackageVersion Include="MinVer" Version="6.0.0" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
     <!-- Testing Frameworks — single stack: xunit + NSubstitute + FluentAssertions.
          Playwright uses the core package (no NUnit/MSTest base) so E2EUI stays on xunit. -->
     <PackageVersion Include="Testcontainers.Azurite" Version="4.6.0" />
