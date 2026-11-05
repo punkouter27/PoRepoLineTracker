@@ -23,8 +23,11 @@ public sealed class GetRepositoryHotspotsQueryHandler(
     IUserPreferencesService userPreferencesService,
     HybridCache cache)
 {
-    /// <summary>What the treemap can draw legibly; the rest is summarised by <see cref="HotspotsDto.FilesChanged"/>.</summary>
-    internal const int MaxFiles = 60;
+    /// <summary>
+    /// The top ten only (owner, 2026-11-05): every tile is big enough to label, and the rest is
+    /// summarised by <see cref="HotspotsDto.FilesChanged"/>. Sixty made a wall of unlabelled tiles.
+    /// </summary>
+    internal const int MaxFiles = 10;
 
     public async Task<HotspotsDto?> Handle(GetRepositoryHotspotsQuery request, CancellationToken cancellationToken = default)
     {

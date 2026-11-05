@@ -16,9 +16,9 @@ One deployable: the ASP.NET Core API hosts the Blazor WebAssembly client, keeps 
 2. **Import.** The Add dialog is a one-click import: it lists the user's GitHub repositories, skips forks and archived ones, and posts the rest to `POST /api/repositories/bulk` (the only write path; at most 200 per request, so the client sends chunks). New repositories are queued for analysis. Already-tracked ones without a webhook get an incremental run, which also connects their hook.
 3. **Watch analysis.** Progress frames go over SignalR (`/hubs/analysis`); a fallback poll synthesises the same frames when the hub is unreachable. The UI shows live tallies, never a percentage alone.
 4. **Stay current.** After a successful analysis the app registers a GitHub push webhook on the repository. A push to the default branch queues an incremental run. Rows with a hook show a green bolt in the grid (§10 "Webhooks").
-5. **Read the portfolio.** `/repositories` lists every repository with totals and 30-day movement. `/repositories/{id}` has tabs: activity, composition, health, hotspots, share.
-6. **Insights.** One page, one picker: `/insights` opens on the current year (or the last year with commits); the picker also offers "All time" (`/insights/all`) and "Code health" (`/insights/health`, every repository ranked by maintainability). `/insights/{year}` names a year.
-7. **Share.** Per repository, opt in to anonymous badges (`/badge/{id}/lines.svg`, `/badge/{id}/health.svg`) and a share page (`/share/{id}`).
+5. **Read the portfolio.** `/repositories` lists every repository with totals and 30-day movement. `/repositories/{id}` has tabs: activity, composition, health, hotspots.
+6. **Insights.** One page, one picker: `/insights` opens on "All time"; the picker also offers each year (`/insights/{year}`) and "Code health" (`/insights/health`, every repository ranked by maintainability). 
+7. **Share.** Anonymous badges (`/badge/{id}/lines.svg`, `/badge/{id}/health.svg`) and a share page (`/share/{id}`) for repositories made public. The Share tab was removed from the UI (owner, 2026-11-05); the endpoints stay so badges already in READMEs keep working, and opting in is now API-only (`PUT /api/repositories/{id}/visibility`).
 8. **Own your data.** Settings exports the portfolio (JSON/CSV, `GET /api/repositories/export`) and deletes the account (`DELETE /api/account`).
 9. **Survive a network drop.** The PWA shell is cached; `OfflineIndicator` shows when the connection is gone. Read-only offline.
 
@@ -180,11 +180,12 @@ Files that look deletable but are not: `src/PoRepoLineTracker.API/startup.sh` (A
 **Insights**
 - The year view (`GET /api/insights/year/{year}?offset=<minutes>`, 1970..next year) uses the viewer's local days and hours (fixed offset for the year; `ponytail:` on DST). Totals are `RepositoryTotals` snapshots at the year's bounds; the streak is `CommitStreaks.Longest`. The card exports to PNG in the browser (SVG → canvas, `data:` URL because CSP has no `blob:`).
 - "All time" (`GET /api/insights/portfolio`) reads the whole history: lifetime totals, monthly trend (up to 36 points), the 10 largest commits ever, streaks, and language drift. The Repositories page reads its 30-day figures from the same response.
+- Both views draw GitHub-style contribution calendars (`Components/Charts/ContributionCalendar`): the year view one for its year (from `DailyCommits`, viewer-local days), "All time" one per active year, newest first (from `Activity`, UTC days, ten-year cap). Fixed thresholds 1–2 / 3–5 / 6–10 / 11+, GitHub's greens, days after today not drawn.
 - Language drift is measured in share, not lines: a type's share can grow while it shrinks.
 - Contributor share is weighted by lines added, not averaged per commit.
 
 **Hotspots**
-- `GET /api/repositories/{id}/hotspots/{days}` (1–3650): change counts from `git log --numstat --no-renames`, sizes and complexity from the same walk Code Health uses. Ranked by commits × code lines, top 60, cached an hour per (repository, days, newest SHA). No clone → `HasClone: false`.
+- `GET /api/repositories/{id}/hotspots/{days}` (1–3650): change counts from `git log --numstat --no-renames`, sizes and complexity from the same walk Code Health uses. Ranked by commits × code lines, top 10, cached an hour per (repository, days, newest SHA). No clone → `HasClone: false`.
 
 **Public badges**
 - Opt-in per repository (`PUT /api/repositories/{id}/visibility`). They expose only owner/name, latest total lines, the *memoised* health grade (an anonymous request never triggers a clone walk) and the newest commit date. Missing and private answer the same 404. Cached 10 minutes and evicted on visibility change.

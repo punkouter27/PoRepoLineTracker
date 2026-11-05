@@ -151,11 +151,11 @@
     /// </summary>
     [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
 
-    private void OnSearchChanged(string value) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(value) ? null : value), replace: true);
+    private Task OnSearchChanged(string value) =>
+        Navigation.ReplaceQueryAsync(JS, "q", string.IsNullOrWhiteSpace(value) ? null : value);
 
-    private void OnChartDaysChanged(int days) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days, ChartFormat.OneYearDays)), replace: true);
+    private Task OnChartDaysChanged(int days) =>
+        Navigation.ReplaceQueryAsync(JS, "days", ChartFormat.RangeQuery(days, ChartFormat.OneYearDays));
 
     private RepositoryPageState pageState = new();
     private RepositoriesGrid? _grid;

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using PoRepoLineTracker.Shared.Domain;
 
 namespace PoRepoLineTracker.Client.Models;
@@ -39,11 +41,26 @@ public static class AppRoutes
     /// The repository detail page's tabs, in render order. The page validates <c>?tab=</c> against
     /// this list, so a link that names a tab and the page that renders it agree by construction.
     /// </summary>
-    public static readonly string[] RepositoryTabs = ["activity", "composition", "health", "hotspots", "share"];
+    public static readonly string[] RepositoryTabs = ["activity", "composition", "health", "hotspots"];
 
     /// <summary>The detail page of one repository.</summary>
     public static string ForRepository(RepositoryId id) => $"/repositories/{id.Value}";
 
     /// <summary>The detail page of one repository, on one of its tabs.</summary>
     public static string ForRepositoryTab(RepositoryId id, string tab) => $"/repositories/{id.Value}?tab={tab}";
+
+    // ─── Query-only navigation ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes one query parameter (null removes it) without a history entry and without moving the
+    /// page. RadzenBody scrolls the page back to the top on every navigation, so a tab click or a range pick
+    /// halfway down a page jumped back up. <c>keepScroll</c> (index.html) puts the position back
+    /// once the router is done; decoration-grade, so a failure only means the old jump.
+    /// </summary>
+    public static async Task ReplaceQueryAsync(this NavigationManager navigation, IJSRuntime js, string name, string? value)
+    {
+        try { await js.InvokeVoidAsync("keepScroll"); }
+        catch (JSException) { }
+        navigation.NavigateTo(navigation.GetUriWithQueryParameter(name, value), replace: true);
+    }
 }

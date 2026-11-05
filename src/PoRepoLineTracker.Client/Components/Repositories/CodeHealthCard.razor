@@ -7,10 +7,9 @@
 
 @* Code health: a maintainability score for the repository as it stands, with the reasoning shown.
 
-   Loaded on demand rather than with the page. The report is computed by walking the whole HEAD
-   tree and running every source file through the analyser — seconds on a large repository — and
-   it is not what someone opening a repository came to look at. Making it a button keeps the page's
-   first paint about the charts and lets the wait be something the user chose. *@
+   Loaded with the page (owner, 2026-11-05), so the tab already shows its figures when opened. The
+   report walks the whole HEAD tree — seconds on a large repository — but the request runs in the
+   background while the other tabs paint, and the server memoises it per commit. The button re-runs. *@
 
 @* Plain <div> root so this file's scoped rules have an element carrying the scope id, and so
    ::deep can reach into what Radzen renders. *@
@@ -204,6 +203,17 @@
     private CodeHealthDto? _report;
     private bool _isLoading;
     private string _message = string.Empty;
+
+    private RepositoryId? _loadedFor;
+
+    /// <summary>On parameters rather than once: navigating between repositories reuses this component.</summary>
+    protected override Task OnParametersSetAsync()
+    {
+        if (_loadedFor == RepositoryId) return Task.CompletedTask;
+        _loadedFor = RepositoryId;
+        _report = null;
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {

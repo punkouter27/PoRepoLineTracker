@@ -1,0 +1,51 @@
+/* Rooted at the plain .cal div. GitHub's own greens, with its dark-theme ramp under data-theme. */
+.cal {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.cal__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--text-sm);
+}
+
+.cal__total {
+    font-weight: 600;
+}
+
+.cal__legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.cal__grid {
+    display: block;
+    width: 100%;
+    min-width: 640px; /* below this the cells are too small to hover; the wrapper scrolls instead */
+    height: auto;
+}
+
+.cal__label {
+    font-size: 9px;
+    fill: var(--text-muted);
+}
+
+.cal__l0 { fill: #ebedf0; }
+.cal__l1 { fill: #9be9a8; }
+.cal__l2 { fill: #40c463; }
+.cal__l3 { fill: #30a14e; }
+.cal__l4 { fill: #216e39; }
+
+:root[data-theme="dark"] .cal__l0 { fill: #161b22; }
+:root[data-theme="dark"] .cal__l1 { fill: #0e4429; }
+:root[data-theme="dark"] .cal__l2 { fill: #006d32; }
+:root[data-theme="dark"] .cal__l3 { fill: #26a641; }
+:root[data-theme="dark"] .cal__l4 { fill: #39d353; }

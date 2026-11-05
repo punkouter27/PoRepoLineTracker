@@ -62,7 +62,7 @@
                 @* The same ranking as text: readable by a screen reader, and on a phone, where the
                    treemap's small tiles carry no labels. *@
                 <ol class="hotspots__list">
-                    @foreach (var file in _data.Files.Take(10))
+                    @foreach (var file in _data.Files)
                     {
                         <li>
                             <a href="@BlobUrl(file.Path)" target="_blank" rel="noopener noreferrer" class="hotspots__path">@file.Path</a>

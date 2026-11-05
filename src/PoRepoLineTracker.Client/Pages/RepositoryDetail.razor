@@ -198,9 +198,6 @@
                 <RadzenTabsItem Text="Hotspots" Icon="local_fire_department">
                     <HotspotTreemap RepositoryId="@RepositoryId" Owner="@_repo.Owner" Name="@_repo.Name" Days="@ChartDays" />
                 </RadzenTabsItem>
-                <RadzenTabsItem Text="Share" Icon="share">
-                    <ShareBadgeCard Repository="@_repo" IsPublicChanged="@(value => _repo.IsPublic = value)" />
-                </RadzenTabsItem>
             </Tabs>
         </RadzenTabs>
     }
@@ -248,8 +245,8 @@
     /// <summary>An unknown name falls back to the first tab rather than selecting none.</summary>
     private int TabIndex => Math.Max(0, Array.IndexOf(TabNames, Tab));
 
-    private void OnTabChanged(int index) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("tab", index > 0 && index < TabNames.Length ? TabNames[index] : null), replace: true);
+    private Task OnTabChanged(int index) =>
+        Navigation.ReplaceQueryAsync(JS, "tab", index > 0 && index < TabNames.Length ? TabNames[index] : null);
 
     /// <summary>The range the line history on screen was fetched for; -1 before the first fetch.</summary>
     private int _loadedDays = -1;
@@ -315,8 +312,8 @@
         else Navigation.NavigateTo(AppRoutes.Repositories);
     }
 
-    private void OnChartRangeChanged(int days) =>
-        Navigation.NavigateTo(Navigation.GetUriWithQueryParameter("days", ChartFormat.RangeQuery(days)), replace: true);
+    private Task OnChartRangeChanged(int days) =>
+        Navigation.ReplaceQueryAsync(JS, "days", ChartFormat.RangeQuery(days));
 
     /// <summary>
     /// The range changes by navigation — the selector, Back, Forward — so the reload hangs off

@@ -1,0 +1,106 @@
+@using System.Globalization
+
+@* One year of commits as a GitHub-style contribution calendar: a column per week, a row per
+   weekday (Sunday on top), month names above, and five shades of green.
+
+   SVG rather than a CSS grid of spans: the month and weekday labels have to line up with the
+   cells, and a viewBox keeps the whole year in proportion at any card width. Fixed thresholds
+   (1–2, 3–5, 6–10, 11+ commits), not quantiles of the user's own data: a quiet year should look
+   quiet next to a busy one. Days after today are left out, as GitHub does. *@
+<div class="cal">
+    <div class="cal__head">
+        <span class="cal__total">@_total.ToString("N0") commit@(_total == 1 ? "" : "s") in @Year · @_activeDays active day@(_activeDays == 1 ? "" : "s")</span>
+        <span class="cal__legend" aria-hidden="true">
+            Less
+            @for (var level = 0; level <= 4; level++)
+            {
+                <svg width="11" height="11"><rect class="@($"cal__l{level}")" width="11" height="11" rx="2" /></svg>
+            }
+            More
+        </span>
+    </div>
+    <div class="u-scroll-x">
+        <svg class="cal__grid" viewBox="0 0 @_width @_height" role="img"
+             aria-label="@($"{Year}: {_total:N0} commits on {_activeDays} days")">
+            @foreach (var (label, x) in _months)
+            {
+                <g><text class="cal__label" x="@x" y="10">@label</text></g>
+            }
+            @foreach (var (row, label) in WeekdayLabels)
+            {
+                <g><text class="cal__label" x="0" y="@(Top + row * Step + 9)">@label</text></g>
+            }
+            @foreach (var cell in _cells)
+            {
+                <rect class="@($"cal__l{cell.Level}")" x="@cell.X" y="@cell.Y" width="@Cell" height="@Cell" rx="2">
+                    <title>@cell.Title</title>
+                </rect>
+            }
+        </svg>
+    </div>
+</div>
+
+@code {
+    /// <summary>The calendar year drawn.</summary>
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>Commits per day: index 0 is 1 January. Shorter lists leave the remaining days empty.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<int> Counts { get; set; } = [];
+
+    private const int Cell = 11, Step = 14, Left = 30, Top = 16;
+    private static readonly (int Row, string Label)[] WeekdayLabels = [(1, "Mon"), (3, "Wed"), (5, "Fri")];
+
+    private sealed record CellView(int X, int Y, int Level, string Title);
+
+    private List<CellView> _cells = [];
+    private List<(string Label, int X)> _months = [];
+    private int _width, _height, _total, _activeDays;
+
+    protected override void OnParametersSet()
+    {
+        var jan1 = new DateTime(Year, 1, 1);
+        var offset = (int)jan1.DayOfWeek; // Sunday is row 0, as on GitHub
+        var days = DateTime.IsLeapYear(Year) ? 366 : 365;
+        var today = DateTime.Today;
+
+        _cells = new List<CellView>(days);
+        _total = _activeDays = 0;
+        for (var d = 0; d < days; d++)
+        {
+            var date = jan1.AddDays(d);
+            if (date > today) break;
+
+            var commits = d < Counts.Count ? Counts[d] : 0;
+            _total += commits;
+            if (commits > 0) _activeDays++;
+
+            var slot = d + offset;
+            _cells.Add(new CellView(Left + slot / 7 * Step, Top + slot % 7 * Step, Level(commits),
+                $"{(commits == 0 ? "No" : commits.ToString("N0"))} commit{(commits == 1 ? "" : "s")} on {date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)}"));
+        }
+
+        var weeks = (offset + days + 6) / 7;
+        _width = Left + weeks * Step;
+        _height = Top + 7 * Step;
+
+        // A month's name sits over the week holding its 1st; one too close to the last is skipped.
+        _months = [];
+        var lastColumn = -10;
+        for (var m = 1; m <= 12; m++)
+        {
+            var column = (new DateTime(Year, m, 1).DayOfYear - 1 + offset) / 7;
+            if (column - lastColumn < 3) continue;
+            _months.Add((CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(m), Left + column * Step));
+            lastColumn = column;
+        }
+    }
+
+    private static int Level(int commits) => commits switch
+    {
+        0 => 0,
+        <= 2 => 1,
+        <= 5 => 2,
+        <= 10 => 3,
+        _ => 4
+    };
+}

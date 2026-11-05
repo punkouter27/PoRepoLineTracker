@@ -12,11 +12,12 @@
 @using Microsoft.AspNetCore.Authorization
 @using System.Globalization
 @using PoRepoLineTracker.Client.Components.Insights
+@using PoRepoLineTracker.Client.Components.Charts
 
 <PageTitle>Insights @(_health ? "· Code health" : _allTime ? "· All time" : _data?.Year.ToString()) · PoRepoLineTracker</PageTitle>
 
-@* Insights: a year across every tracked repository by default; the same picker offers "All time"
-   (/insights/all, AllTimeDashboard) and "Code health" (/insights/health, CodeHealthDashboard). They
+@* Insights: "All time" by default (/insights, /insights/all); the same picker offers each year
+   (/insights/{year}) and "Code health" (/insights/health, CodeHealthDashboard). They
    used to be three pages (Year in Review, All Time Insights, Code Health), each with its own hero.
 
    The year view, on one screen: a hero banner with the headline number
@@ -145,6 +146,13 @@
             }
         </div>
 
+        @* The year as a GitHub-style contribution calendar, from the same per-day counts as the city. *@
+        <ChartCard Title="Contributions" Description="Commits per day across every tracked repository">
+            <ChildContent>
+                <ContributionCalendar Year="@_data.Year" Counts="@_data.DailyCommits" />
+            </ChildContent>
+        </ChartCard>
+
         <section class="yir-summary" aria-label="Shareable card">
             @* Foil that tilts toward the pointer (.u-holo). On a wrapper, so the exported PNG is the plain card. *@
             <div class="yir-holo u-holo">
@@ -216,7 +224,8 @@
     protected override async Task OnParametersSetAsync()
     {
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
-        _allTime = path == "insights/all";
+        // Plain /insights opens on "All time" (owner, 2026-11-05); a year is /insights/{year}.
+        _allTime = path is "insights/all" or "insights";
         _health = path == "insights/health";
         var year = Year ?? DateTime.Now.Year;
         if (_loadedYear == year) return;
@@ -226,11 +235,6 @@
         // and trimming may leave it as UTC.
         _offsetMinutes = await JS.InvokeAsync<int>("utcOffsetMinutes");
         await LoadAsync();
-
-        // Landing on /insights in a quiet year (early January, say) would open on an empty
-        // page while last year has a story. Only for the default year: an explicit one is honoured.
-        if (Year is null && !NotYearView && _data is { HasActivity: false, AvailableYears.Count: > 0 })
-            Navigation.NavigateTo($"{AppRoutes.Insights}/{_data.AvailableYears[0]}", replace: true);
     }
 
     private async Task LoadAsync()

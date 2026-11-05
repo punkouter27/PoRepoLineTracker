@@ -2,6 +2,7 @@
 @inject ILogger<AllTimeDashboard> Logger
 @inject NavigationManager Navigation
 @using PoRepoLineTracker.Client.Components.Shared
+@using PoRepoLineTracker.Client.Components.Charts
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Models.Dtos
 @using Radzen
@@ -112,45 +113,18 @@
                 </KpiTile>
             </div>
 
-        @* ─── Activity heatmap ────────────────────────────────────────────────────
-           The whole history of commit activity at a glance (at least a year of cells). Rendered as a plain CSS grid rather than a
-           Radzen chart: 365 cells with no axes is a calendar, and every charting primitive that
-           could draw it would first have to be told not to behave like a chart. *@
-        @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
-           and the intensity key is exactly what its <Toolbar> slot is for. *@
+        @* ─── Activity: a GitHub-style calendar per year that had a commit, newest first ─── *@
         <ChartCard Title="Activity"
-                   Description="Commits per day across every tracked repository, all time"
-                   IsEmpty="@(data.Activity.Count == 0)"
+                   Description="Commits per day across every tracked repository, one calendar per active year"
+                   IsEmpty="@(_years.Count == 0)"
                    EmptyIcon="calendar_month"
                    EmptyText="No commit activity recorded yet.">
-            <Toolbar>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
-                    <div class="ins-heat__legend">
-                        <span class="ins-muted">Less</span>
-                        <span class="ins-heat__cell ins-heat--0"></span>
-                        <span class="ins-heat__cell ins-heat--1"></span>
-                        <span class="ins-heat__cell ins-heat--2"></span>
-                        <span class="ins-heat__cell ins-heat--3"></span>
-                        <span class="ins-heat__cell ins-heat--4"></span>
-                        <span class="ins-muted">More</span>
-                    </div>
-                </RadzenStack>
-            </Toolbar>
             <ChildContent>
-                <div class="u-scroll-x ins-heat__scroll">
-                    <div class="ins-heat ins-heat--dense" role="img" aria-label="@_heatmapSummary">
-                        @* Leading blanks so the first real cell lands on its own weekday row and every
-                           column below is a genuine Sunday-to-Saturday week. *@
-                        @for (var i = 0; i < _leadingBlanks; i++)
-                        {
-                            <span class="ins-heat__cell ins-heat--blank"></span>
-                        }
-                        @foreach (var day in _displayedActivity)
-                        {
-                            <span class="ins-heat__cell @IntensityClass(day.Commits)"
-                                  title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
-                        }
-                    </div>
+                <div class="ins-years">
+                    @foreach (var (year, counts) in _years)
+                    {
+                        <ContributionCalendar @key="year" Year="@year" Counts="@counts" />
+                    }
                 </div>
             </ChildContent>
         </ChartCard>
@@ -271,24 +245,23 @@
 @code {
     private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
 
-    // The heatmap's cells and summary, built when the data arrives rather than as properties:
-    // each render re-walked the history several times over.
-    private IReadOnlyList<ActivityDayDto> _displayedActivity = [];
-    private int _leadingBlanks;
-    private string _heatmapSummary = "Commit activity heatmap";
+    /// <summary>Per active year (newest first), commits per day with index 0 = 1 January.
+    /// Built when the data arrives, not per render.</summary>
+    private List<(int Year, int[] Counts)> _years = [];
 
     private void BuildHeatmap()
     {
-        _displayedActivity = _state.HasData ? _state.Data!.Activity : [];
-
-        // Blank cells before the first day so each grid column is one calendar week.
-        // DayOfWeek.Sunday is 0, which is exactly the offset needed.
-        _leadingBlanks = _displayedActivity.Count > 0 ? (int)_displayedActivity[0].Date.DayOfWeek : 0;
-
-        _heatmapSummary = !_state.HasData
-            ? "Commit activity heatmap"
-            : $"Commit activity heatmap: {_displayedActivity.Count(d => d.Commits > 0)} active days, " +
-              $"{_displayedActivity.Sum(d => d.Commits):N0} commits in all";
+        _years = !_state.HasData ? [] : _state.Data!.Activity
+            .Where(d => d.Commits > 0)
+            .GroupBy(d => d.Date.Year)
+            .OrderByDescending(g => g.Key)
+            .Select(g =>
+            {
+                var counts = new int[DateTime.IsLeapYear(g.Key) ? 366 : 365];
+                foreach (var day in g) counts[day.Date.DayOfYear - 1] += day.Commits;
+                return (g.Key, counts);
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -327,20 +300,6 @@
             };
         }
     }
-
-    /// <summary>
-    /// Fixed thresholds rather than quantiles of the user's own data. A relative scale would paint
-    /// a quiet year the same shade as a busy one, and the point of the grid is to compare days
-    /// against a constant.
-    /// </summary>
-    private static string IntensityClass(int commits) => commits switch
-    {
-        0 => "ins-heat--0",
-        <= 2 => "ins-heat--1",
-        <= 5 => "ins-heat--2",
-        <= 10 => "ins-heat--3",
-        _ => "ins-heat--4"
-    };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

@@ -9,7 +9,7 @@
 @* The repository's health over its whole history, month by month.
 
    Each point is measured at the last commit on or before that month's 1st — the state the code was
-   actually in that morning; past four years the months are thinned evenly. Loaded on demand like
+   actually in that morning; past four years the months are thinned evenly. Loaded with the page like
    the card above it: a first run measures up to 48 commits, and every run after that is served from
    the per-commit memo in storage. *@
 
@@ -133,6 +133,17 @@
     private CodeHealthTrendDto? _trend;
     private bool _isLoading;
     private string? _message;
+
+    private RepositoryId? _loadedFor;
+
+    /// <summary>On parameters rather than once: navigating between repositories reuses this component.</summary>
+    protected override Task OnParametersSetAsync()
+    {
+        if (_loadedFor == RepositoryId) return Task.CompletedTask;
+        _loadedFor = RepositoryId;
+        _trend = null;
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {

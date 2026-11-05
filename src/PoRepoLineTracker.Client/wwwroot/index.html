@@ -188,6 +188,20 @@
             if (on && window.playCue) playCue('done');
         }
 
+        // Holds the scroll position across one query-only navigation (AppRoutes.ReplaceQueryAsync).
+        // The page scrolls inside Radzen's .rz-body, not the window, and RadzenBody resets it to
+        // the top on every location change. That happens after this call returns and the page
+        // re-renders after that, so the position is put back on each of the next few frames.
+        function keepScroll() {
+            var body = document.querySelector('.rz-body');
+            if (!body) return;
+            var top = body.scrollTop, frames = 6;
+            (function restore() {
+                body.scrollTop = top;
+                if (--frames > 0) requestAnimationFrame(restore);
+            })();
+        }
+
         // Visual effects (particles, the animated background). Both scripts read their key once
         // at load, so a change applies on the next page load. Settings owns the switch.
         function effectsOn() {
