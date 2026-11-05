@@ -77,3 +77,14 @@ The `lint-infra` job compiles every `infra/*.bicep` on every run.
 ## Azure deployment
 
 Deployment runs from GitHub Actions ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) on push to `master`: it lints and builds, deploys the app package to a Linux App Service, and can apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) via the manual `deploy_infra` input. The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
+
+### GitHub sign-in (OAuth apps)
+
+GitHub has no API for an OAuth app's settings, so these live only on github.com (Settings → Developer settings → OAuth Apps) and must match by hand:
+
+| App | Client ID (Key Vault `kv-poshared2`) | Authorization callback URL |
+| --- | --- | --- |
+| Production `PoRepoLineTracker` | `PoRepoLineTracker--GitHub--ClientId` | `https://app-porepolinetracker2.azurewebsites.net/signin-github` |
+| Development | `PoRepoLineTracker--GitHub--Dev--ClientId` | the localhost callback of your launch profile |
+
+If the App Service is ever renamed or re-provisioned under another host name, update the production callback URL, or sign-in fails with GitHub's "redirect_uri is not associated with this application". (It broke on 2026-11-05 because the callback still named `app-porepolinetracker`, without the `2`.)
