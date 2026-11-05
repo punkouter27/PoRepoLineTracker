@@ -4,6 +4,7 @@
 @inject Radzen.DialogService DialogService
 @inject ILogger<Settings> Logger
 @inject UserPreferencesClient PreferencesClient
+@inject IJSRuntime JS
 @using Microsoft.AspNetCore.Authorization
 @using PoRepoLineTracker.Shared.Domain
 @using Radzen
@@ -139,6 +140,23 @@
         </div>
 
         <div class="app-dashboard app-dashboard--panels ext-account-panels">
+            @* Decoration switches, moved out of the header: nothing here changes any figure. Both are
+               stored in the browser (index.html's setSound / setEffects), not in preferences. *@
+            <RadzenCard>
+                <RadzenStack Gap="0.75rem">
+                    <RadzenText TextStyle="TextStyle.Subtitle1" class="ext-section-title">Appearance &amp; effects</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenSwitch Value="@_soundOn" Change="@(async (bool on) => { _soundOn = on; await JS.InvokeVoidAsync("setSound", on); })"
+                                      InputAttributes="@(new Dictionary<string, object> { ["aria-label"] = "Sound" })" />
+                        <RadzenText TextStyle="TextStyle.Body2">Sound when an analysis finishes</RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenSwitch Value="@_effectsOn" Change="@(async (bool on) => { _effectsOn = on; await JS.InvokeVoidAsync("setEffects", on); })"
+                                      InputAttributes="@(new Dictionary<string, object> { ["aria-label"] = "Visual effects" })" />
+                        <RadzenText TextStyle="TextStyle.Body2">Visual effects (particles, animated background). Applies on the next page load; always off with reduced motion.</RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenCard>
             <RadzenCard>
                 <RadzenStack Gap="0.75rem">
                     <RadzenText TextStyle="TextStyle.Subtitle1" class="ext-section-title">GitHub access</RadzenText>
@@ -180,6 +198,24 @@
         { "Web", [".html", ".css", ".scss", ".less"] },
         { "Python", [".py"] }
     };
+
+    private bool _soundOn;
+    private bool _effectsOn = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _soundOn = await JS.InvokeAsync<bool>("soundOn");
+            _effectsOn = await JS.InvokeAsync<bool>("effectsOn");
+            StateHasChanged();
+        }
+        catch (JSException)
+        {
+            // index.html not loaded (prerender or a test host): the switches keep their defaults.
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -352,7 +388,6 @@
                 // to Defaults asked to clear them: saving replaces the whole row, so dropping them
                 // anywhere else would silently delete patterns the user can no longer see.
                 CustomIgnoreGlobs = clearGlobs ? [] : preferences?.CustomIgnoreGlobs ?? [],
-                LastSeenUtc = preferences?.LastSeenUtc,
                 LastUpdated = DateTime.UtcNow
             };
             preferences = await PreferencesClient.SaveAsync(updatedPrefs);

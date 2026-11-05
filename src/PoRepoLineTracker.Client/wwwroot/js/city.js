@@ -1,6 +1,6 @@
 // Year in Review hero: the year's commits as a city. One tower per day on a 53-week x 7-day
 // grid (the same layout as a contribution calendar), height by that day's commits. Imported by
-// YearInReview.razor only, so no other page pays for it.
+// Pages/Insights.razor (the year view) only, so no other page pays for it.
 //
 // WebGL2, no library: instanced cubes (one draw call for 365 towers), a procedural ground grid,
 // and additive glow sprites over the busiest days. Towers rise on a damped spring, staggered

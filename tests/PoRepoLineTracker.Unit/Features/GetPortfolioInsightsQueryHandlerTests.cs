@@ -122,7 +122,7 @@ public class GetPortfolioInsightsQueryHandlerTests
     // ─── Lifetime totals ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// The All Time Insights page reads the whole history: every commit and every line written or
+    /// The Insights page's "All time" view reads the whole history: every commit and every line written or
     /// removed counts, however old, and the growth line starts at the first commit.
     /// </summary>
     [Fact]
@@ -225,7 +225,7 @@ public class GetPortfolioInsightsQueryHandlerTests
     /// A line-count delta would rank .js as the year's gainer.
     /// </summary>
     [Fact]
-    public async Task LanguageDrift_RanksBySharePointsNotLines_AndNamesTheRisingAndFadingTypes()
+    public async Task LanguageDrift_RanksBySharePoints_AndIsEmptyWhenNothingMoved()
     {
         GivenRepositories(GivenRepository("acme", "api",
             // The baseline drift reads: the repository's first analysed snapshot.
@@ -247,16 +247,10 @@ public class GetPortfolioInsightsQueryHandlerTests
         insights.LanguageDrift[0].Extension.Should().Be(".cs");
         insights.RisingLanguage.Should().Be(".cs");
         insights.FadingLanguage.Should().Be(".js");
-    }
 
-    /// <summary>
-    /// Two ways there is no drift to report, both of which must yield an EMPTY card rather than a
-    /// card full of zeroes. A repository with one snapshot has nothing to have moved from. And a
-    /// portfolio that only grew uniformly has moved no shares at all.
-    /// </summary>
-    [Fact]
-    public async Task LanguageDrift_IsEmpty_WithASingleSnapshot_OrWhenNothingMoved()
-    {
+        // Two ways there is no drift to report, both of which must yield an EMPTY card rather than
+        // a card full of zeroes. A repository with one snapshot has nothing to have moved from.
+        // And a portfolio that only grew uniformly has moved no shares at all.
         GivenRepositories(GivenRepository("acme", "new",
             Commit(daysAgo: 1, totalLines: 900, byFileType: new Dictionary<string, int> { [".cs"] = 600, [".js"] = 300 })));
 

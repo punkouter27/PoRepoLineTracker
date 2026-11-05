@@ -1,5 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace PoRepoLineTracker.Shared.Domain;
 
+/// <summary>
+/// A tracked repository: the storage row's domain shape and also the API's wire shape (there is no
+/// separate DTO). Server-only state carries <c>[JsonIgnore]</c>, so no response can hand it to a browser.
+/// </summary>
 public class GitHubRepository
 {
     public RepositoryId Id { get; set; }
@@ -14,7 +20,7 @@ public class GitHubRepository
     public string Name { get; set; } = string.Empty;
     public string CloneUrl { get; set; } = string.Empty;
     public DateTime? LastAnalyzedCommitDate { get; set; } // Nullable to avoid Azure Table Storage DateTime.MinValue issue
-    public string LocalPath { get; set; } = string.Empty;
+    [JsonIgnore] public string LocalPath { get; set; } = string.Empty;
 
     /// <summary>
     /// When the last analysis run finished, whether or not it succeeded. Distinct from
@@ -33,10 +39,10 @@ public class GitHubRepository
     /// job was lost and queue it again. Without it a re-analysis of an already-analysed repository
     /// died with the process: the startup sweep only looks for rows that were never attempted.
     /// </summary>
-    public DateTime? AnalysisQueuedUtc { get; set; }
+    [JsonIgnore] public DateTime? AnalysisQueuedUtc { get; set; }
 
     /// <summary>Whether the queued run is a full re-analysis, so a resumed job keeps that intent.</summary>
-    public bool QueuedFullReanalysis { get; set; }
+    [JsonIgnore] public bool QueuedFullReanalysis { get; set; }
 
     /// <summary>
     /// The owner's opt-in to the anonymous badge and share page. Off by default: those routes
@@ -51,7 +57,7 @@ public class GitHubRepository
     /// The hook's HMAC secret, unique to this repository. Server-side only: never serialised, so
     /// no response that carries this type can hand it to a browser.
     /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public string? WebhookSecret { get; set; }
 
     /// <summary>

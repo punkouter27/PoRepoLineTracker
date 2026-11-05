@@ -392,8 +392,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
                 // Per-commit telemetry: lines counted (tagged by repo) and the wall-clock
                 // duration of one count pass. Both go into the AppTelemetry meter so the OTel
                 // pipeline in AddTelemetry exports them; the live view's "throughput" reads
-                // from CommitCountDuration, the digest's "since you were last here" reads from
-                // LinesCounted.
+                // from CommitCountDuration.
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var lineCounts = await _gitHubService.CountLinesInCommitAsync(repositoryPath, commitStat.Sha, fileExtensionsToCount);
                 sw.Stop();

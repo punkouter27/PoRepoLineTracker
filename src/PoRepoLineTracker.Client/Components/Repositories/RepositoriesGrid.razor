@@ -31,6 +31,15 @@
                activity" panel above the grid that repeated each running row). A label beside the
                dot, because colour alone is not an accessible signal; the pulse only while really
                connected, or it would contradict "Reconnecting…". *@
+            @* Only once some repository has a hook: on a local run (no public host) none can, and
+               "0 live" would read as a fault. Rows without the bolt update on a manual re-analyse. *@
+            @if (LiveCount > 0)
+            {
+                <span class="rp-live-state" title="Repositories without the bolt need a manual re-analyse: GitHub only lets repository admins add the push webhook, and a new repository gets one after its first analysis.">
+                    <span class="rp-live-badge" aria-hidden="true"><RadzenIcon Icon="bolt" /></span>
+                    @LiveCount of @Items.Count() live
+                </span>
+            }
             @if (AnyRunning)
             {
                 <span class="rp-live-state" role="status">
@@ -86,6 +95,10 @@ else
                 <a class="rp-repo-card__link" href="@($"/repositories/{row.Id}")">@row.Owner/@row.Name</a>
                 <GitHubLink Url="@($"https://github.com/{row.Owner}/{row.Name}")"
                             Title="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")" />
+                @if (row.IsLive)
+                {
+                    <span class="rp-live-badge" title="Live: a push to the default branch refreshes this repository automatically" aria-label="Live updates on" role="img"><RadzenIcon Icon="bolt" /></span>
+                }
             </div>
             <div class="rp-repo-card__metrics">
                 <div><span>Lines</span><strong>@(row.TotalLinesSortValue?.ToString("N0") ?? "—")</strong></div>
@@ -139,6 +152,10 @@ else
                         <GitHubLink Url="@($"https://github.com/{row.Owner}/{row.Name}")"
                                     Title="@($"Open {row.Owner}/{row.Name} on GitHub in a new tab")"
                                     StopRowClickPropagation="true" />
+                        @if (row.IsLive)
+                        {
+                            <span class="rp-live-badge" title="Live: a push to the default branch refreshes this repository automatically" aria-label="Live updates on" role="img"><RadzenIcon Icon="bolt" /></span>
+                        }
                     </RadzenStack>
                 </Template>
             </RadzenDataGridColumn>
@@ -381,6 +398,8 @@ else
     }
 
     protected override void OnInitialized() => Feed.StateChanged += OnFeedStateChanged;
+
+    private int LiveCount => Items.Count(r => r.IsLive);
 
     private bool AnyRunning =>
         ReanalysisStartTimes is { Count: > 0 } || ProgressMap?.Values.Any(p => p.IsRunning) == true;

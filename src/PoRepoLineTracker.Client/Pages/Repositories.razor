@@ -133,11 +133,6 @@
                                  DaysChanged="@OnChartDaysChanged" />
     }
 
-    @* "What happened while you were away". Renders nothing when there is nothing to report, and
-       is the only place in the app that shows it — a second copy on Insights would race this one
-       to record the visit and collapse the other's window. Last on the page: it appears after its
-       own fetch, and above the grid that pushed every row down a banner's height mid-read. *@
-    <DigestBanner />
 </div>
 
 @code {

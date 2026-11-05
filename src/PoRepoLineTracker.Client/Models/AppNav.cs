@@ -38,10 +38,9 @@ public static class AppNav
         [
             // Prefix: the page owns /repositories/{id}, so the entry stays lit on a detail page.
             new(AppRoutes.Repositories, "Repositories", "storage", NavLinkMatch.Prefix),
-            new(AppRoutes.Insights, "All Time Insights", "insights"),
+            // Prefix: the page also lives at /insights/{year} and /insights/all.
+            new(AppRoutes.Insights, "Insights", "insights", NavLinkMatch.Prefix),
             new(AppRoutes.CodeHealth, "Code Health", "health_and_safety"),
-            // Prefix: the page also lives at /year-in-review/{year}.
-            new(AppRoutes.YearInReview, "Year in Review", "auto_awesome", NavLinkMatch.Prefix),
         ]),
         new("Configure",
         [

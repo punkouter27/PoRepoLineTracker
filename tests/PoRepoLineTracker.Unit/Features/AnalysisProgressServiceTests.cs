@@ -51,7 +51,7 @@ public class AnalysisProgressServiceTests
     }
 
     [Fact]
-    public void NonExistentRepositories_HandledGracefully()
+    public void UnknownRepositories_ErrorsAndIndependentTracking()
     {
         var repoId = RepositoryId.New();
 
@@ -69,17 +69,13 @@ public class AnalysisProgressServiceTests
         progress.Should().NotBeNull();
         progress!.ErrorMessage.Should().Be("Something went wrong");
         progress.IsRunning.Should().BeFalse();
-    }
 
-    [Fact]
-    public void ErrorReportingAndIndependentTracking()
-    {
-        var repoId = RepositoryId.New();
-        _sut.ReportStep(repoId, 1, "Cloning", "Cloning...");
-        _sut.ReportError(repoId, "Connection timeout");
-        var progress = _sut.GetProgress(repoId);
-        progress!.IsRunning.Should().BeFalse();
-        progress.ErrorMessage.Should().Be("Connection timeout");
+        var runningRepoId = RepositoryId.New();
+        _sut.ReportStep(runningRepoId, 1, "Cloning", "Cloning...");
+        _sut.ReportError(runningRepoId, "Connection timeout");
+        var stopped = _sut.GetProgress(runningRepoId);
+        stopped!.IsRunning.Should().BeFalse();
+        stopped.ErrorMessage.Should().Be("Connection timeout");
 
         var repo1 = RepositoryId.New();
         var repo2 = RepositoryId.New();

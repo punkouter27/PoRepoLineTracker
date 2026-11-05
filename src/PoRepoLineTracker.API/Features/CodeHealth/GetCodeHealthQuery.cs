@@ -71,7 +71,7 @@ public sealed class GetCodeHealthQueryHandler(
         var hasClone = await gitHubService.IsRepositoryValidAsync(repositoryPath);
 
         // One Task.Run around the whole walk, not one per file. The enumeration is synchronous
-        // LibGit2Sharp work plus regex matching — CPU-bound from end to end — and it holds the git
+        // git object reads plus regex matching — CPU-bound from end to end — and it holds the git
         // repository open for its duration, so it has to run as a single unit.
         var report = await Task.Run(
             () => CodeHealthReportFactory.Build(

@@ -1,15 +1,13 @@
-using LibGit2Sharp;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.Linq;
-using System.IO; // Added for Stream
+using System.Text;
 
 namespace PoRepoLineTracker.API.Analysis;
 
-public class GitHubService : IGitHubService
+public sealed class GitHubService : IGitHubService, IDisposable
 {
+    /// <summary>The object reader the per-commit line count reuses, for the repository it was opened on.</summary>
+    private GitObjectReader? _reader;
+    private string? _readerPath;
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<GitHubService> _logger;
     private readonly string _localReposPath;
@@ -88,7 +86,7 @@ public class GitHubService : IGitHubService
             var fullLocalPath = Path.Combine(_localReposPath, localPath);
             _logger.LogInformation("Attempting to clone repository {RepoUrl} to {LocalPath}", repoUrl, fullLocalPath);
 
-            if (Repository.IsValid(fullLocalPath))
+            if (GitObjectReader.IsRepository(fullLocalPath))
             {
                 _logger.LogInformation("Repository already exists at {LocalPath}. Skipping clone.", fullLocalPath);
                 return fullLocalPath;
@@ -103,7 +101,7 @@ public class GitHubService : IGitHubService
                     Directory.CreateDirectory(parentDir);
                 }
 
-                _gitClient.Clone(repoUrl, fullLocalPath, accessToken); // Use IGitClient with access token
+                _gitClient.Clone(repoUrl, fullLocalPath, accessToken);
                 _logger.LogInformation("Successfully cloned repository {RepoUrl} to {LocalPath}", repoUrl, fullLocalPath);
                 return fullLocalPath;
             }
@@ -123,11 +121,11 @@ public class GitHubService : IGitHubService
     public string ResolveRepositoryPath(string localPath) => Path.Combine(_localReposPath, localPath);
 
     public Task<bool> IsRepositoryValidAsync(string repositoryPath) =>
-        Task.FromResult(Repository.IsValid(repositoryPath));
+        Task.FromResult(GitObjectReader.IsRepository(repositoryPath));
 
     public async Task<IReadOnlyDictionary<string, FileChurn>> GetFileChurnAsync(string repositoryPath, DateTime sinceUtc)
     {
-        if (!Repository.IsValid(repositoryPath)) return new Dictionary<string, FileChurn>();
+        if (!GitObjectReader.IsRepository(repositoryPath)) return new Dictionary<string, FileChurn>();
 
         // Off the request thread: the process wait is synchronous.
         return await Task.Run(() => _gitClient.FileChurnSince(repositoryPath, sinceUtc));
@@ -163,13 +161,13 @@ public class GitHubService : IGitHubService
             var fullLocalPath = Path.Combine(_localReposPath, localPath);
             _logger.LogInformation("Attempting to pull repository at {LocalPath}", fullLocalPath);
 
-            if (!Repository.IsValid(fullLocalPath))
+            if (!GitObjectReader.IsRepository(fullLocalPath))
             {
                 _logger.LogError("Local repository not found or invalid at {LocalPath}. Cannot pull.", fullLocalPath);
                 throw new DirectoryNotFoundException($"Local repository not found or invalid at {fullLocalPath}");
             }
 
-            _gitClient.Pull(fullLocalPath, accessToken); // Use IGitClient with access token
+            _gitClient.Pull(fullLocalPath, accessToken);
 
             _logger.LogInformation("Successfully pulled repository at {LocalPath}", fullLocalPath);
             return fullLocalPath;
@@ -182,7 +180,7 @@ public class GitHubService : IGitHubService
     /// </summary>
     public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string fullRepoPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
-        if (!Repository.IsValid(fullRepoPath))
+        if (!GitObjectReader.IsRepository(fullRepoPath))
         {
             _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot count lines.", fullRepoPath);
             return new Dictionary<string, int>();
@@ -199,25 +197,25 @@ public class GitHubService : IGitHubService
         var extensionsToCount = new HashSet<string>(fileExtensionsToCount, StringComparer.OrdinalIgnoreCase);
         InvalidateCachesIfExtensionsChanged(extensionsToCount);
 
-        using var repo = _gitClient.OpenRepository(fullRepoPath);
-
-        var commit = repo.Lookup<Commit>(commitSha);
-        if (commit == null)
+        // One cat-file process for the whole history walk, not one per commit.
+        if (_readerPath != fullRepoPath)
         {
-            _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
-            return new Dictionary<string, int>();
+            _reader?.Dispose();
+            _reader = new GitObjectReader(fullRepoPath);
+            _readerPath = fullRepoPath;
         }
 
-        if (commit.Tree == null)
+        var tree = _reader!.ReadTree(commitSha);
+        if (tree is null)
         {
-            _logger.LogWarning("Commit {CommitSha} has a null tree. Skipping line counting.", commitSha);
+            _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
             return new Dictionary<string, int>();
         }
 
         // A copy, because the walk returns cached dictionaries that must not be handed out for the
         // caller to mutate — the root tree of an unchanged commit returns the very instance held
         // in the cache.
-        var counts = new Dictionary<string, int>(await CountTreeAsync(commit.Tree, string.Empty, extensionsToCount));
+        var counts = new Dictionary<string, int>(await CountTreeAsync(_reader, tree, string.Empty, extensionsToCount));
 
         _logger.LogDebug("Counted commit {CommitSha}: {LineCounts}", commitSha, counts);
         return counts;
@@ -233,7 +231,7 @@ public class GitHubService : IGitHubService
 
     public IEnumerable<SourceFile> EnumerateSourceFiles(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
-        if (!Repository.IsValid(repositoryPath))
+        if (!GitObjectReader.IsRepository(repositoryPath))
         {
             _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot read source files.", repositoryPath);
             yield break;
@@ -241,16 +239,16 @@ public class GitHubService : IGitHubService
 
         var extensions = new HashSet<string>(fileExtensionsToCount, StringComparer.OrdinalIgnoreCase);
 
-        using var repo = _gitClient.OpenRepository(repositoryPath);
+        using var reader = new GitObjectReader(repositoryPath);
 
-        var commit = repo.Lookup<Commit>(commitSha);
-        if (commit?.Tree is null)
+        var tree = reader.ReadTree(commitSha);
+        if (tree is null)
         {
             _logger.LogWarning("Commit {CommitSha} not found (or has no tree) at {RepoPath}", commitSha, repositoryPath);
             yield break;
         }
 
-        foreach (var file in WalkSourceFiles(commit.Tree, string.Empty, extensions))
+        foreach (var file in WalkSourceFiles(reader, tree, string.Empty, extensions))
         {
             yield return file;
         }
@@ -261,48 +259,48 @@ public class GitHubService : IGitHubService
     /// line counter applies — a directory pruned from the totals must not turn up in the health
     /// report, or the two would describe different codebases under the same repository name.
     /// </summary>
-    private IEnumerable<SourceFile> WalkSourceFiles(Tree tree, string currentPath, HashSet<string> extensions)
+    private IEnumerable<SourceFile> WalkSourceFiles(GitObjectReader reader, GitTree tree, string currentPath, HashSet<string> extensions)
     {
-        foreach (var entry in tree)
+        foreach (var entry in tree.Entries)
         {
             var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
 
-            if (entry.TargetType == TreeEntryTargetType.Tree)
+            if (entry.IsTree)
             {
-                var subTree = entry.Target as Tree;
+                var subTree = reader.ReadTree(entry.Sha);
 
                 if (subTree is null
                         ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
-                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
+                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Entries.Select(e => e.Name)))
                 {
                     continue;
                 }
 
                 if (subTree is null) continue;
 
-                foreach (var file in WalkSourceFiles(subTree, entryPath, extensions))
+                foreach (var file in WalkSourceFiles(reader, subTree, entryPath, extensions))
                 {
                     yield return file;
                 }
             }
-            else if (entry.TargetType == TreeEntryTargetType.Blob)
+            else if (entry.IsBlob)
             {
                 if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath)) continue;
 
                 var extension = Path.GetExtension(entry.Name.ToLowerInvariant());
                 if (!extensions.Contains(extension)) continue;
 
-                if (entry.Target is not Blob blob) continue;
-                if (blob.Size > MaxAnalysableFileBytes)
+                if (reader.ReadBlob(entry.Sha) is not { } content) continue;
+                if (content.Length > MaxAnalysableFileBytes)
                 {
-                    _logger.LogDebug("Skipping {Path} for analysis: {Size} bytes exceeds the cap", entryPath, blob.Size);
+                    _logger.LogDebug("Skipping {Path} for analysis: {Size} bytes exceeds the cap", entryPath, content.Length);
                     continue;
                 }
 
                 // Binary content reaches here only if it carries a counted source extension, which
-                // in practice it does not. GetContentText decodes as UTF-8 with replacement rather
-                // than throwing, so a stray byte costs one garbled character, not the report.
-                yield return new SourceFile(entryPath, extension, blob.GetContentText());
+                // in practice it does not. UTF-8 decoding replaces rather than throws, so a stray
+                // byte costs one garbled character, not the report.
+                yield return new SourceFile(entryPath, extension, Encoding.UTF8.GetString(content));
             }
         }
     }
@@ -326,7 +324,7 @@ public class GitHubService : IGitHubService
     /// depend on where a directory sits, not just what it holds, so the identical subtree appearing
     /// at two paths is legitimately two different answers.</para>
     /// </summary>
-    private async Task<Dictionary<string, int>> CountTreeAsync(Tree tree, string currentPath, HashSet<string> fileExtensionsToCount)
+    private async Task<Dictionary<string, int>> CountTreeAsync(GitObjectReader reader, GitTree tree, string currentPath, HashSet<string> fileExtensionsToCount)
     {
         var cacheKey = $"{tree.Sha}\0{currentPath}";
         if (_treeLineCounts.TryGetValue(cacheKey, out var memoised))
@@ -336,33 +334,33 @@ public class GitHubService : IGitHubService
 
         var counts = new Dictionary<string, int>();
 
-        foreach (var entry in tree)
+        foreach (var entry in tree.Entries)
         {
             var entryPath = string.IsNullOrEmpty(currentPath) ? entry.Name : $"{currentPath}/{entry.Name}";
 
-            if (entry.TargetType == TreeEntryTargetType.Tree)
+            if (entry.IsTree)
             {
                 // The subtree is resolved BEFORE the ignore check so the filter can see what the
                 // directory contains, not just what it is called. That is what identifies a
                 // third-party repository copied in under a name the author chose — see
                 // FileIgnoreFilter.IsEmbeddedRepositoryRoot.
-                var subTree = entry.Target as Tree;
+                var subTree = reader.ReadTree(entry.Sha);
 
                 if (subTree is null
                         ? _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath)
-                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Select(e => e.Name)))
+                        : _fileIgnoreFilter.ShouldIgnoreDirectory(entryPath, subTree.Entries.Select(e => e.Name)))
                 {
                     continue;
                 }
 
                 if (subTree is null) continue;
 
-                foreach (var (extension, lines) in await CountTreeAsync(subTree, entryPath, fileExtensionsToCount))
+                foreach (var (extension, lines) in await CountTreeAsync(reader, subTree, entryPath, fileExtensionsToCount))
                 {
                     counts[extension] = counts.GetValueOrDefault(extension) + lines;
                 }
             }
-            else if (entry.TargetType == TreeEntryTargetType.Blob)
+            else if (entry.IsBlob)
             {
                 if (_fileIgnoreFilter.ShouldIgnoreFile(entry.Name, entryPath))
                 {
@@ -372,13 +370,7 @@ public class GitHubService : IGitHubService
                 var fileExtension = Path.GetExtension(entry.Name.ToLowerInvariant());
                 if (!fileExtensionsToCount.Contains(fileExtension)) continue;
 
-                if (entry.Target is not Blob blob)
-                {
-                    _logger.LogWarning("Tree entry {EntryName} is not a blob, or blob is null.", entry.Name);
-                    continue;
-                }
-
-                counts[fileExtension] = counts.GetValueOrDefault(fileExtension) + await CountBlobLinesAsync(blob, fileExtension);
+                counts[fileExtension] = counts.GetValueOrDefault(fileExtension) + await CountBlobLinesAsync(reader, entry.Sha, fileExtension);
             }
         }
 
@@ -396,9 +388,9 @@ public class GitHubService : IGitHubService
     /// removes most of these calls; this one catches a file that merely MOVED, whose containing
     /// trees all changed while the blob did not.</para>
     /// </summary>
-    private async Task<int> CountBlobLinesAsync(Blob blob, string fileExtension)
+    private async Task<int> CountBlobLinesAsync(GitObjectReader reader, string blobSha, string fileExtension)
     {
-        var cacheKey = $"{blob.Sha}\0{fileExtension}";
+        var cacheKey = $"{blobSha}\0{fileExtension}";
         if (_blobLineCounts.TryGetValue(cacheKey, out var memoised))
         {
             return memoised;
@@ -415,7 +407,13 @@ public class GitHubService : IGitHubService
             return 0;
         }
 
-        using var contentStream = blob.GetContentStream();
+        if (reader.ReadBlob(blobSha) is not { } content)
+        {
+            _logger.LogWarning("Blob {BlobSha} is missing from the object store.", blobSha);
+            return 0;
+        }
+
+        using var contentStream = new MemoryStream(content, writable: false);
         var lines = await lineCounter.CountLinesAsync(contentStream);
 
         Memoise(_blobLineCounts, cacheKey, lines);
@@ -472,13 +470,10 @@ public class GitHubService : IGitHubService
         IEnumerable<string>? fileExtensions = null,
         Action<int, int>? onProgress = null)
     {
-        // Off the request thread: the walk below is synchronous LibGit2Sharp work over the whole
+        // Off the request thread: the walk below waits on git processes over the whole
         // history, and it is called from a background analysis job that must not block on it.
         return await Task.Run(() => GetCommitStatsCore(repositoryPath, sinceDate, fileExtensions, onProgress));
     }
-
-    /// <summary>How many commits are diffed between progress reports.</summary>
-    private const int StatsProgressInterval = 25;
 
     /// <summary>Synchronous history walk, kept separate so the public method owns the threading.</summary>
     private IEnumerable<CommitStatsDto> GetCommitStatsCore(
@@ -500,84 +495,48 @@ public class GitHubService : IGitHubService
 
         _logger.LogInformation("Getting commit stats for repository at {RepoPath} since {SinceDate}", fullRepoPath, sinceDate);
 
-        if (!Repository.IsValid(fullRepoPath))
+        if (!GitObjectReader.IsRepository(fullRepoPath))
         {
             _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot get commit stats.", fullRepoPath);
             return Enumerable.Empty<CommitStatsDto>();
         }
 
-        var commitStatsList = new List<CommitStatsDto>();
-
-        using (var repo = _gitClient.OpenRepository(fullRepoPath))
+        IEnumerable<GitClient.CommitInfo> commits = _gitClient.Commits(fullRepoPath);
+        if (sinceDate.HasValue)
         {
-            var filter = new CommitFilter
-            {
-                SortBy = CommitSortStrategies.Time,
-                IncludeReachableFrom = repo.Head
-            };
-
-            IEnumerable<Commit> commits = repo.Commits.QueryBy(filter);
-
-            if (sinceDate.HasValue)
-            {
-                // Convert sinceDate to UTC for comparison with commit dates
-                var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
-                commits = commits.Where(c => c.Author.When.UtcDateTime >= sinceDateUtc);
-            }
-
-            var commitsList = commits.ToList();
-            _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
-
-            var diffed = 0;
-            foreach (var commit in commitsList)
-            {
-                // This loop is the whole of "Step 2", and for a long history it runs for minutes.
-                // It used to say nothing until it finished, which read as a hang.
-                if (diffed % StatsProgressInterval == 0) onProgress?.Invoke(diffed, commitsList.Count);
-                diffed++;
-
-                int linesAdded;
-                int linesRemoved;
-
-                // PatchStats, disposed: only the two totals are needed. This used to build a full
-                // Patch — the whole diff as text — for every commit in history and never
-                // disposed it, so a long history held every diff's native memory until the
-                // repository handle closed.
-                var parentCount = commit.Parents.Count();
-                if (parentCount > 1)
-                {
-                    // A merge. Diffing it against its first parent re-reports every line the
-                    // merged branch's own commits already reported, so a merged feature branch
-                    // was counted twice in "lines added" and in contributor share.
-                    linesAdded = 0;
-                    linesRemoved = 0;
-                }
-                else
-                {
-                    // parentCount == 0 is the initial commit: diff against the empty tree, so
-                    // every line counts as added.
-                    var parentTree = parentCount == 1 ? commit.Parents.First().Tree : null;
-                    using var stats = pathspecs is null
-                        ? repo.Diff.Compare<PatchStats>(parentTree, commit.Tree)
-                        : repo.Diff.Compare<PatchStats>(parentTree, commit.Tree, pathspecs);
-                    linesAdded = stats.TotalLinesAdded;
-                    linesRemoved = stats.TotalLinesDeleted;
-                }
-
-                commitStatsList.Add(new CommitStatsDto
-                {
-                    Sha = commit.Sha,
-                    // UtcDateTime, not DateTime: the latter is the author's local wall-clock time
-                    // with Kind Unspecified, which storage then labelled UTC — shifting every
-                    // commit by its author's offset, across day boundaries in the charts.
-                    CommitDate = commit.Author.When.UtcDateTime,
-                    LinesAdded = linesAdded,
-                    LinesRemoved = linesRemoved,
-                    AuthorName = commit.Author.Name,
-                    AuthorEmail = commit.Author.Email
-                });
-            }
+            // Author date in UTC: the date the charts plot and the incremental cut-off compares.
+            var sinceDateUtc = sinceDate.Value.Kind == DateTimeKind.Utc ? sinceDate.Value : sinceDate.Value.ToUniversalTime();
+            commits = commits.Where(c => c.AuthorDateUtc >= sinceDateUtc);
         }
+
+        var commitsList = commits.ToList();
+        _logger.LogInformation("Processing {CommitCount} commits after date filtering", commitsList.Count);
+        onProgress?.Invoke(0, commitsList.Count);
+
+        // One git process diffs every commit in the list. A merge is not diffed and counts zero:
+        // diffing it against its first parent re-reported every line its branch's own commits
+        // already reported, counting a merged feature branch twice in "lines added" and in
+        // contributor share. A root commit diffs against the empty tree, so all its lines are added.
+        var nonMerges = commitsList.Where(c => c.ParentCount <= 1).Select(c => c.Sha).ToList();
+        var stats = nonMerges.Count == 0
+            ? new Dictionary<string, (int Added, int Removed)>()
+            : _gitClient.LineStats(fullRepoPath, nonMerges, pathspecs);
+        onProgress?.Invoke(commitsList.Count, commitsList.Count);
+
+        var commitStatsList = commitsList.Select(commit =>
+        {
+            var (added, removed) = stats.GetValueOrDefault(commit.Sha);
+            return new CommitStatsDto
+            {
+                Sha = commit.Sha,
+                CommitDate = commit.AuthorDateUtc,
+                LinesAdded = added,
+                LinesRemoved = removed,
+                AuthorName = commit.AuthorName,
+                AuthorEmail = commit.AuthorEmail
+            };
+        }).ToList();
+
         _logger.LogInformation("Found {CommitCount} commit stats for repository at {RepoPath}", commitStatsList.Count, fullRepoPath);
         return commitStatsList;
     }
@@ -611,7 +570,7 @@ public class GitHubService : IGitHubService
                 response.EnsureSuccessStatusCode();
 
                 var jsonContent = await response.Content.ReadAsStringAsync();
-                var pageData = System.Text.Json.JsonSerializer.Deserialize<List<GitHubApiRepository>>(jsonContent) ?? [];
+                var pageData = System.Text.Json.JsonSerializer.Deserialize(jsonContent, ApiJsonContext.Default.ListGitHubApiRepository) ?? [];
                 repoData.AddRange(pageData);
                 if (pageData.Count < pageSize) break;
             }
@@ -646,15 +605,19 @@ public class GitHubService : IGitHubService
     }
 
     // Private class for deserializing GitHub API response
-    private class GitHubApiRepository
-    {
-        public string? name { get; set; }
-        public string? full_name { get; set; }
-        public string? clone_url { get; set; }
-        public string? description { get; set; }
-        public bool @private { get; set; }
-        public string? language { get; set; }
-        public bool fork { get; set; }
-        public bool archived { get; set; }
-    }
+
+    public void Dispose() => _reader?.Dispose();
+}
+
+/// <summary>The fields of GitHub's repository JSON this app reads; named as GitHub spells them.</summary>
+internal sealed class GitHubApiRepository
+{
+    public string? name { get; set; }
+    public string? full_name { get; set; }
+    public string? clone_url { get; set; }
+    public string? description { get; set; }
+    public bool @private { get; set; }
+    public string? language { get; set; }
+    public bool fork { get; set; }
+    public bool archived { get; set; }
 }

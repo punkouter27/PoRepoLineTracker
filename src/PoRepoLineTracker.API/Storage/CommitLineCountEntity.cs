@@ -41,7 +41,7 @@ public class CommitLineCountEntity : ITableEntity
             LinesRemoved = LinesRemoved,
             LinesByFileType = string.IsNullOrEmpty(LinesByFileTypeJson)
                 ? new Dictionary<string, int>()
-                : JsonSerializer.Deserialize<Dictionary<string, int>>(LinesByFileTypeJson) ?? new Dictionary<string, int>(),
+                : JsonSerializer.Deserialize(LinesByFileTypeJson, AppJsonSerializerContext.Default.DictionaryStringInt32) ?? new Dictionary<string, int>(),
             AuthorName = AuthorName,
             AuthorEmail = AuthorEmail
         };
@@ -62,7 +62,7 @@ public class CommitLineCountEntity : ITableEntity
             TotalLines = model.TotalLines,
             LinesAdded = model.LinesAdded,
             LinesRemoved = model.LinesRemoved,
-            LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType),
+            LinesByFileTypeJson = JsonSerializer.Serialize(model.LinesByFileType, AppJsonSerializerContext.Default.DictionaryStringInt32),
             AuthorName = model.AuthorName,
             AuthorEmail = model.AuthorEmail
         };

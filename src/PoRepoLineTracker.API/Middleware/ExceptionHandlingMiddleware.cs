@@ -74,7 +74,7 @@ namespace PoRepoLineTracker.API.Middleware
                 problemDetails.Extensions.Add("stackTrace", exception.StackTrace);
             }
 
-            var json = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var json = JsonSerializer.Serialize(problemDetails, ApiJsonContext.Default.ProblemDetails);
             await context.Response.WriteAsync(json);
         }
     }

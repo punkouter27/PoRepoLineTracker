@@ -3,7 +3,7 @@ using PoRepoLineTracker.Shared.Domain;
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
-/// Everything the All Time Insights dashboard renders, in one response.
+/// Everything the Insights page's "All time" view renders, in one response.
 ///
 /// <para>The dashboard is lifetime throughout (owner, 2026-10-24): every figure it shows reads the
 /// whole history. The 30-day fields and <see cref="Movers"/> are not on that page; they feed the

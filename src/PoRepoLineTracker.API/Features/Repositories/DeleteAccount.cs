@@ -66,7 +66,7 @@ public sealed class DeleteAccountCommandHandler(
         {
             using var request = new HttpRequestMessage(HttpMethod.Delete, $"applications/{Uri.EscapeDataString(clientId)}/grant")
             {
-                Content = JsonContent.Create(new Dictionary<string, string> { ["access_token"] = accessToken })
+                Content = JsonContent.Create(new Dictionary<string, string> { ["access_token"] = accessToken }, ApiJsonContext.Default.DictionaryStringString)
             };
             // Set on the request, so it replaces the client's default PAT header rather than joining it.
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic",

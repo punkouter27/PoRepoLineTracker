@@ -52,7 +52,7 @@ public sealed class AntiforgeryMiddleware(
                     Detail = "The request did not carry a valid antiforgery token. Fetch one from /api/antiforgery/token and resend it in the X-CSRF-TOKEN header.",
                     Code = "antiforgery_validation_failed",
                     Status = StatusCodes.Status400BadRequest
-                });
+                }, AppJsonSerializerContext.Default.ErrorResponse);
                 return;
             }
         }

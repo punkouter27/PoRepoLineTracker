@@ -46,7 +46,7 @@ public interface IGitHubService
     ///
     /// <para>Lazy and synchronous, deliberately. Lazy because a caller that materialised every
     /// file of a large repository would hold the whole checkout in memory at once, where measuring
-    /// them one at a time holds one; synchronous because LibGit2Sharp is, and wrapping each blob
+    /// them one at a time holds one; synchronous because the object reader is, and wrapping each blob
     /// read in a Task would add machinery around work that never yields. Callers doing this off a
     /// request thread should wrap the whole enumeration in one <c>Task.Run</c>.</para>
     ///

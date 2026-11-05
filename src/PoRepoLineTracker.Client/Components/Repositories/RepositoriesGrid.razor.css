@@ -222,6 +222,16 @@
     }
 }
 
+/* Push-webhook marker: a repository a push refreshes on its own. */
+.rp-live-badge {
+    display: inline-flex;
+    color: var(--status-pos);
+}
+
+.rp-live-badge ::deep .rzi {
+    font-size: 1rem;
+}
+
 /* Live-feed connection state beside the heading (moved from the old Live activity panel). */
 .rp-live-state {
     display: inline-flex;

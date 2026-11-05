@@ -6,8 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <StaticWebAssetProjectMode>All</StaticWebAssetProjectMode>
     <WasmBlazorWebAssemblyHost>true</WasmBlazorWebAssemblyHost>
-    <!-- AOT disabled: codebase uses reflection-based JSON serialization -->
-    <IsAotCompatible>false</IsAotCompatible>
+    <!-- Not published as Native AOT (Key Vault configuration and Radzen's server pieces are not
+         AOT-safe), but built with the trim and AOT analyzers so new reflection shows up as a
+         build error. The two generators below replace minimal-API and configuration-binding
+         reflection with generated code. -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <UserSecretsId>681e0cdb-7510-48a2-9c33-6664001dd586</UserSecretsId>
   </PropertyGroup>
 
@@ -17,7 +23,6 @@
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
-    <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />

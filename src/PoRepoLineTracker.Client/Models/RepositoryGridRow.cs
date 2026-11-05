@@ -27,6 +27,9 @@ public sealed record RepositoryGridRow(
     public string OwnerName => $"{Owner}/{Name}";
 
     public DateTime? LastAnalyzedCommitDate => Repository?.LastAnalyzedCommitDate;
+
+    /// <summary>Has a GitHub push webhook, so a push refreshes it without a click.</summary>
+    public bool IsLive => Repository?.WebhookId is not null;
     public int? NetChange30Days => Movement?.NetChange30Days;
     public int? Commits30Days => Movement?.Commits30Days;
 

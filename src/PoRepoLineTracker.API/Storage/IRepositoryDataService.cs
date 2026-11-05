@@ -19,13 +19,13 @@ public interface IRepositoryDataService
 
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId);
-    Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days); // Added for line count history
+    Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days);
 
     /// <summary>
     /// Every repository the user owns, paired with its commits, fetched in parallel.
     ///
     /// <para><b>Why this lives on the data service.</b> Three handlers — portfolio insights,
-    /// weekly digest, year-in-code — were each opening a Task.WhenAll over the same
+    /// the old weekly digest, year-in-code — were each opening a Task.WhenAll over the same
     /// per-repository round-trip and writing it slightly differently (one ordered, one not, one
     /// filtered). Pinning the fan-out here makes a fourth handler free, and the order — commits
     /// ordered by date ascending — is what the chart code now assumes.</para>
@@ -36,7 +36,7 @@ public interface IRepositoryDataService
     // commits, which is exactly what happened: N round-trips to answer what the one call above
     // returns for the whole repository. Callers pre-load and look up in memory.
 
-    Task DeleteCommitLineCountsForRepositoryAsync(RepositoryId repositoryId); // Added for temporary endpoint
+    Task DeleteCommitLineCountsForRepositoryAsync(RepositoryId repositoryId);
     Task DeleteRepositoryAsync(RepositoryId repositoryId);
     /// <summary>
     /// Removes every repository a user tracks (and their commit rows) and returns what was

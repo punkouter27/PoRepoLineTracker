@@ -18,7 +18,7 @@ public sealed class DiagnosticsResponse
     public DiagnosticsSummary Summary { get; set; } = new();
 }
 
-/// <summary>External dependencies grouped by provider, as rendered by the /diag page.</summary>
+/// <summary>External dependencies grouped by provider, as rendered by the /diagnostics page.</summary>
 public sealed class ExternalConnectionsData
 {
     public List<ExternalConnectionInfo> Azure { get; set; } = [];

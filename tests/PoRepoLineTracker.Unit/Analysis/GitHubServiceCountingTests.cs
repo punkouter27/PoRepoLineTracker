@@ -1,5 +1,5 @@
 using FluentAssertions;
-using LibGit2Sharp;
+using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -26,7 +26,7 @@ public sealed class GitHubServiceCountingTests : IDisposable
     {
         _repoPath = Path.Combine(Path.GetTempPath(), "porepo-count-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_repoPath);
-        Repository.Init(_repoPath);
+        Git("init", "-q");
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
         _sut = new GitHubService(
@@ -48,10 +48,22 @@ public sealed class GitHubServiceCountingTests : IDisposable
             File.WriteAllText(full, content);
         }
 
-        using var repo = new Repository(_repoPath);
-        Commands.Stage(repo, "*");
-        var author = new Signature("t", "t@example.com", DateTimeOffset.UtcNow);
-        return repo.Commit("c", author, author, new CommitOptions { AllowEmptyCommit = true }).Sha;
+        Git("add", "-A");
+        Git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
+            "commit", "-q", "--allow-empty", "-m", "c");
+        return Git("rev-parse", "HEAD").Trim();
+    }
+
+    /// <summary>The git CLI, as the app itself uses it.</summary>
+    private string Git(params string[] args)
+    {
+        var psi = new ProcessStartInfo("git") { WorkingDirectory = _repoPath, RedirectStandardOutput = true, UseShellExecute = false };
+        foreach (var arg in args) psi.ArgumentList.Add(arg);
+        using var process = Process.Start(psi)!;
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        process.ExitCode.Should().Be(0, $"git {string.Join(' ', args)} failed");
+        return output;
     }
 
     private Task<Dictionary<string, int>> CountAsync(string sha) =>
@@ -140,7 +152,7 @@ public sealed class GitHubServiceCountingTests : IDisposable
     {
         var counter = new CountingLineCounter(".cs");
         var configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
-        var sut = new GitHubService(
+        using var sut = new GitHubService(
             new HttpClient(),
             configuration,
             Substitute.For<ILogger<GitHubService>>(),
@@ -184,6 +196,7 @@ public sealed class GitHubServiceCountingTests : IDisposable
 
     public void Dispose()
     {
+        _sut.Dispose(); // ends its git cat-file process, which holds the pack files open on Windows
         try
         {
             // Git marks object files read-only, which blocks a plain recursive delete on Windows.

@@ -810,7 +810,7 @@ a:focus-visible {
    too, and Tab moved through the nav with nothing showing where it was. */
 .app-nav__link:focus:not(:focus-visible) { outline: none; }
 
-/* The multi-word labels (All Time Insights, Code Health) used to wrap onto two lines in a 220px
+/* The multi-word labels (such as Code Health) used to wrap onto two lines in a 220px
    sidebar with the original 0.75rem side margin + 20pxpx icon padding. Holding the row to one
    line and tightening the horizontal chrome keeps them readable; this text block is the
    spare capacity once the row is single-line. */

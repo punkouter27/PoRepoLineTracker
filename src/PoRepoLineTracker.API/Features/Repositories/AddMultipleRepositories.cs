@@ -38,7 +38,7 @@ public class AddMultipleRepositoriesCommandHandler
         var added = new List<GitHubRepository>();
         var alreadyTracked = new List<GitHubRepository>();
 
-        // PHASE 1: Add repositories to database
+        // Insert each new repository; a repeat goes to AlreadyTracked.
         foreach (var repo in request.Repositories)
         {
             try
@@ -110,21 +110,8 @@ public class AddMultipleRepositoriesCommandHandler
 
         return new BulkAddResult
         {
-            Added = [.. added.Select(ToDto)],
-            AlreadyTracked = [.. alreadyTracked.Select(ToDto)]
+            Added = added,
+            AlreadyTracked = alreadyTracked
         };
     }
-
-    private static GitHubRepositoryDto ToDto(GitHubRepository repo) => new()
-    {
-        Id = repo.Id,
-        UserId = repo.UserId,
-        Owner = repo.Owner,
-        Name = repo.Name,
-        CloneUrl = repo.CloneUrl,
-        LastAnalyzedCommitDate = repo.LastAnalyzedCommitDate,
-        LocalPath = repo.LocalPath,
-        LastAnalysisAttemptUtc = repo.LastAnalysisAttemptUtc,
-        LastAnalysisError = repo.LastAnalysisError
-    };
 }

@@ -74,16 +74,6 @@
                               title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               aria-label="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               Click="@ToggleDarkMode" />
-                @* Off until asked for. The state is in the label as well as the icon and
-                   aria-pressed: "pressed" alone does not say what the button is pressing. *@
-                <RadzenButton Icon="@(_soundOn ? "volume_up" : "volume_off")"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              class="header-icon-btn"
-                              title="@(_soundOn ? "Sound: on" : "Sound: off")"
-                              aria-label="@(_soundOn ? "Sound: on" : "Sound: off")"
-                              aria-pressed="@(_soundOn ? "true" : "false")"
-                              Click="@ToggleSound" />
                 <LoginDisplay />
             </div>
         </div>
@@ -131,7 +121,6 @@
     private bool sidebarExpanded = true;
     private bool _isMobile = false;
     private bool _isDarkMode = false;
-    private bool _soundOn = false;
 
     /// <summary>The skip link's target. Focusable only because &lt;main&gt; carries tabindex="-1".</summary>
     private ElementReference _mainContent;
@@ -157,7 +146,6 @@
         // leave the toggle icon showing the opposite of the page.
         var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
         _isDarkMode = theme == "dark";
-        _soundOn = await JSRuntime.InvokeAsync<bool>("soundOn");
 
         StateHasChanged();
     }
@@ -204,10 +192,4 @@
         StateHasChanged();
     }
 
-    /// <summary>Persisted by <c>setSound</c> in index.html, the way <c>setTheme</c> persists the theme.</summary>
-    private async Task ToggleSound()
-    {
-        _soundOn = !_soundOn;
-        await JSRuntime.InvokeVoidAsync("setSound", _soundOn);
-    }
 }

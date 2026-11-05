@@ -194,9 +194,7 @@ public static class InfrastructureServiceExtensions
         // TableClient, which is cheap to resolve and safe to share within a request.
         services.AddScoped<ICodeHealthSnapshotStore, CodeHealthSnapshotStore>();
 
-        // Slice handlers, one per route, called directly by their endpoint — no mediator in
-        // between. Each has exactly one caller; the registration replaces the old MediatR
-        // assembly scan (dropped with its commercial-license nag).
+        // Slice handlers, one per route, called directly by their endpoint — no mediator in between.
         services.AddScoped<GetAllRepositoriesQueryHandler>();
         services.AddScoped<GetLineCountHistoryQueryHandler>();
         services.AddScoped<GetRepositoryPunchcardQueryHandler>();
@@ -211,7 +209,6 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<AnalyzeRepositoryCommitsCommandHandler>();
         services.AddScoped<GetContributorStatsQueryHandler>();
         services.AddScoped<GetPortfolioInsightsQueryHandler>();
-        services.AddScoped<GetWeeklyDigestQueryHandler>();
         services.AddScoped<GetYearInReviewQueryHandler>();
         services.AddScoped<GetCodeHealthQueryHandler>();
         services.AddScoped<GetCodeHealthTrendQueryHandler>();

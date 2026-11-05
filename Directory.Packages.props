@@ -26,7 +26,6 @@
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <!-- Git & Source Control -->
-    <PackageVersion Include="LibGit2Sharp" Version="0.32.0" />
     <!-- Static analysis. The SYNTAX half of Roslyn only: the C# parser needs no SDK, no MSBuild
          and no restored compilation, which is what lets code metrics run on the F1 App Service.
          Do not add Workspaces.MSBuild to reach Depth of Inheritance / Class Coupling without

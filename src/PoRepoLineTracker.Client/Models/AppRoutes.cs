@@ -21,14 +21,11 @@ public static class AppRoutes
     /// <summary>One repository's detail page. Use <see cref="ForRepository"/> for a real id.</summary>
     public const string RepositoryDetail = "/repositories/{id}";
 
-    /// <summary>Portfolio-wide figures over the whole history.</summary>
+    /// <summary>The yearly recap, plus "All time". Also answers <c>/insights/{year}</c> and <c>/insights/all</c>.</summary>
     public const string Insights = "/insights";
 
     /// <summary>Maintainability across every repository.</summary>
     public const string CodeHealth = "/code-health";
-
-    /// <summary>The yearly recap. Also answers <c>/year-in-review/{year}</c>.</summary>
-    public const string YearInReview = "/year-in-review";
 
     /// <summary>File counting, GitHub access and account controls.</summary>
     public const string Settings = "/settings";

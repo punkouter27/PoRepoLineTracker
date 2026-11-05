@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live updates marker in the repository grid</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mut:#64748b;--line:#e2e8f0;--pos:#15803d;--note:#b45309}
+body{background:#f8fafc;color:var(--fg);font:14px/1.5 system-ui,sans-serif;padding:16px;margin:0 auto;max-width:1240px}
+h1{font-size:20px;margin:0 0 4px} p.sub{color:var(--mut);margin:0 0 14px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+figure{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+figcaption{font-weight:700;margin-bottom:8px}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bar b{font-size:15px}
+.state{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--mut)}
+.bolt{color:var(--pos);font-size:14px;line-height:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)} th{color:var(--mut);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.gh{color:var(--mut)}
+.ann{outline:2px dashed var(--note);outline-offset:2px;border-radius:4px;position:relative}
+.tag{display:inline-block;background:var(--note);color:#fff;border-radius:999px;font-size:11px;font-weight:700;width:18px;height:18px;text-align:center;line-height:18px;margin-left:4px}
+ol{margin:12px 0 0;padding-left:20px;color:#334155} ol li{margin:4px 0}
+</style>
+<h1>Live updates marker in the Tracked Repositories grid (2026-11-04)</h1>
+<p class="sub">Mockup with the app's colours. A real screenshot can't show it locally: webhooks only exist on the deployed site.</p>
+<div class="row">
+<figure><figcaption>Before</figcaption>
+<div class="bar"><b>Tracked Repositories</b></div>
+<table><tr><th>Repository</th><th>Total Lines</th><th>Status</th></tr>
+<tr><td>punkouter26/PoRepoLineTracker <span class="gh">↗</span></td><td class="n">48,213</td><td>Done</td></tr>
+<tr><td>punkouter26/PoSeeReview <span class="gh">↗</span></td><td class="n">21,907</td><td>Done</td></tr>
+<tr><td>acme-org/shared-lib <span class="gh">↗</span></td><td class="n">9,442</td><td>Done</td></tr>
+</table>
+<ol style="color:var(--mut)"><li>No way to tell which repositories update themselves on a push.</li></ol>
+</figure>
+<figure><figcaption>After</figcaption>
+<div class="bar"><b>Tracked Repositories</b><span class="state ann"><span class="bolt"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg></span>2 of 3 live</span><span class="tag">1</span></div>
+<table><tr><th>Repository</th><th>Total Lines</th><th>Status</th></tr>
+<tr><td>punkouter26/PoRepoLineTracker <span class="gh">↗</span> <span class="bolt ann"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg></span><span class="tag">2</span></td><td class="n">48,213</td><td>Done</td></tr>
+<tr><td>punkouter26/PoSeeReview <span class="gh">↗</span> <span class="bolt"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg></span></td><td class="n">21,907</td><td>Done</td></tr>
+<tr><td class="ann">acme-org/shared-lib <span class="gh">↗</span></td><td class="n">9,442</td><td>Done <span class="tag">3</span></td></tr>
+</table>
+<ol>
+<li>Count beside the heading. Its tooltip explains why the others aren't live. Hidden when nothing is live (local runs), so "0 live" never looks like a fault.</li>
+<li>Green bolt on every repository with a push webhook (tooltip and aria-label "Live updates on"). It shows on the mobile cards too.</li>
+<li>No bolt: GitHub refused the hook (not a repository admin) or the first analysis hasn't finished. A manual re-analyse still updates it.</li>
+</ol>
+</figure>
+</div>

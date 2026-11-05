@@ -62,7 +62,7 @@ public sealed class GetRepositoryHotspotsQueryHandler(
             : UserPreferences.DefaultFileExtensions;
 
         // One Task.Run around the whole walk, as in GetCodeHealthQueryHandler: synchronous
-        // LibGit2Sharp reads plus regex work, holding the repository open throughout.
+        // git object reads plus regex work, holding the repository open throughout.
         var files = await Task.Run(() => Rank(gitHubService.EnumerateSourceFiles(repositoryPath, commitSha, extensions), churn), cancellationToken);
 
         result.FilesChanged = files.Count;

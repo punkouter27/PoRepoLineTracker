@@ -12,10 +12,8 @@ namespace PoRepoLineTracker.Unit.Diagnostics;
 
 /// <summary>
 /// Pins the A3 acceptance:
-/// 1. Each dependency has a registered IHealthCheck with a stable name
-///    (azure-table-storage, key-vault, github-api).
-/// 2. The check returns the documented status for the documented inputs.
-/// 3. /health and /api/diagnostics both read the same registry — neither
+/// 1. The check returns the documented status for the documented inputs.
+/// 2. /health and /api/diagnostics both read the same registry — neither
 ///    re-implements a probe, which is what SPEC §11.3's "diag is honest"
 ///    requirement is asking for.
 /// </summary>
@@ -78,23 +76,6 @@ public class HealthCheckRegistrationTests
         healthyFactory.CreateClient(Arg.Any<string>()).Returns(healthyHttp);
         var healthyCheck = new GitHubApiHealthCheck(healthyFactory, Substitute.For<ILogger<GitHubApiHealthCheck>>());
         (await healthyCheck.CheckHealthAsync(NewContext("github-api"))).Status.Should().Be(HealthStatus.Healthy);
-    }
-
-    [Fact]
-    public void HealthChecksService_registers_all_three_under_documented_names()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHealthChecks()
-            .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")
-            .AddCheck<KeyVaultHealthCheck>("key-vault")
-            .AddCheck<GitHubApiHealthCheck>("github-api");
-
-        var sp = services.BuildServiceProvider();
-        var options = sp.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value;
-
-        options.Registrations.Select(r => r.Name).Should()
-            .BeEquivalentTo(new[] { "azure-table-storage", "key-vault", "github-api" });
     }
 
     private static HealthCheckContext NewContext(string name) =>

@@ -1,3 +1,5 @@
+using PoRepoLineTracker.Shared.Domain;
+
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
@@ -6,6 +8,6 @@ namespace PoRepoLineTracker.Shared.Models.Dtos;
 /// </summary>
 public class BulkAddResult
 {
-    public List<GitHubRepositoryDto> Added { get; init; } = [];
-    public List<GitHubRepositoryDto> AlreadyTracked { get; init; } = [];
+    public List<GitHubRepository> Added { get; init; } = [];
+    public List<GitHubRepository> AlreadyTracked { get; init; } = [];
 }

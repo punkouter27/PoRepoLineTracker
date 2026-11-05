@@ -173,7 +173,7 @@
 
         // ── Sound switch ────────────────────────────────────────────────────────────
         //
-        // Off unless the header toggle has stored 'sound' = 'on' — the same shape as the theme:
+        // Off unless the Settings switch has stored 'sound' = 'on' — the same shape as the theme:
         // setSound records the choice, and every cue in js/fx.js reads it, so the page that raises
         // a cue needs to know nothing about the toggle. Here rather than in fx.js because
         // MainLayout reads it on first render, and a switch must not depend on the decoration.
@@ -186,6 +186,19 @@
             // Called from the toggle's click: a context created or resumed inside a user gesture
             // is one the browser's autoplay policy lets play later, when an analysis finishes.
             if (on && window.playCue) playCue('done');
+        }
+
+        // Visual effects (particles, the animated background). Both scripts read their key once
+        // at load, so a change applies on the next page load. Settings owns the switch.
+        function effectsOn() {
+            try { return localStorage.getItem('fx') !== 'off' && localStorage.getItem('backdrop') !== 'off'; } catch (e) { return true; }
+        }
+
+        function setEffects(on) {
+            try {
+                localStorage.setItem('fx', on ? 'on' : 'off');
+                localStorage.setItem('backdrop', on ? 'on' : 'off');
+            } catch (e) { }
         }
 
         // Network status detection for offline read mode.

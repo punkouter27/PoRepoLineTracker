@@ -1,419 +1,231 @@
 # PoRepoLineTracker — SPEC.md
 
-Durable reference for what this app is, what it does, what it won't do, and what must remain true at every commit.
-The cross-agent *how* (YAGNI ladder, validation/security/a11y invariants) lives in `AGENTS.md` and `.github/copilot-instructions.md`. This document is the *why* and the *contract*.
+What this app is, what it does, what it won't do, and what must stay true at every commit. The *how* of writing code (YAGNI ladder, the owner's project rules) is in `AGENTS.md`, which `.github/copilot-instructions.md` copies verbatim. This document is the *why* and the *contract*. Git history keeps the story of how each rule got here; this file states only the current rule.
 
 ---
 
 ## 1. Objective
 
-PoRepoLineTracker is a self-hosted **GitHub repository analytics** app. A user signs in with GitHub, selects repositories they own, and the app clones each one, analyses its commit history, persists derived metrics, and surfaces line-count trends, extension breakdowns, contributor statistics, and a portfolio digest. The deployment model is one binary: the ASP.NET Core API hosts the Blazor WebAssembly client itself, talks to Azure Table Storage for state and to Azure Key Vault for secrets, and emits telemetry to Application Insights (Jaeger via OTLP locally). External surface is **GitHub + Azure** only — no SaaS analytics, no AI/ML, no alternative identity providers.
+A self-hosted **GitHub repository analytics** app. A user signs in with GitHub and imports their repositories. The app clones each one, replays its commit history, stores per-commit line counts, and shows line-count trends, file-type breakdowns, contributor statistics, code health, hotspots and a yearly recap. Pushes keep it current through GitHub webhooks.
 
-## 2. User Journeys
+One deployable: the ASP.NET Core API hosts the Blazor WebAssembly client, keeps state in Azure Table Storage, reads secrets from Azure Key Vault, and sends telemetry to Application Insights (Jaeger over OTLP locally). The external surface is **GitHub + Azure** only: no SaaS analytics, no AI/ML, no other identity provider.
 
-The single primary journey optimises every page:
+## 2. User journeys
 
-1. **Sign in** — `/auth/login` → GitHub OAuth → application cookie. In Dev/Test, tools authenticate by sending `X-Fake-User`. Development also has a browser bypass: `/auth/login` signs in a fixed "DevUser" when no OAuth app is configured or with `?dev=true`.
-2. **Bulk-add owned repositories** — `/api/repositories/bulk` is the only write path. Single-add was removed because it did not dedupe.
-3. **Watch analysis** — background clone/pull + line counting pushes progress over `/hubs/analysis` (SignalR); a fallback poll synthesises the same frames when the hub is unreachable. UI shows live tallies (`LinesCounted`, throughput, ETA), never a percentage alone.
-4. **Read the dashboard** — `Repositories` page lists the portfolio with totals. Drill into `RepositoryDetail` for line history, extension percentages, contributor stats, **code health (radar + cards)**, **activity-rhythm punchcard**, recent activity.
-5. **Export the portfolio** *(added 2026-09-20)* — `GET /api/repositories/export` returns JSON by default; `?format=csv` returns `text/csv`. Discoverable endpoint, no client affordance in the danger zone yet (see §13.7).
-6. **See what changed since last visit** — the digest banner (12h–90d window; trailing-7d fallback outside that) and the `Insights` page, with language mix measured in **share, not lines**.
-7. **Survive a network drop** *(added 2026-09-20)* — The PWA shell is cached; the `OfflineIndicator` shows network status when the connection is gone; on reconnect, the indicator clears and the next server fetch resumes. Read-only when offline.
+1. **Sign in.** `/auth/login` → GitHub OAuth → application cookie. Dev/Test tools send `X-Fake-User`; in a Development browser, `/auth/login?dev=true` (or no OAuth app configured) signs in a fixed "DevUser".
+2. **Import.** The Add dialog is a one-click import: it lists the user's GitHub repositories, skips forks and archived ones, and posts the rest to `POST /api/repositories/bulk` (the only write path; at most 200 per request, so the client sends chunks). New repositories are queued for analysis. Already-tracked ones without a webhook get an incremental run, which also connects their hook.
+3. **Watch analysis.** Progress frames go over SignalR (`/hubs/analysis`); a fallback poll synthesises the same frames when the hub is unreachable. The UI shows live tallies, never a percentage alone.
+4. **Stay current.** After a successful analysis the app registers a GitHub push webhook on the repository. A push to the default branch queues an incremental run. Rows with a hook show a green bolt in the grid (§10 "Webhooks").
+5. **Read the portfolio.** `/repositories` lists every repository with totals and 30-day movement. `/repositories/{id}` has tabs: activity, composition, health, hotspots, share.
+6. **Insights.** `/insights` opens on the current year (or the last year with commits) and offers "All time" from the same picker (`/insights/{year}`, `/insights/all`). `/code-health` ranks maintainability across repositories.
+7. **Share.** Per repository, opt in to anonymous badges (`/badge/{id}/lines.svg`, `/badge/{id}/health.svg`) and a share page (`/share/{id}`).
+8. **Own your data.** Settings exports the portfolio (JSON/CSV, `GET /api/repositories/export`) and deletes the account (`DELETE /api/account`).
+9. **Survive a network drop.** The PWA shell is cached; `OfflineIndicator` shows when the connection is gone. Read-only offline.
 
-*(The webhook-driven auto re-analysis journey added 2026-09-20 was removed 2026-09-21 — see §D.1 note. Repositories are added via the Add Repository dialog only.)*
+Secondary: counted file types (`/api/settings/user-preferences`), appearance & effects switches (Settings), operator diagnostics (`/diagnostics`, not in the sidebar), PWA install, single-repository re-analyse.
 
-Secondary paths: settings (`/api/settings/user-preferences` for counted extensions), diagnostics (`/api/diagnostics`), PWA install (`beforeinstallprompt` event captured at boot), re-analyse a single repo.
+## 3. Tech stack
 
-## 3. Pinned tech stack (versions)
+- **.NET 10** (`global.json`, `rollForward: latestMinor`). Versions of every package are in `Directory.Packages.props` (central management, transitive pinning); no `Version` on a `PackageReference`.
+- **Client:** Blazor WebAssembly + Radzen.Blazor, `PublishTrimmed`, trim analyzer on. Every wire type is in `Shared/Serialization/AppJsonSerializerContext`.
+- **API:** ASP.NET Core minimal APIs. Not published as Native AOT (Key Vault configuration and some server dependencies are not AOT-safe), but built with `EnableTrimAnalyzer` + `EnableAotAnalyzer`, the Request Delegate Generator and the configuration-binding generator, so new reflection is a build error. Server-only JSON is in `ApiJsonContext`.
+- **Git:** the `git` CLI only. `GitClient` runs clone, fetch, `log` and `--numstat`; `GitObjectReader` reads trees and blobs through one long-lived `git cat-file --batch`. No native git library (LibGit2Sharp crashed with SIGABRT on App Service Linux).
+- **Key packages:** Azure.Data.Tables, Azure.Identity, Key Vault configuration, OpenTelemetry + Azure Monitor, Serilog, HybridCache, AspNet.Security.OAuth.GitHub, Microsoft.CodeAnalysis.CSharp (syntax only, for code health), Scalar (Dev OpenAPI UI), MinVer.
+- **Compiler guards:** `Directory.Build.props` sets `TreatWarningsAsErrors` and `Nullable`. A new NuGet advisory (`NU1903`) fails the build; fix it by bumping the version, never by suppressing.
+- **Versioning:** MinVer from `v*` tags for assemblies; the `vYYMMDD` label in the client's corner is the build date (`AssemblyMetadata` `BuildVersion`).
+- **Tests:** xunit + NSubstitute + FluentAssertions (+ Xunit.SkippableFact, Playwright, Testcontainers.Azurite). No other assertion or mocking library.
+- **Local dependencies:** `docker compose up -d` starts Azurite and Jaeger (UI 16686, OTLP 4317/4318). Without Docker, npm `azurite` works; the Integration tier falls back to it.
 
-- **.NET 10** SDK (`global.json`: `10.0.100`, `rollForward: latestMinor`, no prerelease). `<LangVersion>preview</LangVersion>` to follow the SDK forward.
-- **Blazor WebAssembly** client, `<PublishTrimmed>true</PublishTrimmed>`, `<IsTrimmable>true</IsTrimmable>`, `<EnableTrimAnalyzer>true</EnableTrimAnalyzer>`. AOT off (separate switch; no rule requires it).
-- **ASP.NET Core 10** minimal-API host (`WasmBlazorWebAssemblyHost=true`). Scalar UI in Dev for the OpenAPI surface.
-- **Centralised package management** — all versions in `Directory.Packages.props`; no `<Version>` on `<PackageReference>`.
-- **Compiler guards** — `Directory.Build.props` sets `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, `<Nullable>enable</Nullable>`.
-- **Git-driven versioning** — MinVer 6.0.0 derives `AssemblyVersion`/`FileVersion`/`InformationalVersion` from the nearest `v*` tag.
-- **Key runtime packages** — Radzen.Blazor 8.4.2 (UI), HybridCache 10.0.0, OpenTelemetry 1.15.3 + OTLP exporter, Serilog.AspNetCore 10.0.0, Azure.Data.Tables 12.11.0, Azure.Identity 1.21.0, Azure.Extensions.AspNetCore.Configuration.Secrets 1.5.1, Azure.Monitor.OpenTelemetry.AspNetCore 1.4.0, Microsoft.AspNetCore.SignalR.Client 10.0.13, LibGit2Sharp 0.31.0, Microsoft.CodeAnalysis.CSharp 4.14.0 (syntax-only, no Workspaces.MSBuild), AspNet.Security.OAuth.GitHub 9.3.0, Scalar.AspNetCore 2.13.20, Microsoft.OpenApi 2.12.2. (MediatR and FluentValidation were removed 2026-09-21 — 17 single-caller handlers are injected directly and the four bulk-add rules are plain checks in `Shared/RepositoryValidators.cs`.)
-- **Test stack — single stack** — xunit 2.9.3 + NSubstitute 5.3.0 + FluentAssertions 8.8.0 + Xunit.SkippableFact 1.5.23 + Microsoft.Playwright 1.55.0 + Testcontainers.Azurite 4.6.0. SSH.NET pinned past advisory GHSA-q939-rpr3-3284 via central packages.
-- **Local dependencies** — Docker Compose: Azurite (table 10002, blob 10000, queue 10001) + Jaeger all-in-one 1.62.0 (UI 16686, OTLP/gRPC 4317, OTLP/HTTP 4318). Start with `docker compose up -d`.
-
-## 4. Build / Test / Lint / Run commands
+## 4. Commands
 
 ```powershell
-# build (every PR)
-dotnet build PoRepoLineTracker.slnx /property:GenerateFullPaths=true /consoleloggerparameters:NoSummary
+dotnet build PoRepoLineTracker.slnx
+dotnet run --project src/PoRepoLineTracker.API --launch-profile https    # https://localhost:5001
 
-# publish (what CI ships)
-dotnet publish src/PoRepoLineTracker.API /property:GenerateFullPaths=true /consoleloggerparameters:NoSummary
-
-# tests, in dependency order
-dotnet test tests/PoRepoLineTracker.Unit          # pure logic — required to pass before commit
-dotnet test tests/PoRepoLineTracker.Integration   # Azurite via Testcontainers
-dotnet test tests/PoRepoLineTracker.E2EAPI        # running host required
-dotnet test tests/PoRepoLineTracker.E2EUI         # Playwright; first run needs `playwright.ps1 install`
-
-# local run (https profile; Azurite must be up)
-dotnet run --project src/PoRepoLineTracker.API --launch-profile https
+dotnet test tests/PoRepoLineTracker.Unit           # the CI gate
+dotnet test tests/PoRepoLineTracker.Integration    # Testcontainers Azurite (or npm azurite)
+dotnet test tests/PoRepoLineTracker.E2EAPI         # needs the app running
+dotnet test tests/PoRepoLineTracker.E2EUI          # needs the app running + `playwright.ps1 install` once
 ```
 
-**CI gate** — Unit only (commit `845c024`). Integration/E2E run on demand or locally. A skip in E2EUI means the app is not up, not that a fixture is missing.
+A running app locks the build (MSB3027): `Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force`.
 
 ## 5. Project structure
 
 ```
-PoRepoLineTracker.slnx            ← solution
-Directory.Build.props             ← TreatWarningsAsErrors, Nullable, LangVersion, MinVer
-Directory.Packages.props          ← every package version (central management)
-global.json                       ← .NET 10.0.100 SDK pin
-docker-compose.yml                ← Azurite + Jaeger
-
 src/
-  PoRepoLineTracker.API/          ← Minimal-API host; hosts the WASM client; vertical-slice Features/
-    Program.cs                    ← composition root + middleware order
-    Auth/                         ← GitHub OAuth + FakeAuthHandler (throws in Production)
-    Hubs/                         ← SignalR AnalysisHub (outside /api by design)
-    Middleware/                   ← ApiNotFound, Antiforgery, ProductionAuthEnforcement, SecurityHeaders, ExceptionHandling, LogEnrichment
-    Storage/                      ← Azure Data Tables repositories (RepositoryDataService, UserService, UserPreferencesService, CodeHealthSnapshotStore)
-    Analysis/                     ← GitHubService (git CLI clone/pull), FileIgnoreFilter, SourceLineCounter
-    Extensions/                   ← AddInfrastructure, AddAuth, AddTelemetry
-    Platform/                     ← shared Po liveness, config keys
-    Features/                     ← vertical slices; a folder per multi-file slice, single-file slices loose
-      AntiforgeryEndpoints.cs     ← /api/antiforgery/token
-      Auth/                       ← /auth/login, /auth/me, /signin-*, /signout-*
-      CodeHealth/                 ← /api/code-health/{id} (six line-oriented factors; markup band separate)
-      Contributors/               ← contributor stats weighted by lines added
-      SeedEndpoints.cs            ← /api/dev/seed/repository (Development only)
-      Diagnostics/                ← /diag, /api/diagnostics
-      GitHubEndpoints.cs          ← /api/github/user-repositories
-      Insights/                   ← /api/insights/portfolio, /api/insights/digest, /api/insights/digest/seen
-      Repositories/               ← bulk add, list, charts, linehistory, extension %, contributors, analysis, re-analyse, delete, delete-all
-      SettingsEndpoints.cs        ← /api/settings/user-preferences
-    Telemetry/                    ← OpenTelemetry wiring + Application Insights
-
-  PoRepoLineTracker.Client/       ← Blazor WASM (Radzen + scoped .razor.css)
-    App.razor                     ← Router + CascadingAuthenticationState
-    Layout/                       ← MainLayout (skip link via JS FocusAsync, not fragment nav), NavMenu
-    Models/                       ← AppRoutes (every route, one place), AppNav (the sidebar's groups), RepositoryGridRow, ChartFormat, LoadingState
-    Pages/                        ← Root (redirects to /repositories), Repositories, RepositoryDetail, CodeHealth, Settings, Insights, YearInReview, Login
-    Pages/Operator/               ← Diagnostics (not in the sidebar)
-    Components/                   ← Account/*, Auth/*, Charts/*, Repositories/* (incl. RepositoriesGrid), Shared/* (incl. OfflineIndicator, EmptyState)
-    Services/                     ← ApiAuthenticationStateProvider, RepositoryCommandClient, UserPreferencesClient, AntiforgeryHandler, AnalysisFeedClient, AnalysisWatcher, AppHttpJsonExtensions
-    wwwroot/                      ← service-worker.js (dev no-op), service-worker.published.js (real cache, server-route prefix exceptions)
-
-  PoRepoLineTracker.Shared/       ← DTOs, enums, interfaces, source-generated JSON contexts
-    Domain/                       ← GitHubRepository, CommitLineCount, CommitStreaks, RepositoryTotals (single definition of "Total Lines"), StronglyTypedIds, User, UserPreferences
-    Models/                       ← AnalysisProgressDto, AuthResponse, ConfigKeys, ErrorResponse, Dtos/
-    Serialization/                ← AppJsonSerializerContext (trim-safe, reflection resolver unreachable from client)
-
-tests/
-  PoRepoLineTracker.Unit/         ← pure logic; the only CI-gate tier
-  PoRepoLineTracker.Integration/  ← ASP.NET host + Testcontainers Azurite
-  PoRepoLineTracker.E2EAPI/       ← HTTP contract tests
-  PoRepoLineTracker.E2EUI/        ← Playwright (mobile + desktop)
-
-infra/                            ← Bicep: main.bicep, resources.bicep, availability-test.bicep, keyvault-access.bicep, storage-role.bicep
-.github/workflows/deploy.yml      ← lint + build → package → webapp deploy; manual `deploy_infra` input applies Bicep
+  PoRepoLineTracker.API/          host; serves the WASM client
+    Program.cs                    composition root; middleware order is load-bearing (§8)
+    ApiJsonContext.cs             source-generated JSON for server-only payloads
+    Analysis/                     GitClient, GitObjectReader, GitHubService, FileIgnoreFilter,
+                                  SourceLineCounter, CommentSyntax, CodeMetricsAnalyzer, CodeHealthScoring
+    Auth/                         GitHub OAuth, FakeAuthHandler (Dev/Test only), RepositoryOwnership
+    Features/<Slice>/             vertical slices: Antiforgery, Auth, CodeHealth, Contributors, Dev,
+                                  Diagnostics, GitHub, Insights, Repositories, Settings
+    Hubs/                         SignalR analysis hub (outside /api by design)
+    Middleware/                   ApiNotFound, Antiforgery, ProductionAuthEnforcement, SecurityHeaders,
+                                  ExceptionHandling, LogEnrichment
+    Storage/                      Table Storage services and entities
+    Telemetry/                    OpenTelemetry wiring
+  PoRepoLineTracker.Client/
+    Pages/                        Root (→ /repositories), Repositories, RepositoryDetail, Insights,
+                                  CodeHealth, Settings, Login; Operator/Diagnostics
+    Components/                   Account, Auth, Charts, Insights (AllTimeDashboard), Repositories, Shared
+    Models/                       AppRoutes (every route), AppNav (sidebar), RepositoryGridRow, ChartFormat
+    Services/                     auth state, API clients, antiforgery handler, analysis feed
+    wwwroot/js/                   backdrop.js, fx.js, city.js (decoration, §10 "Effects")
+  PoRepoLineTracker.Shared/       domain types, DTOs, validators, ConfigKeys, AppJsonSerializerContext
+tests/                            Unit, Integration, E2EAPI, E2EUI
+infra/                            Bicep + setup/verify scripts
+SCRIPTS/ensure-azure-access.ps1   every role the app and CI need
 ```
 
-### 5.1 Tracked files that look deletable but aren't
+Files that look deletable but are not: `src/PoRepoLineTracker.API/startup.sh` (App Service startup; installs `git`), `PrefixKeyVaultSecretManager.cs` (strips the `PoRepoLineTracker--` secret prefix), `appsettings.Development.local.json.template` (copy for per-machine OAuth credentials; loads after Key Vault).
 
-These are referenced from production paths; a lazy cleanup must keep them.
+## 6. Conventions
 
-- `src/PoRepoLineTracker.API/startup.sh` — App Service Linux startup; installs `git` (LibGit2Sharp's network stack SIGABRTs in the container, so `GitClient` shells out). Configure via `az webapp config set --startup-file`.
-- `src/PoRepoLineTracker.API/PrefixKeyVaultSecretManager.cs` — `KeyVaultSecretManager` that strips the `PoRepoLineTracker--` prefix and treats the rest as `Section:Key`. Wired in `Program.cs` (search `AddAzureKeyVault`).
-- `src/PoRepoLineTracker.API/appsettings.Development.local.json.template` — copy-rename template for the gitignored per-machine OAuth credentials. The deployed site never reads it; Program.cs loads the local file *after* Key Vault so dev credentials win locally without changing prod.
-```
+- **Vertical slices.** `Features/<Slice>/` holds endpoints and handlers; handlers are injected directly (no mediator). Slices never reference each other. Code two slices need goes to `Storage/`, `Analysis/`, `Auth/` or Shared.
+- **One repository type.** `GitHubRepository` is both the storage row's domain shape and the wire shape. Server-only state (`LocalPath`, `AnalysisQueuedUtc`, `QueuedFullReanalysis`, `WebhookSecret`) is `[JsonIgnore]`.
+- **No single-implementation interfaces** unless a test already substitutes them.
+- **Ownership.** Any route taking a repository id uses `Auth/RepositoryOwnership`.
+- **Config keys** live in `Shared/Models/ConfigKeys`. Secrets come from Key Vault or the gitignored local override, never user-secrets. Optional features (App Insights, OTLP, webhooks) are off when their key is absent and the app still boots.
+- **Scoped CSS** is rooted at a plain `<div>`; use `::deep` for anything Radzen renders. Markup moving between components takes its CSS with it.
+- **`<ChartCard>`** needs an explicit `<ChildContent>` when it has a `<Toolbar>` (RZ9996 otherwise hides the toolbar).
+- **Pages** own an `<h1 class="page-hero__title">` and a `<PageTitle>`. The skip link moves focus in code, not by fragment navigation.
+- **Boot-time listeners** (`beforeinstallprompt`, network status, sound and effects switches) live in `index.html`, not in modules loaded later.
+- **Comments** explain the bug they prevent; match the existing tone.
 
-## 6. Code-style & conventions
+## 7. Testing
 
-- **`AGENTS.md` + `.github/copilot-instructions.md`** are the writing ruleset (YAGNI ladder; never cut validation, error handling, security, a11y). Comments explain *why*, not *what* — match the tone of the inline rationale already in this repo.
-- **Vertical Slice Architecture** under `Features/{FeatureName}/` — endpoints, handlers, and queries co-located; single-file slices are flat files under `Features/`. Slices **may not reference each other**. Shared code that more than one slice needs goes to `Storage/`, `Analysis/`, or `Shared/`.
-- **Source-generated JSON** in `Shared/Serialization/AppJsonSerializerContext`. The reflection resolver is deliberately unreachable from the client — every wire type needs a `[JsonSerializable]` entry, otherwise trim kills it.
-- **No single-implementation interfaces** — only abstract when a test or alternate impl already proves the seam; otherwise use the concrete type.
-- **AuthZ on repositories** — any route that takes a repository id from the URL uses `Auth/RepositoryOwnership`. The check lives outside slices so the second slice to need it cannot copy a stale copy.
-- **Scoped CSS** — root the `.razor.css` at a plain `<div>`; Radzen components don't carry the `[b-xxx]` attribute. `::deep` for anything Radzen renders. When markup moves between components, its scoped CSS moves with it.
-- **`<ChartCard>` requires an explicit `<ChildContent>` when paired with `<Toolbar>`** — passing the page body as a value-type child fires RZ9996 and the toolbar silently disappears. The wrapper sets `ChildContent` first and `Toolbar` last via separate parameters, never one inside the other.
-- **Headers/landmarks** — every page owns an `<h1>`, a `<PageTitle>`, and lives inside `<main>` in the layout. The page title is a real `<h1 class="page-hero__title">` written in the page's own markup (`PageHero` can't change the tag of a fragment handed to it).
-- **Skip link** moves focus in code (`ElementReference.FocusAsync` on click with `preventDefault`), not via fragment navigation — Blazor's router intercepts anchor clicks.
-- **Install button** — driven by the `beforeinstallprompt` event, captured in `index.html` (not in a module imported later). `registerInstallListener` returns the current availability *and* subscribes.
-- **Config keys** go in `ConfigKeys` (Shared) — no magic strings.
-- **Comments** explain the bug they prevent (the codebase already follows this convention; match it).
-
-## 7. Testing strategy
-
-- **Single stack** — xunit + NSubstitute + FluentAssertions. No other assertion or mocking library.
-- **Coverage** — coverlet with `tests/coverlet.runsettings` on the Unit tier; CI does not currently enforce a threshold.
-- **Dev/test auth** — `X-Fake-User` header (GUID verbatim; any other string hashes to a stable GUID). `FakeAuthHandler.ThrowIfProduction` makes registering it in Production a startup crash.
-- **Seeding chart data** — `POST /api/dev/seed/repository` writes synthetic history (Development only, idempotent). Without it every chart test in E2EUI skips and the suite reports false health.
-- **InternalsVisibleTo** — `PoRepoLineTracker.Unit` and `PoRepoLineTracker.Integration` see internals; prefer an `internal` helper over reflection.
-- **E2EUI first run** — `pwsh tests/PoRepoLineTracker.E2EUI/bin/Debug/net10.0/playwright.ps1 install`.
-- **Unit tests are not enough before commit** — they pass against changes that break the integration tier (composition-root changes in particular are invisible at unit scope and load-bearing for integration). Run Unit + Integration at minimum.
+- **Tier caps:** at most 100 unit, 50 integration, 25 API (E2EAPI) and 25 UI (E2EUI) tests. Merge before adding.
+- **CI gate:** Unit only. Integration and E2E run locally (`docker compose up -d` first). Composition-root changes (`Program.cs`, `AddInfrastructure`, `AddAuth`, middleware order, endpoint metadata) only fail in Integration, so run it for those.
+- **Dev/test auth:** `X-Fake-User` (a GUID verbatim; any other string hashes to a stable GUID). Writes also need the antiforgery pair (`api-tests.http`). Registering `FakeAuthHandler` in Production crashes at startup.
+- **Chart data:** `POST /api/dev/seed/repository` (Development only, idempotent). Without it E2EUI chart tests skip.
+- **Git tests** build a real repository with the git CLI; nothing substituted can exercise object identity.
+- **Tests run on any machine:** no drive letters, temp-folder or working-directory assumptions, no live config value as an expected result.
 
 ## 8. Boundaries
 
-### Always (no further approval)
+### Always
 
-- **Security** — HTTPS-only cookies outside Development; `__Host-` antiforgery cookie gated by `Security:RequireSecureCookies`. `SecurityHeadersMiddleware` is non-negotiable. `ApiNotFoundMiddleware` answers 404 for unmatched `/api` GETs (middleware, not a route — a catch-all `/api/{**rest}` would win precedence against real routes and break authorization).
-- **Auth in Production** — `ProductionAuthEnforcementMiddleware` redirects unauthenticated requests to the app's own `/login` (same origin, PWA `start_url: "/"`) and is unit-tested against a substituted `IWebHostEnvironment` (the only place its branch runs).
-- **Validation at trust boundaries** — plain checks in `Shared/RepositoryValidators.cs` on the bulk-add slice (owner/name restricted to GitHub's character set — the server builds the clone URL from them and never accepts one from a caller); `Authorization` and `RepositoryOwnership` checked before any storage call.
-- **Trim-safe JSON** — every wire type has a `[JsonSerializable]` entry; the reflection resolver is unreachable from the client.
-- **Single source of truth** for "Total Lines" (`Shared/Domain/RepositoryTotals`), commit streaks (`Shared/Domain/CommitStreaks`), extension snapshots (`RepositoryTotals.LinesByFileTypeAsOf`), and progress frames (`Shared/Models/AnalysisProgressDto`). Three pages can show a streak; one home avoids three numbers that drift.
-- **Progress frames are immutable in transit** — the loop hands the hub a fresh list each tick; appending to a shared list mid-serialize throws.
+- **Middleware order:** static files → `ApiNotFoundMiddleware` (404 for unmatched `/api` GETs; a middleware, never a catch-all route) → authentication → authorization → rate limiting → `ProductionAuthEnforcementMiddleware` (redirects anonymous page requests to `/login` in Production) → `AntiforgeryMiddleware` (after authorization, so an anonymous write gets 401, not 400).
+- **Security headers** (`SecurityHeadersMiddleware`) and CSP outside Development: `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`, same-origin styles and fonts, `connect-src 'self' wss:`.
+- **Cookies:** HTTPS-only outside Development; the `__Host-` antiforgery cookie is keyed on `Security:RequireSecureCookies`, not the environment name.
+- **Validation at trust boundaries:** owner/name restricted to GitHub's character set (`Shared/RepositoryValidators`); the clone URL is always built server-side (`GitHubRepository.CloneUrlFor`), never accepted from a caller, because the user's token is embedded in it. `returnUrl` on `/auth/login` must be local. Ownership and authorization are checked before storage.
+- **Anonymous surface** is exactly: antiforgery token, `/auth/*`, `/health`, `/health/live`, `/badge/*`, `/share/*`, the webhook receiver and the SPA fallback. `AuthorizationFallbackTests` pins the list.
+- **Rate limits:** 30/min per user on bulk-add and re-analyse; 60/min per address on `/health`; 120/min per address on badges, share pages and webhooks.
+- **Tokens:** GitHub tokens are encrypted at rest (`IDataProtector`). The server PAT (`GitHub:PAT`) is used only in Development and Test.
+- **Trim-safe JSON:** every wire type has a `[JsonSerializable]` entry; the reflection resolver is unreachable from the client.
+- **Single sources of truth:** repository size (`RepositoryTotals`), streaks (`CommitStreaks`), failure classification (`AnalysisFailure`), progress frames (`AnalysisProgressDto`), routes (`AppRoutes`), ownership (`RepositoryOwnership`).
+- **Progress frames are immutable in transit:** each tick hands the hub a fresh list.
 
 ### Ask first
 
-- New identity provider (Microsoft/Entra was removed because a Microsoft principal carries no GitHub credential — reintroducing it is a different conversation).
-- New external SaaS, any AI/ML model API, or new analytics backend.
-- Any new persistent table, new Bicep resource, or new App Insights query.
-- Changes to `appsettings.json` schema (key renames break deployed instances).
-- `dotnet format` / formatter version bumps.
-- New test framework or assertion library (the stack is xunit + NSubstitute + FluentAssertions — period).
+- A new identity provider, external SaaS, AI/ML API or analytics backend.
+- A new persistent table, Bicep resource or App Insights query.
+- `appsettings.json` key renames (they break deployed instances).
+- A new test framework or assertion library.
 
 ### Never
 
-- **Microsoft/Entra sign-in, WebGL backdrop, Web Audio feedback, commit tagging, single-add `POST /api/repositories`, SmartAlerts, Failed Operations, AI model selector** — each was removed for a stated reason (see §9; if reinstated, treat it as a new feature with its own SPEC delta).
-- **AI/ML analytics** — sentiment, AI-share detection, ML on commits. Out of scope unless explicitly added.
-- **Catch-all endpoint under `/api`** — `MapFallback("/api/{**rest}", ...)` was tried and reverted (caught real routes, passed authorization anonymously, came back 400 from the antiforgery gate).
-- **Per-item storage lookup inside a loop** — `CommitExistsAsync` was removed for this; pre-load the set the loop needs (`GetCommitLineCountsByRepositoryIdAsync`) and look SHAs up in memory.
-- **Mock-data banner / live mock mode** — retired. Data is real or absent.
-- **Reflection resolver reachable from the trimmed client** — defeats the source-generated JSON contract.
-- **`__Host-` cookie without `Secure`** — browsers reject it; the integration tier runs over plain HTTP as `"Test"` and opts out via `Security:RequireSecureCookies=false`.
+- A catch-all route under `/api` (it caught real routes, passed authorization anonymously and failed antiforgery).
+- A per-item storage lookup inside a loop: pre-load the set (`GetCommitLineCountsByRepositoryIdAsync`) and look up in memory.
+- A mock-data banner or live mock mode: data is real or absent.
+- `Task.Run` for analysis work: everything goes through `AnalysisQueue`.
+- A native git library (§3).
+- Decoration on a data path (§10 "Effects").
 
-## 9. Out of scope (explicit non-goals)
+## 9. Non-goals
 
-1. Microsoft/Entra sign-in (no GitHub credential → can't read repos).
-2. WebGL backdrop + Web Audio feedback (UI; removed in cleanup). *Reversed: see the 2026-10-04 and 2026-10-23 "GFX & sound" deltas.*
-3. Commit tagging (`CommitTaggerService`, the badge row it fed).
-4. Single-add `POST /api/repositories` — `/bulk` is the only write path.
-5. SmartAlerts, Failed Operations, AI model selector (removed; reasons documented).
-6. AI/ML analytics (sentiment, AI-share, ML on commits).
-7. Multi-tenant / org-level portfolios (single-user model; the user's repositories only).
-8. Per-repo auto-prune TTL / auto-prune of aggregates (retention is "forever, manual purge" per agreement).
-9. Custom code health weights or scoring changes (the bands are pinned: 6 line-oriented factors; markup band separate; nesting = 90th-percentile line depth; weights frozen).
+1. Microsoft/Entra sign-in (no GitHub credential, so no repository access).
+2. Commit tagging; SmartAlerts; Failed Operations; an AI model selector.
+3. Single-add `POST /api/repositories` (`/bulk` is the only write path, because it dedupes).
+4. AI/ML analytics: sentiment, AI-share detection, ML over commits.
+5. Multi-tenant or organisation portfolios (one user's repositories only).
+6. Automatic pruning of stored history (retention is forever, manual purge).
+7. Re-weighting code health. The six line-oriented factors and their weights are frozen; a change must be a new, additive factor, or stored scores become incomparable.
+8. A "since your last visit" digest (removed 2026-11-04; Insights covers it).
 
-## 10. Edge cases (load-bearing)
+## 10. Load-bearing behaviour and edge cases
 
-- **`TotalLines` on a commit is a snapshot, not a delta.** Repository size = newest commit's value, never summed, never windowed. `RepositoryTotals` is the single definition; two pages each grew their own version and printed different numbers under the same label.
-- **Vendored third-party code is excluded, and one rule is by CONTENT not name.** `FileIgnoreFilter.ShouldIgnoreDirectory(path, entryNames)` prunes a directory whose immediate children include two or more root markers (`LICENSE*`, `.github`, `.gitmodules`, `CODEOWNERS`, `CODE_OF_CONDUCT.md`, `.pre-commit-config.yaml`, …) — whole other project copied in, whatever folder name. Filter changes only affect new analysis; stored counts need a re-analyse.
-- **Comment syntax is per language family, and CSS is not C.** Plain `.css` has no `//` line comment (only `/* */`); it was registered with `//`, truncating `url(https://…)`. `.scss`/`.less` *do* have `//` — they cannot share an entry with `.css`. `.razor`/`.cshtml` use `@* *@` and `<!-- -->`. All registrations live in one table (`CommentSyntax`) read by both `SourceLineCounter` and `CodeMetricsAnalyzer` — two copies would drift.
-- **Nesting is the 90th-percentile line depth, not the maximum.** One wrapped argument list measures far past the structure around it; using max let a 40-line file with a wrapped CSS string outrank genuinely tangled ones.
-- **Markup is judged on its own nesting band.** Nested components aren't a smell; scoring `.razor` against the code band gave this repo's markup 48 against C# 94 — a fact about the format, not the code.
-- **Code health is proxies, not a parser** — say so wherever it is shown. `CodeHealthCard` states this on the card, not in a tooltip. Measuring and judging are separate types (`CodeMetricsAnalyzer` counts; `CodeHealthScoring` judges).
-- **Contributor share is weighted by lines added**, not averaged per commit. (A one-line commit and a 2,000-line refactor are not the same event.)
-- **Analysis progress has one path.** The SignalR hub pushes frames; the fallback poll exists *only* for hub-unreachable and synthesises the same frames rather than handling completion itself. Do not add a second completion path — there used to be three and they had drifted.
-- **The digest's read and its "mark seen" write are separate calls.** `GET /api/insights/digest` never records the visit; `POST /api/insights/digest/seen` does, and the banner only calls it once it has actually rendered. Merging them makes a page opened and closed without looking consume the window. The write is read-modify-write because `SavePreferencesAsync` upserts with `TableUpdateMode.Replace` — a partial preferences payload would blank the counted-extensions list.
-- **A last visit is only used when it is between 12 hours and 90 days old.** More recent → trailing 7 days. Older → trailing 7 days too. A year is not "since you were last here".
-- **Language drift is measured in share, not lines.** A file type's share can grow while the type shrinks — everything else shrank faster. A line-count delta cannot show it.
-- **Cookie hardening is keyed on HTTPS, not the environment name.** `Security:RequireSecureCookies` decides `__Host-` + `Secure` for the antiforgery cookie. Integration runs as `"Test"` over plain HTTP and opts out explicitly.
-- **Registration-time config cannot come from `ConfigureAppConfiguration`.** Those delegates run *after* top-level statements in `Program.cs`; anything read during `AddInfrastructure(builder.Configuration, …)` won't see them. `CustomWebApplicationFactory` uses `builder.UseSetting(...)` for exactly this.
-- **A running app locks the build** — `dotnet build` fails with MSB3027. Stop the host first: `Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force`.
-- **Tree memoization** — `GitHubService` caches per-tree/per-blob counts for the lifetime of its scoped instance (one analysis run). Keyed on object id **and path** (filter answers depend on location). Dropped when the counted-extension set changes. `CountLinesInCommitAsync` returns a **copy** — a caller mutating a memoised instance would poison every later commit sharing that tree.
-- **`SanitizeRepoName` keeps backslashes on Linux** — where this app deploys. The fix is in the helper, not in callers.
-- **`libgit2` SIGABRT** under the App Service Linux container is reproducible; the runtime calls `git` CLI, not `LibGit2Sharp`, for clone/pull.
+**Counting**
+- `TotalLines` on a commit is a snapshot, not a delta. Repository size is the newest commit's value, never summed or windowed (`RepositoryTotals`).
+- Commit dates are the author date in UTC. Merge commits record 0 added / 0 removed: their branch's own commits already counted those lines.
+- Line stats come from one `git log --no-walk --stdin --numstat --no-renames -- <pathspecs>` over exactly the commits being analysed, limited to counted file types, so an incremental run diffs only new commits.
+- Tree memoization: `GitHubService` caches counts per tree and per blob for its scoped lifetime (one analysis run), keyed on object id **and path** (ignore rules depend on location), dropped when the counted set changes. `CountLinesInCommitAsync` returns a copy; a caller mutating a memoised dictionary would poison every later commit sharing that tree. One `git cat-file` process serves the whole run and is disposed with the scope.
+- Vendored code is excluded, and one rule is by content: a directory whose children include two or more project-root markers (`LICENSE*`, `.github`, `.gitmodules`, `CODEOWNERS`, …) is another project copied in. Filter changes apply to new analyses; stored counts need a re-analyse.
+- Comment syntax is per language family (`CommentSyntax`, read by both the line counter and code metrics). Plain `.css` has no `//`; `.scss`/`.less` do; `.razor`/`.cshtml` use `@* *@` and `<!-- -->`.
+
+**Code health**
+- Proxies, not a parser; the card says so. Measuring (`CodeMetricsAnalyzer`) and judging (`CodeHealthScoring`) are separate types.
+- Nesting is the 90th-percentile line depth, not the maximum. Markup is scored on its own nesting band.
+- The trend covers the whole history: every 1st of the month from the first commit, at most 48 points.
+
+**Analysis queue**
+- `AnalysisQueue` is the only way an analysis runs: a channel with two workers per process (`ponytail:` names the ceiling).
+- A re-analysis (full, or incremental from a webhook) stamps `AnalysisQueuedUtc` on the row before it is queued; the worker clears it after the job, from a fresh read. The startup sweep re-queues rows never attempted or still stamped. A job cancelled by shutdown keeps its stamp.
+- Re-analyse, delete, remove-all, account delete and visibility changes answer 409 while a job is queued or running.
+- Clone/fetch retries twice (15 s, 60 s) on transient failures; auth failures fail at once and show "Sign-in needed". Classification is `Shared/Domain/AnalysisFailure`.
+- A full re-analysis clears stored commits only after the clone/fetch succeeds. `LastAnalysisAttemptUtc` / `LastAnalysisError` record the last run, so an empty or unreachable repository is not re-cloned on every restart.
+- Clones are `--no-checkout` and fetches move the branch ref with `update-ref`: a working tree would hit Windows' MAX_PATH and is never read. The token is never left in `.git/config`.
+- Analysis progress has one completion path: the hub's frames. The fallback poll synthesises the same frames.
+
+**Webhooks**
+- Registration (`Features/Repositories/RepositoryWebhooks`) runs after each successful analysis without a hook, inside the pending window: `POST /repos/{owner}/{name}/hooks` (push events) with the owner's token and a random 40-hex secret per repository, stored on the row (`WebhookId`, `WebhookSecret`). A 422 means a hook for the URL exists with a lost secret; it is deleted and recreated. A refusal (not an admin) is logged and retried after the next analysis. Off when `WEBSITE_HOSTNAME` (`ConfigKeys.Hosting.PublicHostName`, set by App Service) is absent.
+- Receiver `POST /api/webhooks/github/{id}`: anonymous, no antiforgery, 5 MB body cap. Unknown repository → 404; bad `X-Hub-Signature-256` (HMAC-SHA256, constant-time) → 401; `ping` and other events → 200; a non-default-branch push → 200, ignored; a default-branch push → incremental run. If a run is already pending, one more follows it (`ponytail:` in memory).
+- Delete, remove-all and account delete remove the hook first (best-effort, while the token still exists).
+
+**Insights**
+- The year view (`GET /api/insights/year/{year}?offset=<minutes>`, 1970..next year) uses the viewer's local days and hours (fixed offset for the year; `ponytail:` on DST). Totals are `RepositoryTotals` snapshots at the year's bounds; the streak is `CommitStreaks.Longest`. The card exports to PNG in the browser (SVG → canvas, `data:` URL because CSP has no `blob:`).
+- "All time" (`GET /api/insights/portfolio`) reads the whole history: lifetime totals, monthly trend (up to 36 points), the 10 largest commits ever, streaks, and language drift. The Repositories page reads its 30-day figures from the same response.
+- Language drift is measured in share, not lines: a type's share can grow while it shrinks.
+- Contributor share is weighted by lines added, not averaged per commit.
+
+**Hotspots**
+- `GET /api/repositories/{id}/hotspots/{days}` (1–3650): change counts from `git log --numstat --no-renames`, sizes and complexity from the same walk Code Health uses. Ranked by commits × code lines, top 60, cached an hour per (repository, days, newest SHA). No clone → `HasClone: false`.
+
+**Public badges**
+- Opt-in per repository (`PUT /api/repositories/{id}/visibility`). They expose only owner/name, latest total lines, the *memoised* health grade (an anonymous request never triggers a clone walk) and the newest commit date. Missing and private answer the same 404. Cached 10 minutes and evicted on visibility change.
+
+**Account**
+- `DELETE /api/account` removes repositories (rows, snapshots, clones, hooks), preferences and the user row, signs out, then revokes the OAuth grant (best-effort; never with the server PAT). `GrantRevoked: false` tells the client to point the user at GitHub's settings.
+- Delete is per repository and complete: rows, code-health snapshots and the `repo_{id}` clone, only the caller's.
+
+**Repositories grid**
+- The `RadzenDataGrid` sorts and filters itself; below 768px a card list replaces it and keeps its own sort controls, writing the same sort state (`localStorage["repoGrid"]`). The search box is the URL's `?q=`.
+- The growth chart opens on "1yr"; other pages default to 180 days.
+
+**Effects** (decoration, never on a data path)
+- `backdrop.js` (WebGL aurora behind the page), `fx.js` (sound, particle overlay, SVG filters, pointer surfaces) and `city.js` (the year view's 3D city). Pages call them through interop inside try/catch and pass lists as comma-joined strings. A page behaves the same if they never load.
+- Switches live in Settings → Appearance & effects: sound (`localStorage["sound"]`, off by default) and visual effects (`localStorage["fx"]` + `["backdrop"]`, applied on the next load). Nothing animates under `prefers-reduced-motion`; the backdrop is a still frame there.
+
+**Configuration**
+- Registration-time config cannot come from `ConfigureAppConfiguration` (those delegates run after `Program.cs`'s top-level statements); tests use `builder.UseSetting(...)`.
+- `SanitizeRepoName` keeps backslashes on Linux, where the app deploys.
 
 ## 11. Error states
 
-- **Unauthenticated `/api` request** → `ApiNotFoundMiddleware` answers 404 for unmatched GETs first; matched authenticated endpoints pass through `ProductionAuthEnforcementMiddleware`. In Production, unmatched authenticated requests on protected routes redirect to `/login`. In Development, `FakeAuthHandler` lets `X-Fake-User` through.
-- **Antiforgery missing or wrong** on a write → 400 (after `UseAuthorization`, so unauthenticated writes still get 401).
-- **Unmatched `/api` GET** → 404 (middleware, not the SPA fallback — the fallback used to return 200 carrying HTML to JSON callers).
-- **Telemetry unavailable** (App Insights connection string absent) → app runs fine; `/diag` reports App Insights as "Not configured" (accurate, not a bug). `TelemetrySettings` is the single resolver both `AddTelemetry` and `/diag` use, so the page cannot disagree with what is actually registered.
-- **OTLP endpoint absent** → spans built and dropped; `/diag` reports "OTLP Exporter — Not configured".
-- **Repository id mismatch** between caller and stored record → 403 via `Auth/RepositoryOwnership`; slices never copy the check.
-- **Stale `appsettings.Development.json`** without a `KeyVault:Uri` or `ApplicationInsights:ConnectionString` → app boots with secrets from user-secrets/env/local-override; `/diag` reflects what's actually registered.
-- **First E2EUI run on a new machine** → Playwright browsers missing; `playwright.ps1 install` once per repo checkout.
+- Unmatched `/api` GET → 404 (middleware). Matched route, anonymous → 401. Anonymous page in Production → redirect to `/login`.
+- Write without a valid antiforgery pair → 400 (after authorization, so anonymous writes get 401 first).
+- Another user's repository id → 403 via `RepositoryOwnership`.
+- Analysis queued or running → 409 `analysis_in_progress` for re-analyse, delete, remove-all, account delete and visibility.
+- App Insights or OTLP not configured → the app runs; `/diagnostics` says "Not configured" (`TelemetrySettings` is the one resolver both use).
+- Webhook with a bad signature → 401; unknown repository → 404.
+- First E2EUI run on a machine → install Playwright browsers once.
 
-## 12. Success criteria (numbered, measurable)
+## 12. Success criteria
 
-1. **Unit tier green on every commit.** `dotnet test tests/PoRepoLineTracker.Unit` returns 0.
-2. **E2EUI tier zero skips.** A skip means the app is not up — not a fixture gap. `dotnet test tests/PoRepoLineTracker.E2EUI` exits 0 with no `Skip` entries.
-3. **Bicep deploy is idempotent.** Re-applying `infra/main.bicep` against the existing RG succeeds; `RoleAssignmentExists` is tolerated.
-4. **`/health` returns 200 with no auth** when the host is up (deploy smoke test + Azure probe).
-5. **`/diag` is honest about telemetry** — App Insights and OTLP statuses match what `AddTelemetry` actually registered (single resolver). No "Not configured" claim that disagrees with registration.
-6. **Analysis completes end-to-end on a real GitHub repository** with a known seed (e.g. a 30-day synthetic history from `/api/dev/seed/repository`) without skipping the per-commit count step.
-7. **No Critical or Important `/security-review` or `/code-review` findings** at every release commit.
-8. **Mock fallbacks work without keys** — app boots without `GitHub:ClientId`, `KeyVault:Uri`, or `ApplicationInsights:ConnectionString`; `/diag` reflects absence, doesn't crash.
-9. **`AGENTS.md` + `.github/copilot-instructions.md` carry v4.10.0 ruleset** verbatim — the two files share the same ruleset text.
-10. **Repository ownership check is single-sourced** — `Auth/RepositoryOwnership` is the only place that decides "is this repo the caller's"; a grep for `RepositoryId` in `Features/` finds it referenced but never re-implemented.
-11. **Coverage gate is informational, not a hard rule** (per agreement — the bar is "zero skips, no Critical/Important findings" not "X% line coverage").
+1. Unit tier green on every commit; Integration green for composition-root changes.
+2. E2EUI exits 0 with no skips when the app is up.
+3. `/health/live` and `/health` answer 200 after a deploy (the deploy's health gate checks both).
+4. The app boots without `GitHub:ClientId`, `KeyVault:Uri`, `ApplicationInsights:ConnectionString` or `WEBSITE_HOSTNAME`; `/diagnostics` reflects what is absent.
+5. Re-applying `infra/main.bicep` succeeds.
+6. The API builds clean with the trim and AOT analyzers on.
+7. Test tiers stay within their caps (§7).
+8. No Critical or Important findings from `/security-review` or `/code-review` at a release commit.
+9. `AGENTS.md` and `.github/copilot-instructions.md` are identical.
 
 ## 13. Open questions
 
-1. ~~Should the recap gain a "compare to previous year" view?~~ No recap exists in the code (no `/api/recap`, no page); a year-in-review would be a new feature with its own SPEC delta.
-2. ~~Is there a desire for an offline read mode (PWA cached shell + cached API responses)?~~ **Resolved 2026-09-20**: shipped via `wwwroot/service-worker.published.js` (cached shell, server-route prefix exceptions) and `Components/Shared/OfflineIndicator.razor` (online/offline badge wired through `index.html`'s `registerNetworkStatusListener`).
-3. Should the `POST /api/dev/seed/repository` endpoint move under an env flag (e.g. `Hosting:EnableDevSeed`) instead of relying on `IsDevelopment()` — for cases where a non-Development environment needs synthetic data (e.g. a staging slot)?
-4. Code health weights are frozen. If a band needs tuning later, the change must be additive (a new factor) — not a re-weight of existing ones, or stored scores become incomparable. **Note 2026-09-20**: a sixth visualisation, `Components/Repositories/CodeHealthRadar.razor`, was added; weights are unchanged.
-5. MinVer is at 6.0.0; bumping to 7.x is on the table for .NET 10 SDK compat but is a one-line change with no current need.
-6. ~~Webhook allowlist / rate-limit~~ — moot; the webhook receiver was removed 2026-09-21 (§D.1).
-7. **New 2026-09-20** — The portfolio export currently lives only at `/api/repositories/export`. Should the client expose a one-click "Export" affordance in `Repositories.razor`'s danger zone or hero, or keep it as a discoverable endpoint for tools?
-
----
-
-## Migration (added 2026-09-19)
-
-- **Ponytail v4.10.0** installed at repo root (`AGENTS.md`) and `.github/copilot-instructions.md`. Both are verbatim copies from `DietrichGebert/ponytail` and carry the cross-agent YAGNI/reuse/stdlib/platform/dep/one-liner/minimum ruleset.
-- **`CLAUDE.md`, `NET_RULES.md`, `.claude/settings.json` retired.** Po platform conventions → ponytail's ruleset. "Things that will bite you" / domain rules → §6, §8, §10 of this SPEC.
-- **`SPEC.md` is the new durable reference** for contracts, journeys, boundaries, success criteria. `AGENTS.md` is the writing ruleset. Both must be kept in sync — when a decision in §8/§10 changes, the matching rule here updates; when ponytail upgrades, the rule files sync verbatim.
-
----
-
-## Delta: features landed 2026-09-20 (commits `8a439ed` + `307c20b`)
-
-These features landed on `origin/master` after this SPEC's initial freeze. They are now **in-scope**; the non-goals in §9 are unchanged (AI/ML, SmartAlerts, Microsoft/Entra, etc. remain out). Each ships with its own unit tests; the unit tier is green.
-
-### D.1 — In-scope features added
-
-1. **GitHub webhook receiver** — **REMOVED 2026-09-21.** Nothing in-repo configured `GitHub:WebhookSecret` (absent from every appsettings) and no GitHub-side wiring existed in infra, so the endpoint, `GitHubWebhookPayload`, its config key and its unit tests were deleted. Restore from git history if a signed webhook is ever wanted — the HMAC verification contract below documents what it did.
-   - *(Historical contract)* `POST /api/webhooks/github` accepted a GitHub `push` payload, verified HMAC-SHA256 against `GitHub:WebhookSecret` (constant-time comparison via `CryptographicOperations.FixedTimeEquals`), and on a default-branch push for a tracked repository re-queued `AnalyzeRepositoryCommitsCommand` on a background task; `AllowAnonymous` + `SkipAntiforgeryAttribute`.
-
-2. **Punchcard / activity-rhythm chart** (`/api/repositories/{id}/punchcard`, `Features/Repositories/GetRepositoryPunchcardQuery.cs`; `Components/Repositories/CommitActivityHeatmap.razor`)
-   - 7×24 grid of `(dayOfWeek, hour)` buckets. `PunchcardItemDto` carries `CommitCount` + `LinesAdded` + `LinesRemoved`. Default range is 365 days; `Days` parameter is the knob.
-   - Pure CSS-grid SVG-less heatmap — no chart library dependency added.
-   - Rendered on `RepositoryDetail.razor`; `EmptyHint` points the user at the range selector.
-
-3. **Code health radar chart** (`Components/Repositories/CodeHealthRadar.razor`)
-   - Pure-SVG 6-axis radar visualising the existing six line-oriented code-health factors (SPEC §10). **Scoring weights unchanged** — radar is a visualisation, not a re-weighting. Markup confirms this.
-
-4. **PWA offline indicator** (`Components/Shared/OfflineIndicator.razor` + `wwwroot/service-worker.published.js` + `wwwroot/index.html`)
-   - The published service worker caches the Blazor shell; the dev worker remains a no-op (SPEC §10 "the swap happens via `<ServiceWorker>` item in the client csproj"). Server-route prefix exceptions (`/api/`, `/auth/`, `/hubs/`, `/health`, `/signin-`, `/signout-`) stay correct.
-   - The `OfflineIndicator` calls `registerNetworkStatusListener` (captured at boot in `index.html`, not in a module imported later, per SPEC §6).
-   - **The "mock-data banner" remains retired.** Offline is a different concept — the indicator shows network status, not data provenance. SPEC §8 explicit "never" stays.
-
-5. **Portfolio export** (`/api/repositories/export`, `Features/Repositories/PortfolioExportEndpoints.cs`)
-   - `GET /api/repositories/export` returns JSON; `?format=csv` returns `text/csv` with header `Owner,Repository,TotalLines,LastAnalyzedUtc,CloneUrl`. CSV writer lives next to the endpoint and is exported (not private) so the `PortfolioExportTests` suite can pin it.
-   - Uses `RepositoryTotals.LatestTotalLines` (SPEC §10 single source of truth) for the totals.
-
-6. **Custom glob support for counted extensions** (`Analysis/FileIgnoreFilter.cs`, `Storage/UserPreferencesEntity.cs`, `Models/UserPreferences.cs` in Shared)
-   - The user-preferences schema now stores counted files as globs (e.g. `*.cs`, `**/*.razor`) in addition to literal extensions. `FileIgnoreFilter` accepts both shapes.
-
-7. **RepositoriesGrid extraction** (`Components/Repositories/RepositoriesGrid.razor`, `Models/RepositoryGridRow.cs`, slim `Pages/Repositories.razor`)
-   - The bespoke table lifted out of the 1,200-line `Repositories.razor` into a reusable grid component. Five columns: Repository / Total Lines / Last Analyzed / Status / Actions. CSS moved into `RepositoriesGrid.razor.css`. Phase 3 pick **A7** (tiles-above-grid, single visual seam) preserved.
-
-### D.2 — SPEC sections updated to acknowledge the delta
-
-- The webhook-related additions to §2, §5, §8, §11 and §12 recorded here on 2026-09-20 were withdrawn with the receiver (D.1 #1).
-- **§5 Project Structure** — `Components/Repositories/CommitActivityHeatmap.razor`, `Components/Repositories/CodeHealthRadar.razor`, `Components/Shared/OfflineIndicator.razor`; `Models/Dtos/PortfolioExportRowDto.cs`, `PunchcardItemDto.cs`.
-- **§8 Boundaries — Always** — `JsonSerializerContext` registration for every wire type that crosses the trim boundary.
-- **§8 Boundaries — Never** — Unchanged. The mock-data banner stays retired. Offline indicator ≠ mock-data banner (see §D.1 #4).
-- **§11 Error states** — export 401 (unauthenticated).
-- **§12 Success criteria** — Add:
-  13. **Portfolio export serves both formats.** `/api/repositories/export` returns JSON for the default and `text/csv` for `?format=csv`; both pin `RepositoryTotals.LatestTotalLines` as the totals source.
-  14. **PWA offline indicator survives a network drop.** A browser session that goes offline renders the indicator within the next paint cycle and recovers when the network returns.
-
----
-
-## Delta: audit fixes 2026-10-03
-
-Security and correctness changes that alter contracts stated above.
-
-- **The clone URL is never caller-supplied.** `BulkRepositoryDto` has no `CloneUrl`; the server builds `https://github.com/{owner}/{name}.git` at clone time. The user's token is embedded in whatever URL git is handed, so an accepted URL was a way to send that token to any host.
-- **Deleting is per repository and complete.** Delete and "remove all" remove the rows, the code-health snapshots and the `repo_{id}` clone directory — only the caller's. "Remove all" used to delete the shared clone root; single delete used to leave the clone on disk.
-- **A full re-analysis clears stored commits only after the clone/pull succeeds.**
-- **`LastAnalysisAttemptUtc` / `LastAnalysisError`** on the repository row record the last run's outcome. The startup resume sweep takes only rows with no analysed commit *and* no attempt, so an empty or unreachable repository is not re-cloned on every restart.
-- **Re-analyse and delete answer 409** (`analysis_in_progress`) while an analysis holds the repository's lock.
-- **GitHub access tokens are encrypted at rest** (`IDataProtector`, in `UserService`); rows written before this are read as-is and re-encrypted at the next sign-in. `SaveTokens` is off.
-- **The server PAT (`GitHub:PAT`) is used only in Development and Test.** `FakeAuthHandler` is registered only in Development and Test (an allow-list, not "anything but Production").
-- **`returnUrl` on `/auth/login` must be a local path.**
-- **CSP outside Development**: `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`; styles and fonts same-origin only (the Google Fonts links were redundant with the fonts Radzen ships and are gone); `connect-src 'self' wss:`.
-- **Rate limits**: 30/min per user on bulk-add and re-analyse, 60/min per address on `/health`; bulk-add takes at most 200 repositories.
-- **Merge commits record 0 added / 0 removed** (their lines were already reported by the branch's own commits) and **commit dates are stored in UTC** (they were the author's local wall-clock time labelled UTC). Both apply to newly analysed commits; stored rows change on re-analysis.
-- **The final progress frame carries its owner** through the channel; it used to be dropped.
-
----
-
-## Delta: owner-approved reversals 2026-10-04
-
-Two items listed under §8 "Never" / §9 were reinstated at the owner's explicit request. Each is off unless switched on, and the app behaves exactly as before when it is.
-
-- **Web Audio cue.** A synthesised completion/failure tone, off by default, toggled in the header and stored in `localStorage["sound"]`.
-- **WebGL backdrop.** On by default with no settings switch (owner's choice, 2026-10-04); `localStorage["backdrop"] = "off"` disables it. Never runs under `prefers-reduced-motion` or without WebGL2.
-- **Settings page.** The custom ignore-patterns editor was removed from the UI; stored patterns are still honoured by analysis and preserved on save. The Diagnostics page has no sidebar link (still at `/diag`).
-
-Still out of scope: sentiment, AI-share detection, ML over commit content, an AI model selector in the UI.
-
----
-
-## Delta: features landed 2026-10-23
-
-Five owner-requested features (F2, F3, F5, F9, F10). No new table, Bicep resource or config key; the repository row gains three columns (`AnalysisQueuedUtc`, `QueuedFullReanalysis`, `IsPublic`), which Table Storage takes without a migration.
-
-- **Analysis queue (F2).** `Features/Repositories/AnalysisQueue` is the only way an analysis runs: bulk-add and re-analyse enqueue, two workers drain (per process; `ponytail:` comment names the ceiling). It replaces `ResumePendingAnalysis` and the endpoints' fire-and-forget `Task.Run`.
-  - A re-analysis stamps `AnalysisQueuedUtc` (+ `QueuedFullReanalysis`) on the row *before* it is queued; the worker clears it after the job ends, from a fresh read. The startup sweep (`GetResumableRepositoriesAsync`) queues rows never attempted **or** still stamped, so a restart loses neither kind. A job cancelled by shutdown keeps its stamp and records no attempt.
-  - Re-analyse, delete, remove-all, account delete and visibility changes answer 409 while a job is **queued or running** (`AnalysisQueue.IsPending`), not only while running.
-  - Clone/pull is retried twice (15 s, 60 s) when the failure is transient; auth failures fail at once. Classification lives in one place, `Shared/Domain/AnalysisFailure`, read by the server's retry and by the grid.
-  - New grid status `Reauth` (`AnalysisStatus.All`), shown as "Sign-in needed" with a link to `/auth/login`.
-- **Account lifecycle (F3).** `DELETE /api/account` removes repositories (rows, snapshots, clones), preferences and the user row (token included), signs the cookie out, then revokes the OAuth grant (`DELETE /applications/{client_id}/grant`, app-authenticated). Revocation is best-effort and never attempted with the server PAT; `AccountDeletedDto.GrantRevoked` tells the client to point the user at GitHub's settings when it fails. Settings gains a "Your data" card: JSON/CSV export (resolves §13.7) and a typed-`DELETE` confirmation.
-- **Hotspots (F5).** `GET /api/repositories/{id}/hotspots/{days}` (days clamped 1–3650). Change counts come from `git log --numstat --no-renames` on the clone; sizes and complexity come from `CodeMetricsAnalyzer` over the same walk Code Health uses, so the two tabs agree. Ranked by commits × code lines, top 60, cached for an hour per (repo, days, newest SHA). No clone on disk → `HasClone: false`, not an error. Rendered as a pure-SVG squarified treemap plus a ranked list (Hotspots tab).
-- **Year in Review (F9).** `GET /api/insights/year/{year}?offset=<local−UTC minutes>` (year 1970..next year), page `/year-in-review[/{year}]`. Totals are `RepositoryTotals` snapshots at the local year's bounds; streak is `CommitStreaks.Longest`; language growth is share, not lines. Days and hours are local to the viewer (fixed offset for the year; `ponytail:` on DST). The closing card exports to PNG in the browser (serialised SVG → canvas, `data:` URL because CSP has no `blob:`), with no library.
-- **Public badges and share page (F10).** Opt-in per repository (`PUT /api/repositories/{id}/visibility`, off by default). Anonymous `GET /badge/{id}/lines.svg`, `/badge/{id}/health.svg` and `GET /share/{id}` (server-rendered HTML with OG tags; no OG image, which would need a raster library).
-  - Exposes only owner/name, latest total lines, the **memoised** code-health grade (an anonymous request never triggers a clone walk) and the newest commit date. Missing and private answer the same 404.
-  - Outside `/api` by design; `/badge` and `/share` are on `ProductionAuthEnforcementMiddleware`'s public list and the published service worker's server-route list. Rate limit `public`: 120/min per address. Cards cached 10 min and evicted when visibility changes.
-  - This is the first anonymous data surface: §8 "Validation at trust boundaries" now includes it.
-
----
-
-## Delta: GFX & sound 2026-10-23
-
-Owner-requested ("G1–G10"). Extends the 2026-10-04 Web Audio cue and WebGL backdrop; §9 item 2 stays reversed. All decoration: nothing here is on a data path, every entry point swallows its own failures, and a page behaves exactly as before if the scripts never load. No new endpoint, config key or dependency.
-
-- **Files.** `wwwroot/js/backdrop.js` (behind the page), `wwwroot/js/fx.js` (deferred, global `window.fx` + `playCue`: sound, a WebGL2 particle overlay above the page, the SVG filters the stylesheets use, pointer surfaces), `wwwroot/js/city.js` (ES module imported by Year in Review only). Pages call them through `JS.InvokeVoidAsync` inside try/catch. Lists go over interop as comma-joined strings, not arrays (trimmed client).
-- **Switches.** Sound: header toggle, `localStorage["sound"]`, off by default (`soundOn`/`setSound` stay in index.html so the toggle never depends on fx.js). Motion: nothing animates under `prefers-reduced-motion`. Visual effects: `localStorage["fx"] = "off"` (by hand, like `backdrop`). Animated SVG filters are referenced only under `:root[data-fx]` and refraction only under `:root[data-liquid]` (Chromium), both set by fx.js once the filters exist.
-- **G1 commit river / G2 sonification.** Each running progress frame (`Repositories.razor`) sends its commit and line deltas: particles in the file types' colours stream from the row (`data-repo`) to the Total Lines tile (`data-fx="lines"`), and a pentatonic tick plays, pitched by lines per commit.
-- **G3 supernova.** On a successful completion, after the grid reload: a shockwave ring in the backdrop shader (chromatic refraction) and confetti scaled by `log10(total lines)` that collides with card tops. The completion cue is the repository's own chord (its top three file types pick the notes); failure is a detuned falling fifth.
-- **G4 liquid glass.** `.u-glass` (now also on KPI tiles) refracts the backdrop at its rim via an SVG `backdrop-filter` in Chromium, plus a pointer-following highlight everywhere. `prefers-reduced-transparency` still turns it off.
-- **G5 health aurora.** The backdrop is a domain-warped fbm aurora at half resolution, ~10 fps, rAF only while a shockwave spreads. `backdrop.mood(energy, heat)` from `/api/insights/portfolio` (active days / 30; 8 × lines added in 30d / total lines, capped at 1), persisted in `localStorage["backdrop-mood"]`. Under reduced motion it is one still frame (redrawn on theme, size or mood change, no shockwave), superseding "never runs under `prefers-reduced-motion`" in the 2026-10-04 delta.
-- **G6 hotspots.** Heat-4 tiles shimmer (`#fx-haze`); a hovered tile (`data-heat`) sheds embers at a rate set by its heat and rumbles once.
-- **G7 Year in Review city.** The page is one screen, not a carousel (owner, 2026-10-24): a hero banner with the year's commits over the city, a bento grid of every other figure (numbers roll up from zero on odometers), and the shareable card below. `YearInReviewDto.DailyCommits` (new, 365/366 entries, viewer-local days) drives one instanced tower per day; hovering a tile flies the camera to its day or month (`Tile.FocusDay`); 1.6 s after load, fireworks over the banner and a 12-note phrase loud where the month was busy. Under reduced motion the city is a still picture (no rise, no orbit, camera cuts). The exported PNG is unchanged (the foil is on a wrapper). Tiles (owner, 2026-10-24): lines written, lines removed (with net), active days, busiest month, longest streak, peak hour, biggest day, most active repository, portfolio growth (year-end minus year-start snapshot, signed), repositories touched, on the rise; ordered so a full year packs four rows of the 4-column grid. Tiles are not links.
-- **G8 holographic foil.** `.u-holo` on the share-tab badge plate and the Year in Review card: spring tilt toward the pointer (device tilt on Android), colour-dodge rainbow band and glare.
-- **G9 disintegration.** Only after `DELETE /api/account` succeeds: noise-masked erosion plus dust, whoosh and thump, then the existing redirect. The promise settles within ~2.2 s whatever happens.
-- **G10 odometer and streak flame.** `AnimatedNumber` is a set of CSS digit reels (no C# tween loop); a change clicks once per moved digit, and a rise past 1,000 / 10,000 / … fires a milestone (burst, fanfare, vibration). Streak tiles (Insights, digest banner) carry a flame sized by `ChartFormat.StreakFlame`.
-
----
-
-## Delta: All Time Insights 2026-10-24
-
-Owner request: "Global Insights" is renamed **All Time Insights** (page title, heading, sidebar, PWA shortcut; the route stays `/insights`) and every figure on it reads the portfolio's whole history. No range selector remains on the page (`?days=` is gone from it).
-
-- `PortfolioInsightsDto` gains `CommitsAllTime`, `LinesAddedAllTime`, `LinesRemovedAllTime`, `ActiveDaysAllTime`, `FirstCommitDate`; `NetLines7Days` / `NetLines30Days` are removed (the page was their only reader).
-- Redefined to lifetime: `TrendLine` (first commit → today, monthly up to 36 points, then spread evenly), `Outliers` (largest 10 ever, across repositories), `LanguageDrift` / `RisingLanguage` / `FadingLanguage` (baseline = each repository's first analysed snapshot, summed), `CurrentStreakDays` / `LongestStreakDays` (whole history, so a streak can exceed a year). `Activity` already covered the whole history (ten-year cap unchanged).
-- Unchanged, because the Repositories page reads them from the same response: `Commits30Days`, `LinesAdded30Days`, `ActiveDays30`, `Movers` (grid columns and the backdrop mood).
-- **Follow-ups (same day).** The Repositories growth chart opens on "1yr" (`ChartFormat.RangeDays/RangeQuery` take a per-page default; `?days=180` names 180 explicitly, `?days=all` names the whole history, and other pages still default to 180). The Code Health trend (`GET /api/code-health/{id}/trend`) covers the whole history: every 1st from the first commit, at most 48 points (thinned evenly beyond four years, first and newest kept), and a commit measured once in a run is reused by later months of that run. The Code Health ranking gains an "All-time trend" sparkline column (three trend requests at a time, cancelled on re-run or navigation). Sparklines need the `.app-spark` wrapper (app.css), which exempts them from the global `.rz-chart` sizing; the Total Lines tile's sparkline had never rendered for that reason and for passing its series as attributes, and its series now carries each repository's last snapshot forward instead of summing only the repositories that committed that day.
-
----
-
-## Delta: the grid's own sort and filter, growth chart on 1yr 2026-10-24
-
-Owner request: let the Radzen grid do the sorting and filtering. No new endpoint, config key, dependency or column — the table already was a `RadzenDataGrid`.
-
-- **Growth chart opens on 1yr.** The Repositories growth chart's page default moves from "All" to "1yr" (`ChartFormat.OneYearDays`); the range selector still offers 180d, 1yr and All, and the default is left out of the URL as before. Other pages still default to 180d.
-- **The grid sorts and filters itself.** The Repositories table is a `RadzenDataGrid`; it already sorted from its column headers and filtered per column, so the hand-rolled sort `<select>` and its direction button — a second, worse way to do the same thing — are gone from the table view. Every column with something to filter is now `Filterable`: Repository (on `RepositoryGridRow.OwnerName`, so the owner half matches too), Total Lines, Net (30d), Commits (30d), Last commit and Status. The filters run in the browser over the rows the page already has.
-- **The card list keeps its controls.** Below 768px the table is replaced by the card list — custom markup with no header row to click — so the select and the arrow stay there (CSS hides them from the table view only). Both write the same `_sortProperty`, so the two views never disagree about which column is sorted, and the choice still persists to `localStorage["repoGrid"]`.
-- **The search box stays everywhere.** It is the URL's `?q=`, so it must always be visible enough to be cleared.
-
----
-
-## Delta: one route per page, one owner per dataset 2026-10-24
-
-Owner request: organise the app's links, pages and components logically. No new endpoint, config key or dependency; this is structure, not behaviour. The grid and the 1yr default above are unchanged by it.
-
-- **One route per page.** `Repositories.razor` answered `/`, `/repositories` and `/repositories?view=overview` — three addresses, two of them the same screen, and the third a different mode of it. Now: `/repositories` is the repository list and `/` redirects to it (`Pages/Root.razor`). The `?view=` mode is gone, so the page has one job and the "Overview" toggle button went with it. The portfolio export menu moved out to `Components/Repositories/ExportMenu.razor` — a page-level action is a component, and it was forty lines of a page whose job is the grid.
-- **One owner per dataset.** `PortfolioOverview.razor` and `PortfolioHealth.razor` are deleted. `PortfolioOverview` was a 100% duplicate of the All Time Insights page — same endpoint (`/api/insights/portfolio`), same KPI row, same Portfolio growth chart, same Activity heatmap, and the same Language mix card — so deleting it loses nothing. `PortfolioHealth` was the Code Health page's data in a narrower widget, and `/code-health` keeps it. The sidebar's "Portfolio Overview" entry went with them; `/insights` and `/code-health` were already listed.
-- **Routes live in one place.** `Client/Models/AppRoutes.cs` holds every route, the repository detail page's tab names, and helpers for building a repository's URL. The sidebar reads `AppNav.Groups`, which is built from those same constants. The routes used to be literals in eleven files: `PortfolioHealth` had to spell `?tab=health` by hand and keep it in step with the tab array in `RepositoryDetail`, and renaming a tab broke the link with no error anywhere.
-- **The sidebar is grouped by intent.** "Portfolio" (Repositories, All Time Insights, Code Health, Year in Review) and "Configure" (Settings). The nav no longer offers two entries for one page.
-- **Names match what they are.** `Pages/ExtensionsCounted.razor` is the Settings page and is now `Pages/Settings.razor`; `/diag` is `/diagnostics`. The old paths redirect (`Components/RedirectTo.razor`).
-- **Operator pages are apart.** `Pages/Diagnostics.razor` moved to `Pages/Operator/`, so the eight files in `Pages/` are all user destinations. It is still not in the sidebar, by the owner's choice.
-- **Components are filed by kind.** `Components/Charts/` holds the seven chart components (AllReposComparisonChart, ContributorChart, CodeHealthRadar, CodeHealthTrendCard, CommitActivityHeatmap, HotspotTreemap, ExtensionBreakdownCard), which had been split between the folder root and `Components/Repositories/`. `Components/Auth/` holds LoginDisplay and RedirectToLogin (components, not layouts) and `Components/Account/` holds AccountDataCard.
-- **One empty state.** `OnboardingEmptyState` became `EmptyStateKind.Onboarding` — the first-run panel is the one kind of `EmptyState` with a second presentation, rather than a second component with the same job and its own copy of the card chrome.
-
-
----
-
-## Delta: push webhooks restored, self-registering 2026-11-04
-
-Owner picks #2 and #4. Reverses the 2026-09-21 webhook removal (§D.1 item 1): it was removed because nothing registered a hook or set its secret, and now the app does both. No new table, Bicep resource or Key Vault secret. The repository row gains `WebhookId` and `WebhookSecret` (Table Storage takes new columns without a migration).
-
-- **Registration** (`Features/Repositories/RepositoryWebhooks`). After every analysis that succeeded and has no hook yet, `AnalysisQueue` calls `EnsureAsync` while the job is still pending, so no other row write can interleave. It does `POST /repos/{owner}/{name}/hooks` (push events, JSON) with the owner's token and a random 40-hex secret per repository. A 422 (a hook already exists for the URL, so its secret was lost) deletes that hook and creates a fresh one. A refusal (no admin rights) is logged and retried after the next analysis. Off when `WEBSITE_HOSTNAME` (`ConfigKeys.Hosting.PublicHostName`) is absent.
-- **Receiver.** Anonymous `POST /api/webhooks/github/{id}`. It sits under `/api`, so the page gate and the service worker already pass it. It carries the `public` rate limit, skips antiforgery and caps the body at 5 MB. Unknown repository or no secret: 404. Bad `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time compare): 401. `ping` and non-push events: 200. A push to a branch other than the default: 200, ignored. A default-branch push queues an incremental run with the same durable stamp as re-analyse (`EnqueueReanalysisAsync(full: false)`). If a run is already pending, `RunAgainAfterCurrent` adds one more run after it (`ponytail:` in memory).
-- **Secret.** Stored on the row and `[JsonIgnore]` on the domain type, so it never reaches a browser.
-- **Removal.** Delete and remove-all (and so account delete, which runs remove-all before the user row and token go) delete the hook first, best-effort.
-- **Backfill.** `/bulk` queues an incremental run for already-tracked rows that have no hook, so re-running the one-click import connects them.
-- **Import (#2).** The Add dialog was already a one-click import of every repository. It now skips forks and archived repositories (`GitHubUserRepositoryDto.IsFork` / `IsArchived`) and posts in chunks of 200, the server's per-request cap, so accounts over 200 no longer fail.
+1. Should `POST /api/dev/seed/repository` move behind a config flag (e.g. for a staging slot) instead of `IsDevelopment()`?
+2. Should a scheduled sweep pick up newly created GitHub repositories and refresh repositories that have no webhook?

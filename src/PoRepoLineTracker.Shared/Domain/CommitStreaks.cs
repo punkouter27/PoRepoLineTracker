@@ -4,9 +4,8 @@ namespace PoRepoLineTracker.Shared.Domain;
 /// The one definition of "how many days in a row did I commit".
 ///
 /// <para><b>Why this is not private to a handler.</b> It started as two private methods on the
-/// portfolio insights handler. Two separate surfaces now print a streak — the Insights dashboard
-/// and the "since you were last here" digest banner — and while both currently live in the
-/// Insights slice, slices are forbidden from referencing each other, so the next surface to want a
+/// portfolio insights handler. Two separate surfaces print a streak — the Insights dashboard
+/// and Year in Review — and slices are forbidden from referencing each other, so the next surface to want a
 /// streak would have no shared home to reach for. Without one
 /// home each would have grown its own copy, and a streak that reads 12 on one page and 11 on
 /// another is indistinguishable from a data bug. This is the same reasoning that put

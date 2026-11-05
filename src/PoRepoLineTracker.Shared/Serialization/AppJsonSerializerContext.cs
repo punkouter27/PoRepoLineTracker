@@ -37,8 +37,6 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(List<CommitLineCount>))]
 
 // ─── Repository / chart DTOs ────────────────────────────────────────────────────────────────
-[JsonSerializable(typeof(GitHubRepositoryDto))]
-[JsonSerializable(typeof(List<GitHubRepositoryDto>))]
 [JsonSerializable(typeof(GitHubUserRepositoryDto))]
 [JsonSerializable(typeof(List<GitHubUserRepositoryDto>))]
 [JsonSerializable(typeof(CommitOutlierDto))]
@@ -62,10 +60,6 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(ActivityDayDto))]
 [JsonSerializable(typeof(PortfolioTrendPointDto))]
 [JsonSerializable(typeof(LanguageDriftDto))]
-
-// ─── Since-you-were-away digest ─────────────────────────────────────────────────────────────
-[JsonSerializable(typeof(WeeklyDigestDto))]
-[JsonSerializable(typeof(DigestRepoDto))]
 
 // ─── Code health report ─────────────────────────────────────────────────────────────────────
 [JsonSerializable(typeof(CodeHealthDto))]

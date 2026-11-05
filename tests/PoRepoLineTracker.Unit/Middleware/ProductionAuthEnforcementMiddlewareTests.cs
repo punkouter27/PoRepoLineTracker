@@ -51,15 +51,29 @@ public class ProductionAuthEnforcementMiddlewareTests
         return context;
     }
 
-    [Fact]
-    public async Task OutsideProduction_PassesThrough()
+    /// <summary>
+    /// Everything the gate must let through: any request outside Production; in Production the
+    /// login page and the anonymous endpoints (README badges are fetched by GitHub's image proxy,
+    /// which cannot follow a sign-in redirect), /api and /hubs (they answer 401 themselves), and
+    /// any signed-in request.
+    /// </summary>
+    [Theory]
+    [InlineData("Development", "/insights", false)]
+    [InlineData("Test", "/insights", false)]
+    [InlineData("Production", "/login", false)]
+    [InlineData("Production", "/health", false)]
+    [InlineData("Production", "/auth/login", false)]
+    [InlineData("Production", "/badge/7f8c1c1e-0000-0000-0000-000000000001/lines.svg", false)]
+    [InlineData("Production", "/share/7f8c1c1e-0000-0000-0000-000000000001", false)]
+    [InlineData("Production", "/api/repositories", false)]
+    [InlineData("Production", "/hubs/analysis", false)]
+    [InlineData("Production", "/insights", true)]
+    public async Task PassesThrough(string environment, string path, bool authenticated)
     {
-        await InvokeAsync("Development", "/insights");
-        _nextCalled.Should().BeTrue();
+        var context = await InvokeAsync(environment, path, authenticated: authenticated);
 
-        _nextCalled = false;
-        await InvokeAsync("Test", "/insights");
         _nextCalled.Should().BeTrue();
+        context.Response.StatusCode.Should().NotBe(StatusCodes.Status302Found);
     }
 
     [Fact]
@@ -80,30 +94,6 @@ public class ProductionAuthEnforcementMiddlewareTests
     }
 
     [Fact]
-    public async Task Production_LoginPageAndPublicEndpoints_PassThrough()
-    {
-        await InvokeAsync("Production", "/login");
-        _nextCalled.Should().BeTrue();
-
-        _nextCalled = false;
-        await InvokeAsync("Production", "/health");
-        _nextCalled.Should().BeTrue();
-
-        _nextCalled = false;
-        await InvokeAsync("Production", "/auth/login");
-        _nextCalled.Should().BeTrue();
-
-        // README badges are fetched by GitHub's image proxy, which cannot follow a sign-in redirect.
-        _nextCalled = false;
-        await InvokeAsync("Production", "/badge/7f8c1c1e-0000-0000-0000-000000000001/lines.svg");
-        _nextCalled.Should().BeTrue();
-
-        _nextCalled = false;
-        await InvokeAsync("Production", "/share/7f8c1c1e-0000-0000-0000-000000000001");
-        _nextCalled.Should().BeTrue();
-    }
-
-    [Fact]
     public async Task Production_PathsSharingPrefix_AreStillGated()
     {
         var context = await InvokeAsync("Production", "/loginfoo");
@@ -111,22 +101,5 @@ public class ProductionAuthEnforcementMiddlewareTests
 
         var context2 = await InvokeAsync("Production", "/healthcheck-public");
         context2.Response.StatusCode.Should().Be(StatusCodes.Status302Found);
-    }
-
-    [Fact]
-    public async Task Production_ApiAndAuthenticatedRequests_PassThrough()
-    {
-        _nextCalled = false;
-        var apiContext = await InvokeAsync("Production", "/api/repositories");
-        _nextCalled.Should().BeTrue();
-        apiContext.Response.StatusCode.Should().NotBe(StatusCodes.Status302Found);
-
-        _nextCalled = false;
-        await InvokeAsync("Production", "/hubs/analysis");
-        _nextCalled.Should().BeTrue();
-
-        _nextCalled = false;
-        await InvokeAsync("Production", "/insights", authenticated: true);
-        _nextCalled.Should().BeTrue();
     }
 }

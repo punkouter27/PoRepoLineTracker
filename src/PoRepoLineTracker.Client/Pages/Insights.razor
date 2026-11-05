@@ -1,395 +1,379 @@
 @page "/insights"
+@page "/insights/{Year:int}"
+@page "/insights/all"
 @attribute [Authorize]
 @inject HttpClient Http
-@inject ILogger<Insights> Logger
+@inject IJSRuntime JS
 @inject NavigationManager Navigation
-@using PoRepoLineTracker.Client.Components.Shared
-@using PoRepoLineTracker.Client.Models
-@using PoRepoLineTracker.Shared.Models.Dtos
-@using Radzen
-@using Radzen.Blazor
+@inject NotificationService Notifications
+@inject ILogger<Insights> Logger
+@implements IAsyncDisposable
 @using Microsoft.AspNetCore.Authorization
+@using System.Globalization
+@using PoRepoLineTracker.Client.Components.Insights
 
-@* Portfolio dashboard, all time: every figure reads the whole history (owner, 2026-10-24), so
-   there is no range to pick. Everything here is one GET of /api/insights/portfolio — the
-   aggregation runs where the commit data already lives rather than shipping it to the browser to
-   be reduced (see PortfolioInsightsDto for the reasoning). *@
+<PageTitle>Insights @(_allTime ? "· All time" : _data?.Year.ToString()) · PoRepoLineTracker</PageTitle>
 
-@* A plain <div>, not <RadzenStack Gap="1rem">. Two reasons, both concrete:
+@* Insights: a year across every tracked repository by default, or "All time" from the same
+   picker (/insights/all, AllTimeDashboard). The two used to be separate pages, Year in Review and
+   All Time Insights, each with its own hero and KPI tiles.
 
-   1. Scope anchor. <RadzenStack> is a component, so nothing it renders carries this file's scope
-      id — which meant `::deep` had no plain ancestor to hang off anywhere on the page, and the
-      rules that needed it (`.ins-kpi`, `.ins-empty-icon`) silently matched nothing.
-   2. Rhythm. The stack hardcoded a 1rem gap at every viewport, next to a `--space-*` scale that
-      exists precisely so vertical rhythm tracks the width. `.app-stack` uses the token. *@
-<PageTitle>All Time Insights · PoRepoLineTracker</PageTitle>
+   The year view, on one screen: a hero banner with the headline number
+   over a 3D city of the year (js/city.js), a bento grid of the other figures, and the card that
+   saves as a PNG. All figures come from one GET (/api/insights/year/{year}).
 
-<div class="app-stack">
+   It used to be a carousel, one figure per slide; seeing them side by side is the point of a
+   recap, so every figure is now a tile. Hovering a tile flies the city's camera to the day or
+   month it is about. *@
+<div class="app-stack yir">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.125rem">
-                <h1 class="page-hero__title ins-title">All Time Insights</h1>
-                <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
-                    @if (_state.IsLoading)
+                <h1 class="page-hero__title yir-title">Insights</h1>
+                <RadzenText TextStyle="TextStyle.Body1" class="yir-lede">
+                    @if (_allTime)
                     {
-                        <span>Crunching your portfolio…</span>
+                        <span>Your whole history across every tracked repository</span>
                     }
-                    else if (_state.HasData)
+                    else if (_data is { HasActivity: true })
                     {
-                        var data = _state.Data!;
-                        <span>Every commit since @(data.FirstCommitDate?.ToString("MMMM yyyy") ?? "the start") · @data.AnalyzedCount of @data.RepositoryCount analyzed</span>
-                        @if (data.RepositoryCount > data.AnalyzedCount)
-                        {
-                            @* Analysis runs one repository at a time in the background, so the first
-                               visit after adding a repository legitimately shows more tracked than analyzed. *@
-                            <span> · @(data.RepositoryCount - data.AnalyzedCount) still being analyzed — Refresh in a minute</span>
-                        }
+                        <span>Your @_data.Year across @_data.RepositoriesTouched tracked repositor@(_data.RepositoriesTouched == 1 ? "y" : "ies")</span>
+                    }
+                    else
+                    {
+                        <span>Your year of commits on one page</span>
                     }
                 </RadzenText>
             </RadzenStack>
         </Heading>
         <Actions>
-            <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
-                          Variant="Variant.Outlined" Size="ButtonSize.Small"
-                          Click="@LoadAsync" Disabled="@_state.IsLoading" />
+            @* A native select, as the grid's sort uses: no reflection-bound TextProperty for the trimmer to break. *@
+            <select class="rz-dropdown yir-scope" aria-label="Year or all time" value="@(_allTime ? "all" : _data?.Year.ToString())"
+                    @onchange="@(e => OnScopeChanged(e.Value?.ToString()))">
+                @foreach (var year in _data?.AvailableYears ?? [])
+                {
+                    <option value="@year">@year</option>
+                }
+                <option value="all">All time</option>
+            </select>
         </Actions>
     </PageHero>
 
-    @* LoadingState<T> replaces the three-field ladder (_isLoading, _error, _insights). The four
-       states (loading / failed / empty / loaded) cannot co-exist on the same render — fixing
-       two bugs at once: an error banner that survived a successful reload, and a 0-repo page
-       that still showed the KPI tiles. *@
-    @switch (_state)
+    @if (_allTime)
     {
-        case LoadingState<PortfolioInsightsDto>.Loading:
-            <div class="app-dashboard app-dashboard--tiles">
-                @for (var i = 0; i < 3; i++)
-                {
-                    <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
-                }
-            </div>
-            <RadzenCard><RadzenSkeleton Width="100%" Height="220px" /></RadzenCard>
-            break;
-
-        case LoadingState<PortfolioInsightsDto>.Failed f:
-            @* Closing retries. It used to set the state to Loading without starting a load, which
-               swapped the alert for a skeleton that nothing would ever replace. *@
-            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true"
-                         Close="@LoadAsync">
-                @f.Message
-            </RadzenAlert>
-            break;
-
-        case LoadingState<PortfolioInsightsDto>.Empty:
-            <EmptyState Kind="EmptyStateKind.NoInsights"
-                        Title="Nothing to summarise yet"
-                        Description="Add and analyze a repository and this page fills in.">
-                <Actions>
-                    <RadzenButton Text="Go to Repositories" Icon="storage"
-                                  Click="@(() => Navigation.NavigateTo(AppRoutes.Repositories))" />
-                </Actions>
-            </EmptyState>
-            break;
-
-        case LoadingState<PortfolioInsightsDto>.Loaded loaded:
-            @RenderLoaded(loaded.Value!)
-            break;
+        <AllTimeDashboard />
     }
-</div>
-
-@* Body of the populated dashboard — extracted as a local function so the switch reads as a flat
-   list of states rather than a deeply nested tree. *@
-@code {
-    private RenderFragment RenderLoaded(PortfolioInsightsDto data) =>
-        @<text>
-            @* ─── KPI row ─────────────────────────────────────────────────────────────
-               Lifetime figures, each with the context that makes it mean something: the size
-               beside everything written and deleted to reach it, the commits beside how many days
-               they were spread over. *@
-            <div class="app-dashboard app-dashboard--tiles">
-                <KpiTile Label="Total lines"
-                         Delta="@($"+{data.LinesAddedAllTime:N0} written")"
-                         Sub="@($"{(data.LinesRemovedAllTime > 0 ? "−" : "")}{data.LinesRemovedAllTime:N0} removed")"
-                         DeltaClass="kpi__delta--pos">
-                    @data.TotalLines.ToString("N0")
-                </KpiTile>
-
-                <KpiTile Label="Commits"
-                         Delta="@($"across {data.ActiveDaysAllTime:N0} active {(data.ActiveDaysAllTime == 1 ? "day" : "days")}")">
-                    @data.CommitsAllTime.ToString("N0")
-                </KpiTile>
-
-                @{ var streak = Streak; }
-                <KpiTile Label="@StreakHeading"
-                         Unit="@streak.Unit"
-                         Delta="@($"best {data.LongestStreakDays} d ever")">
-                    @if (data.CurrentStreakDays > 0)
-                    {
-                        @* Burns taller the longer the streak, full height at 30 days (effects.css). *@
-                        <span class="u-flame" style="--flame:@ChartFormat.StreakFlame(data.CurrentStreakDays)" aria-hidden="true"></span>
-                    }
-                    @streak.Value
-                </KpiTile>
+    else if (_loading)
+    {
+        <RadzenCard><RadzenSkeleton Width="100%" Height="320px" /></RadzenCard>
+    }
+    else if (_error is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" AllowClose="false">
+            @_error
+            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text" Click="@LoadAsync" />
+        </RadzenAlert>
+    }
+    else if (_data is not { HasActivity: true })
+    {
+        <EmptyState Kind="EmptyStateKind.NoInsights"
+                    Title="@($"No commits in {_data?.Year ?? DateTime.Now.Year}")"
+                    Description="@(_data?.AvailableYears.Count > 0 ? "Pick another year above." : "Add a repository and let it finish analysing; its history fills this in.")" />
+    }
+    else
+    {
+        @* Keyed by year so a new year re-runs the entrance, the roll-up and the city. *@
+        <section class="yir-hero u-enter" @key="_data.Year" @ref="_hero" aria-label="@($"{_data.Year} headline")">
+            <canvas @ref="_cityCanvas" class="yir-city" aria-hidden="true"></canvas>
+            <div class="yir-hero__text">
+                <p class="yir-kicker">@_data.Year in code</p>
+                <p class="yir-headline"><AnimatedNumber Value="@_data.Commits" RollIn="true" /> commits</p>
+                <p class="yir-caption">
+                    across @_data.RepositoriesTouched repositor@(_data.RepositoriesTouched == 1 ? "y" : "ies") on @_data.ActiveDays different days
+                </p>
             </div>
+        </section>
 
-        @* ─── Activity heatmap ────────────────────────────────────────────────────
-           The whole history of commit activity at a glance (at least a year of cells). Rendered as a plain CSS grid rather than a
-           Radzen chart: 365 cells with no axes is a calendar, and every charting primitive that
-           could draw it would first have to be told not to behave like a chart. *@
-        @* Through <ChartCard> as well — the heading/caption pair and the surface were a third copy,
-           and the intensity key is exactly what its <Toolbar> slot is for. *@
-        <ChartCard Title="Activity"
-                   Description="Commits per day across every tracked repository, all time"
-                   IsEmpty="@(data.Activity.Count == 0)"
-                   EmptyIcon="calendar_month"
-                   EmptyText="No commit activity recorded yet.">
-            <Toolbar>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
-                    <div class="ins-heat__legend">
-                        <span class="ins-muted">Less</span>
-                        <span class="ins-heat__cell ins-heat--0"></span>
-                        <span class="ins-heat__cell ins-heat--1"></span>
-                        <span class="ins-heat__cell ins-heat--2"></span>
-                        <span class="ins-heat__cell ins-heat--3"></span>
-                        <span class="ins-heat__cell ins-heat--4"></span>
-                        <span class="ins-muted">More</span>
-                    </div>
-                </RadzenStack>
-            </Toolbar>
-            <ChildContent>
-                <div class="u-scroll-x ins-heat__scroll">
-                    <div class="ins-heat ins-heat--dense" role="img" aria-label="@_heatmapSummary">
-                        @* Leading blanks so the first real cell lands on its own weekday row and every
-                           column below is a genuine Sunday-to-Saturday week. *@
-                        @for (var i = 0; i < _leadingBlanks; i++)
-                        {
-                            <span class="ins-heat__cell ins-heat--blank"></span>
-                        }
-                        @foreach (var day in _displayedActivity)
-                        {
-                            <span class="ins-heat__cell @IntensityClass(day.Commits)"
-                                  title="@($"{day.Date:MMM d, yyyy} — {day.Commits} commit{(day.Commits == 1 ? "" : "s")}, +{day.LinesAdded:N0} lines")"></span>
-                        }
-                    </div>
-                </div>
-            </ChildContent>
-        </ChartCard>
-
-        @* ─── Portfolio growth & outliers ────────────────────────────────────── *@
-        <div class="app-dashboard app-dashboard--panels">
-            <ChartCard Title="Portfolio growth"
-                       Description="Total lines across every repository, from the first commit to today"
-                       IsEmpty="@(data.TrendLine.Count == 0)"
-                       EmptyIcon="show_chart"
-                       EmptyText="No history to chart yet.">
-                <RadzenChart>
-                    <RadzenAreaSeries Data="@data.TrendLine"
-                                      CategoryProperty="Date"
-                                      ValueProperty="TotalLines"
-                                      Title="Total lines"
-                                      Stroke="var(--rz-primary)"
-                                      Fill="color-mix(in srgb, var(--primary-color) 14%, transparent)"
-                                      StrokeWidth="3">
-                        <RadzenMarkers MarkerType="MarkerType.Circle" />
-                    </RadzenAreaSeries>
-
-                    @* Whole-day Step: see ChartFormat.DateAxisStep. *@
-                    <RadzenCategoryAxis FormatString="{0:MMM yyyy}"
-                                        Step="@ChartFormat.DateAxisStep(data.TrendLine.Select(p => p.Date))"
-                                        LabelAutoRotation="-45">
-                        <RadzenGridLines Visible="true" />
-                    </RadzenCategoryAxis>
-                    <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
-                        <RadzenGridLines Visible="true" />
-                    </RadzenValueAxis>
-                    <RadzenLegend Visible="false" />
-                </RadzenChart>
-            </ChartCard>
-
-            @* Commits far outside their repository's norm. Nearly always a vendored library or a
-               generated file inflating the totals above, which is why the fix is offered with it.
-               No card at all when nothing stands out. *@
-            @if (data.Outliers.Count > 0)
+        <div class="yir-bento" @key="(_data.Year, 1)">
+            @for (var i = 0; i < _tiles.Count; i++)
             {
-                <ChartCard Title="Unusually large commits (all time)"
-                           Description="Far more lines added than is normal for the repository">
-                    <ul class="ins-outliers">
-                        @foreach (var outlier in data.Outliers)
-                        {
-                            <li class="ins-outlier">
-                                <a href="@($"/repositories/{outlier.RepositoryId}")">@outlier.Owner/@outlier.Name</a>
-                                <code class="ins-lang__code">@outlier.CommitSha</code>
-                                <span class="ins-muted">@outlier.CommitDate.ToString("MMM d")</span>
-                                <span class="ins-outlier__size">+@outlier.LinesAdded.ToString("N0") lines (typical ~@outlier.TypicalLinesAdded.ToString("N0"))</span>
-                            </li>
-                        }
-                    </ul>
-                    <p class="ins-outliers__hint">
-                        These are usually vendored or generated files. Folders that look like a whole vendored
-                        project are already skipped; for anything else, drop its file type from the counted
-                        extensions in <a href="@AppRoutes.Settings">Settings</a> and re-analyze.
-                    </p>
-                </ChartCard>
+                var tile = _tiles[i];
+                var index = i;
+                <article class="@($"yir-tile u-glass u-enter {tile.Css}")" style="--i:@(i + 1)"
+                         @onmouseenter="@(() => FocusCityAsync(tile.FocusDay, index + 1))"
+                         @onmouseleave="@(() => FocusCityAsync(-1, 0))">
+                    <header class="yir-tile__head">
+                        <RadzenIcon Icon="@tile.Icon" class="yir-tile__icon" />
+                        <span class="yir-tile__kicker">@tile.Kicker</span>
+                    </header>
+                    @* On one line: whitespace between the parts would print as a gap ("+ 17,834"). *@
+                    <p class="yir-tile__value">@if (tile.Flame) {<span class="u-flame" style="--flame:@ChartFormat.StreakFlame(_data.LongestStreakDays)" aria-hidden="true"></span>}<span>@tile.Prefix</span>@if (tile.Number is { } number) {<AnimatedNumber Value="@number" RollIn="true" />}<span>@tile.Text</span></p>
+                    <p class="yir-tile__caption">@tile.Caption</p>
+                    @if (tile.ShowMonths)
+                    {
+                        <svg class="yir-months" viewBox="0 0 360 120" role="img" aria-label="Commits per month">
+                            @{ var max = Math.Max(1, _data.MonthlyCommits.Max()); }
+                            @for (var m = 0; m < 12; m++)
+                            {
+                                var h = 90.0 * _data.MonthlyCommits[m] / max;
+                                @* In a <g>: a bare <text> directly in a code block is Razor's directive. *@
+                                <g>
+                                    <rect x="@(m * 30 + 4)" y="@F(96 - h)" width="22" height="@F(Math.Max(h, 1))" rx="3"
+                                          class="@(m + 1 == _data.BusiestMonth ? "yir-bar yir-bar--peak" : "yir-bar")">
+                                        <title>@MonthName(m + 1): @_data.MonthlyCommits[m] commits</title>
+                                    </rect>
+                                    <text x="@(m * 30 + 15)" y="114" text-anchor="middle" class="yir-month-label">@(MonthName(m + 1)[..1])</text>
+                                </g>
+                            }
+                        </svg>
+                    }
+                </article>
             }
         </div>
 
-        @* The "All repositories" table that sat here was the Repositories grid a second time —
-           same rows, fewer columns. Its 30-day columns moved into that grid. *@
-        <a class="ins-all-link" href="@AppRoutes.Repositories">View all repositories →</a>
-
-        @* ─── Language mix & Language drift ──────────────────────────────────── *@
-        <div class="app-dashboard app-dashboard--panels">
-            <ExtensionBreakdownCard Title="Language mix"
-                                    Description="Share of current lines by file type"
-                                    EmptyHint="Re-analyze a repository to populate it."
-                                    Extensions="@(data.LanguageMix.Select(l => new FileExtensionPercentageDto { FileExtension = l.Extension, Percentage = l.Percentage, LineCount = l.Lines }).ToList())" />
-
-            <ChartCard Title="Language drift"
-                       Description="How the mix moved since each repository's first commit, in share"
-                       IsEmpty="@(data.LanguageDrift.Count == 0)"
-                       EmptyIcon="swap_vert"
-                       EmptyText="No drift to report yet."
-                       EmptyHint="Needs history across at least two file types.">
-                @if (data.RisingLanguage is not null || data.FadingLanguage is not null)
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="ins-drift__lede">
-                        @if (data.RisingLanguage is not null)
+        <section class="yir-summary" aria-label="Shareable card">
+            @* Foil that tilts toward the pointer (.u-holo). On a wrapper, so the exported PNG is the plain card. *@
+            <div class="yir-holo u-holo">
+                <svg @ref="_card" class="yir-card" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img"
+                     aria-label="@($"{_data.Year} summary card")">
+                    @* Plain hex colours and system fonts, not theme tokens: this SVG is also
+                       exported as a standalone image, where the page's CSS does not exist. *@
+                    <defs>
+                        <linearGradient id="yir-bg" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0" stop-color="#4c1d95" />
+                            <stop offset="0.55" stop-color="#6750a4" />
+                            <stop offset="1" stop-color="#c02d76" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="1200" height="630" rx="36" fill="url(#yir-bg)" />
+                    <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" fill="#ffffff">
+                        <text x="72" y="118" font-size="34" font-weight="600" fill-opacity="0.8">My @_data.Year in code</text>
+                        <text x="72" y="214" font-size="92" font-weight="800">@_data.Commits.ToString("N0") commits</text>
+                        @{ var stats = SummaryStats(); }
+                        @for (var i = 0; i < stats.Count; i++)
                         {
-                            <text>You drifted toward <code class="ins-lang__code">@data.RisingLanguage</code></text>
+                            var (label, value) = stats[i];
+                            var x = 72 + (i % 3) * 360;
+                            var y = 330 + (i / 3) * 130;
+                            <g>
+                                <text x="@x" y="@y" font-size="24" fill-opacity="0.75">@label</text>
+                                <text x="@x" y="@(y + 52)" font-size="44" font-weight="700">@value</text>
+                            </g>
                         }
-                        @if (data.RisingLanguage is not null && data.FadingLanguage is not null)
-                        {
-                            <text> and away from </text>
-                        }
-                        @if (data.FadingLanguage is not null)
-                        {
-                            <text><code class="ins-lang__code">@data.FadingLanguage</code></text>
-                        }
-                        .
-                    </RadzenText>
-                }
-
-                <div class="ins-drift">
-                    @foreach (var drift in data.LanguageDrift)
-                    {
-                        <div class="ins-drift__row">
-                            <code class="ins-lang__code">@drift.Extension</code>
-                            <span class="ins-drift__span">
-                                @drift.StartPercent.ToString("F1")% → @drift.EndPercent.ToString("F1")%
-                            </span>
-                            <span class="@(drift.PercentDelta > 0 ? "ins-drift__delta ins-drift__delta--up" : "ins-drift__delta ins-drift__delta--down")">
-                                @(drift.PercentDelta > 0 ? "+" : "")@drift.PercentDelta.ToString("F1") pts
-                            </span>
-                        </div>
-                    }
-                </div>
-            </ChartCard>
-        </div>
-        </text>;
-}
+                        <text x="72" y="590" font-size="22" fill-opacity="0.6">PoRepoLineTracker</text>
+                    </g>
+                </svg>
+            </div>
+            <RadzenButton Text="Download PNG" Icon="download" Click="@DownloadCardAsync" class="yir-download" />
+        </section>
+    }
+</div>
 
 @code {
-    private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
+    [Parameter] public int? Year { get; set; }
 
-    // The heatmap's cells and summary, built when the data arrives rather than as properties:
-    // each render re-walked the history several times over.
-    private IReadOnlyList<ActivityDayDto> _displayedActivity = [];
-    private int _leadingBlanks;
-    private string _heatmapSummary = "Commit activity heatmap";
+    private YearInReviewDto? _data;
+    private List<Tile> _tiles = [];
+    private bool _loading = true;
+    private string? _error;
+    private int _offsetMinutes;
+    private int? _loadedYear;
+    private bool _allTime;
+    private ElementReference _card;
+    private ElementReference _hero;
+    private ElementReference _cityCanvas;
+    private IJSObjectReference? _cityModule;
+    private IJSObjectReference? _city;
+    private string? _cityCanvasId;
 
-    private void BuildHeatmap()
+    /// <summary>
+    /// One figure. <see cref="Number"/> rolls up on an odometer, between <see cref="Prefix"/> and
+    /// <see cref="Text"/>; figures that are not counts (a month, a name) are all <see cref="Text"/>.
+    /// </summary>
+    /// <param name="FocusDay">0-based day of the year the city's camera flies to on hover, or -1 for a framing of its own.</param>
+    /// <param name="Css">Size in the bento grid: <c>yir-tile--wide</c>, <c>yir-tile--feature</c> or none.</param>
+    private sealed record Tile(string Kicker, string Icon, string Caption, int? Number = null, string Prefix = "", string Text = "",
+        int FocusDay = -1, string Css = "", bool ShowMonths = false, bool Flame = false);
+
+    protected override async Task OnParametersSetAsync()
     {
-        _displayedActivity = _state.HasData ? _state.Data!.Activity : [];
+        _allTime = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/') == "insights/all";
+        var year = Year ?? DateTime.Now.Year;
+        if (_loadedYear == year) return;
+        _loadedYear = year;
 
-        // Blank cells before the first day so each grid column is one calendar week.
-        // DayOfWeek.Sunday is 0, which is exactly the offset needed.
-        _leadingBlanks = _displayedActivity.Count > 0 ? (int)_displayedActivity[0].Date.DayOfWeek : 0;
+        // From the browser, not TimeZoneInfo.Local: the WASM runtime's zone data is optional
+        // and trimming may leave it as UTC.
+        _offsetMinutes = await JS.InvokeAsync<int>("utcOffsetMinutes");
+        await LoadAsync();
 
-        _heatmapSummary = !_state.HasData
-            ? "Commit activity heatmap"
-            : $"Commit activity heatmap: {_displayedActivity.Count(d => d.Commits > 0)} active days, " +
-              $"{_displayedActivity.Sum(d => d.Commits):N0} commits in all";
+        // Landing on /insights in a quiet year (early January, say) would open on an empty
+        // page while last year has a story. Only for the default year: an explicit one is honoured.
+        if (Year is null && !_allTime && _data is { HasActivity: false, AvailableYears.Count: > 0 })
+            Navigation.NavigateTo($"{AppRoutes.Insights}/{_data.AvailableYears[0]}", replace: true);
     }
-
-    /// <summary>
-    /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
-    /// streak is zero, the tile rephrases as "last active Nd ago" using the most recent
-    /// non-zero-commit day from <see cref="PortfolioInsightsDto.Activity"/>. The "best … ever"
-    /// line underneath keeps the same anchor in both states so the tile reads as one tile.
-    /// </summary>
-    private string StreakHeading =>
-        !_state.HasData || _state.Data!.CurrentStreakDays > 0
-            ? "Current streak"
-            : "Last active";
-
-    /// <summary>
-    /// Figure and its unit as separate strings, rendered as separate nodes by the template. An
-    /// earlier version returned one string with the <c>&lt;span&gt;</c> baked in, which Razor
-    /// HTML-encodes — the tile printed the markup as visible text.
-    /// </summary>
-    private (string Value, string? Unit) Streak
-    {
-        get
-        {
-            if (!_state.HasData) return ("—", null);
-            var data = _state.Data!;
-            if (data.CurrentStreakDays > 0) return ($"{data.CurrentStreakDays}", "d");
-
-            var last = data.Activity.LastOrDefault(d => d.Commits > 0);
-            if (last is null) return ("—", null);
-
-            var days = Math.Max(0, (int)(DateTime.UtcNow.Date - last.Date.Date).TotalDays);
-            return days switch
-            {
-                0 => ("today", null),
-                1 => ("yesterday", null),
-                _ => ($"{days}", "d ago")
-            };
-        }
-    }
-
-    /// <summary>
-    /// Fixed thresholds rather than quantiles of the user's own data. A relative scale would paint
-    /// a quiet year the same shade as a busy one, and the point of the grid is to compare days
-    /// against a constant.
-    /// </summary>
-    private static string IntensityClass(int commits) => commits switch
-    {
-        0 => "ins-heat--0",
-        <= 2 => "ins-heat--1",
-        <= 5 => "ins-heat--2",
-        <= 10 => "ins-heat--3",
-        _ => "ins-heat--4"
-    };
-
-    protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
-        // Show the loading skeleton rather than the previous error banner; LoadingState
-        // deliberately re-renders as Loading on retry so the user always sees a refresh happen.
-        _state = new LoadingState<PortfolioInsightsDto>.Loading();
-        StateHasChanged();
-
+        _loading = true;
+        _error = null;
         try
         {
-            var data = await Http.GetAppJsonAsync(
-                "/api/insights/portfolio",
-                AppJsonSerializerContext.Default.PortfolioInsightsDto);
-
-            _state = data is null || data.RepositoryCount == 0
-                ? new LoadingState<PortfolioInsightsDto>.Empty()
-                : new LoadingState<PortfolioInsightsDto>.Loaded(data);
+            _data = await Http.GetAppJsonAsync($"/api/insights/year/{_loadedYear}?offset={_offsetMinutes}", AppJsonSerializerContext.Default.YearInReviewDto);
+            _tiles = _data is { HasActivity: true } ? BuildTiles(_data) : [];
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Insights: failed to load portfolio insights");
-            _state = new LoadingState<PortfolioInsightsDto>.Failed("Could not load your insights. Please try again.");
+            Logger.LogError(ex, "Year in review failed to load for {Year}", _loadedYear);
+            _error = $"Could not load the year: {ex.Message}";
         }
         finally
         {
-            BuildHeatmap();
-            StateHasChanged();
+            _loading = false;
         }
     }
+
+    // The grid is four columns: wide tiles take two, the feature tile (the month chart) two by
+    // two, and `dense` packing fills single tiles around it. In this order a year with every
+    // optional figure fills four full rows; a missing one leaves a gap only on the last.
+    private static List<Tile> BuildTiles(YearInReviewDto d)
+    {
+        var tiles = new List<Tile>
+        {
+            new("Lines written", "edit_note",
+                $"about {d.LinesAdded / Math.Max(1, d.ActiveDays):N0} a day on the days you committed",
+                Number: d.LinesAdded, Prefix: "+", Css: "yir-tile--wide"),
+            new("Lines removed", "content_cut", $"net {d.LinesAdded - d.LinesRemoved:+#,0;-#,0;0} lines",
+                Number: d.LinesRemoved, Prefix: d.LinesRemoved > 0 ? "−" : ""),
+            new("Active days", "event_available", $"{100.0 * d.ActiveDays / d.DailyCommits.Count:0}% of the year had a commit",
+                Number: d.ActiveDays),
+            new("Busiest month", "calendar_month", $"{d.MonthlyCommits[d.BusiestMonth - 1]:N0} commits",
+                Text: MonthName(d.BusiestMonth, full: true), FocusDay: new DateTime(d.Year, d.BusiestMonth, 15).DayOfYear - 1,
+                Css: "yir-tile--feature", ShowMonths: true),
+            new("Longest streak", "local_fire_department", "in a row with at least one commit",
+                Number: d.LongestStreakDays, Text: d.LongestStreakDays == 1 ? " day" : " days", Flame: d.LongestStreakDays > 0),
+            new(d.PeakHour is >= 21 or < 5 ? "Night owl" : d.PeakHour < 9 ? "Early bird" : "Peak hour", "schedule",
+                $"your most common commit hour; {CultureInfo.CurrentCulture.DateTimeFormat.GetDayName((DayOfWeek)d.PeakWeekday)}s were busiest",
+                Text: HourLabel(d.PeakHour)),
+        };
+
+        if (d.BiggestDay is { } day)
+            tiles.Add(new("Biggest day", "bolt", $"+{d.BiggestDayLinesAdded:N0} lines added in a single day",
+                Text: day.ToString("MMMM d", CultureInfo.CurrentCulture), FocusDay: day.DayOfYear - 1));
+        if (d.TopRepository is not null)
+            tiles.Add(new("Most active repository", "star", $"{d.TopRepositoryCommits:N0} commits", Text: d.TopRepository));
+
+        // Snapshots at the year's two ends (RepositoryTotals), so a portfolio can shrink.
+        var growth = d.PortfolioLinesEnd - d.PortfolioLinesStart;
+        tiles.Add(new("Portfolio growth", "stacked_line_chart",
+            d.PortfolioLinesStart > 0
+                ? $"from {d.PortfolioLinesStart:N0} to {d.PortfolioLinesEnd:N0} lines ({100.0 * growth / d.PortfolioLinesStart:+0;-0;0}%)"
+                : $"to {d.PortfolioLinesEnd:N0} lines",
+            Number: Math.Abs(growth), Prefix: growth < 0 ? "−" : "+", Css: "yir-tile--wide"));
+        tiles.Add(new("Repositories touched", "folder_copy", "had at least one commit this year", Number: d.RepositoriesTouched));
+
+        if (d.TopGrowingExtension is not null)
+            tiles.Add(new("On the rise", "trending_up", $"grew by {d.TopGrowingSharePoints:0.#} points of your portfolio's share",
+                Text: d.TopGrowingExtension));
+
+        return tiles;
+    }
+
+    private List<(string Label, string Value)> SummaryStats() =>
+    [
+        ("Lines added", $"+{_data!.LinesAdded:N0}"),
+        ("Longest streak", $"{_data.LongestStreakDays} days"),
+        ("Active days", $"{_data.ActiveDays}"),
+        ("Busiest month", MonthName(_data.BusiestMonth, full: true)),
+        ("Peak hour", HourLabel(_data.PeakHour)),
+        ("Top repository", Truncate(_data.TopRepository ?? "—", 14))
+    ];
+
+    /// <summary>
+    /// The effects, all decoration: a failure (no WebGL2, an import the network refused, teardown)
+    /// leaves the page exactly as it is. The city is mounted once per canvas element, which Blazor
+    /// replaces when the year changes, and it releases its own GL context when that canvas leaves
+    /// the page. Each new year celebrates once, after the tiles have cascaded in.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_allTime || _loading || _data is not { HasActivity: true }) return;
+        try
+        {
+            if (_cityCanvasId == _cityCanvas.Id) return;
+            _cityCanvasId = _cityCanvas.Id;
+            _cityModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/city.js");
+            if (_city is not null) await _city.DisposeAsync();
+            _city = await _cityModule.InvokeAsync<IJSObjectReference>("mount", _cityCanvas, string.Join(',', _data.DailyCommits), _data.Year);
+            _ = CelebrateAsync(_data.Year);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Year in review effects unavailable");
+        }
+    }
+
+    private async Task CelebrateAsync(int year)
+    {
+        await Task.Delay(1600);
+        if (_data?.Year != year || _city is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("fx.fireworks", _hero);
+            await JS.InvokeVoidAsync("fx.yearChord", string.Join(',', _data.MonthlyCommits));
+        }
+        catch (Exception) { }
+    }
+
+    /// <param name="framing">Which of the city's camera framings to use when there is no day to fly to.</param>
+    private async Task FocusCityAsync(int day, int framing)
+    {
+        if (_city is null) return;
+        try { await _city.InvokeVoidAsync("focus", day, framing); }
+        catch (Exception) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_city is not null)
+            {
+                await _city.InvokeVoidAsync("dispose");
+                await _city.DisposeAsync();
+            }
+            if (_cityModule is not null) await _cityModule.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // JSDisconnectedException on teardown; the city disposes itself once its canvas is gone.
+        }
+    }
+
+    private void OnScopeChanged(string? value) =>
+        Navigation.NavigateTo(value == "all" ? $"{AppRoutes.Insights}/all" : $"{AppRoutes.Insights}/{value}");
+
+    private async Task DownloadCardAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("downloadSvgAsPng", _card, $"year-in-review-{_data!.Year}.png");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "PNG export failed");
+            Notifications.Notify(NotificationSeverity.Warning, "Download failed", "This browser could not turn the card into an image.", 5000);
+        }
+    }
+
+    private static string MonthName(int month, bool full = false) =>
+        month is < 1 or > 12 ? "—"
+        : full ? CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)
+        : CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
+
+    private static string HourLabel(int hour) => DateTime.Today.AddHours(hour).ToString("h tt", CultureInfo.InvariantCulture);
+
+    private static string Truncate(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+
+    private static string F(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
 }

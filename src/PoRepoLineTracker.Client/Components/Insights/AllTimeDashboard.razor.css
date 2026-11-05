@@ -1,0 +1,190 @@
+/* Scoped styles for the Insights dashboard.
+
+   Colours come from the theme tokens in app.css rather than literals — the heatmap in particular
+   has to stay legible against both a white and a slate card, and a single hex ramp cannot.
+   The intensity ramp is therefore expressed as opacities over the primary hue, so it
+   inherits whatever the theme sets.
+
+   The .ins-kpi / .ins-empty-icon / .ins-kpi__value / .ins-kpi__label / .ins-kpi__unit /
+   .ins-kpi__delta / .ins-kpi__sub rules are gone: KPI tiles now render through <KpiTile> and
+   the page's empty state through <EmptyState>, both of which carry their own chrome. The two
+   extra abstractions paid for themselves the moment the same tile was wanted on another page —
+   one place to fix the tile, not three. */
+
+::deep .ins-title.ins-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .ins-lede.ins-lede {
+    margin: 0 !important;
+    color: var(--text-secondary) !important;
+}
+
+::deep .ins-muted.ins-muted {
+    margin: 0 !important;
+    color: var(--text-muted) !important;
+}
+
+/* ─── Activity heatmap ───────────────────────────────────────────────────────
+   Column-flow over seven rows: cells are emitted in date order and the browser fills each
+   week down before starting the next, which is what turns a flat list into a calendar without
+   any per-cell positioning. */
+.ins-heat__scroll {
+    padding-bottom: 0.25rem;
+}
+
+/* Columns flex between 11px and 1.25rem. A fixed 11px left the 90-day calendar a ~180px strip
+   in a wide card; letting them reach 2.5rem overcorrected — cells are square, so the card grew
+   to ~300px tall to show thirteen weeks. The 11px floor is below what a year needs on a phone,
+   so the tracks overflow there and .u-scroll-x on the wrapper scrolls them instead of
+   compressing cells into a smear. */
+.ins-heat {
+    display: grid;
+    grid-template-rows: repeat(7, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(11px, 1.25rem);
+    gap: 3px;
+}
+
+/* "All": years of weeks. At the 11px floor a 2.6-year history is twice the card's width, and
+   what scrolls off the right is the most recent activity. Smaller cells keep the whole history
+   on screen at desktop widths; a longer one still scrolls. */
+.ins-heat--dense {
+    grid-auto-columns: minmax(4px, 1.25rem);
+    gap: 2px;
+}
+
+/* 11px square by default — that is the legend swatch. */
+.ins-heat__cell {
+    width: 11px;
+    aspect-ratio: 1;
+    border-radius: 2px;
+    display: block;
+}
+
+/* Inside the calendar the cell fills its column and stays square. */
+.ins-heat > .ins-heat__cell {
+    width: auto;
+}
+
+.ins-heat--blank {
+    background: transparent;
+}
+
+/* Opacity ramp over the primary hue rather than five literal greens: the same five rules then
+   read correctly on the light and the dark card, and the ramp tracks a theme change for free. */
+.ins-heat--0 { background: var(--border-light); }
+.ins-heat--1 { background: color-mix(in srgb, var(--primary-color) 30%, var(--border-light)); }
+.ins-heat--2 { background: color-mix(in srgb, var(--primary-color) 55%, var(--border-light)); }
+.ins-heat--3 { background: color-mix(in srgb, var(--primary-color) 78%, var(--border-light)); }
+.ins-heat--4 { background: var(--primary-color); }
+
+.ins-heat__legend {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: var(--text-xs);
+}
+
+.ins-heat__legend .ins-muted {
+    margin-inline: 0.25rem;
+}
+
+/* ─── Outliers ───────────────────────────────────────────────────────────────
+   A wrapping row per commit rather than a table: four short facts, and on a phone they stack
+   instead of scrolling sideways. */
+.ins-outliers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ins-outlier {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.6rem;
+}
+
+.ins-outlier a {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.ins-outlier__size {
+    margin-inline-start: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.ins-outliers__hint {
+    margin: 0.75rem 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.ins-all-link {
+    align-self: flex-start;
+    font-weight: 600;
+}
+
+/* Inline code chip: extensions in the drift list, SHAs in the outliers. The language-mix bar
+   list that used to follow it renders through ExtensionBreakdownCard now. */
+.ins-lang__code {
+    font-size: var(--text-xs);
+    background: var(--bg-tertiary);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    color: var(--text-primary);
+}
+
+/* ─── Language drift ─────────────────────────────────────────────────────────
+   A three-column row rather than a chart. The figure is a signed shift in percentage points over
+   six rows — a bar chart of it would need a zero-crossing axis to say what "+2.1 pts" says in
+   four characters. */
+.ins-drift__lede {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+}
+
+.ins-drift {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.ins-drift__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ins-drift__span {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Tabular figures so the deltas line up on the decimal down the column — they are read against
+   each other, not individually. */
+.ins-drift__delta {
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 4.5rem;
+    text-align: right;
+}
+
+/* --status-pos/neg rather than a raw green/red: those are the tokens app.css already darkens far
+   enough to carry AA against the card surface, and re-lightens for the dark theme. */
+.ins-drift__delta--up {
+    color: var(--status-pos);
+}
+
+.ins-drift__delta--down {
+    color: var(--status-neg);
+}

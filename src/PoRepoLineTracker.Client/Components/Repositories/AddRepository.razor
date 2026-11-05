@@ -188,16 +188,6 @@
 
         try
         {
-            Logger.LogInformation("=== START AddSelectedRepositories ===");
-            Logger.LogInformation("Number of selected repositories: {Count}", selectedCount);
-
-            var selectedList = _selected.ToList();
-            for (int i = 0; i < selectedList.Count; i++)
-            {
-                var repo = selectedList[i];
-                Logger.LogInformation("Selected Repo [{Index}]: FullName='{FullName}'", i, repo.FullName);
-            }
-
             var repositoriesToAdd = _selected.Select(repo =>
             {
                 var fullNameParts = repo.FullName.Split('/', 2);
@@ -206,9 +196,6 @@
                     Logger.LogWarning("Unexpected FullName format '{FullName}' — expected 'owner/repo'", repo.FullName);
                     return new BulkRepositoryDto { Owner = repo.FullName, RepoName = repo.Name };
                 }
-                Logger.LogInformation("Splitting FullName '{FullName}' into Owner='{Owner}' and RepoName='{RepoName}'",
-                    repo.FullName, fullNameParts[0], fullNameParts[1]);
-
                 return new BulkRepositoryDto
                 {
                     Owner = fullNameParts[0],
@@ -216,24 +203,13 @@
                 };
             }).ToList();
 
-            Logger.LogInformation("Prepared {Count} repositories for API call", repositoriesToAdd.Count);
-
-            for (int i = 0; i < repositoriesToAdd.Count; i++)
-            {
-                var repo = repositoriesToAdd[i];
-                Logger.LogInformation("Sending Repo [{Index}]: Owner='{Owner}', RepoName='{RepoName}'",
-                    i, repo.Owner, repo.RepoName);
-            }
-
             // The server takes at most 200 per request, so a bigger account goes in chunks.
             var bulkResult = new BulkAddResult();
             HttpResponseMessage response = null!;
             foreach (var chunk in repositoriesToAdd.Chunk(200))
             {
-                Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", chunk.Length);
                 response = await Http.PostAppJsonAsync("/api/repositories/bulk", chunk.ToList(),
                     AppJsonSerializerContext.Default.ListBulkRepositoryDto, _addCts!.Token);
-                Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
                 if (!response.IsSuccessStatusCode) break;
 
                 var part = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
@@ -246,8 +222,6 @@
 
                 var addedCount = bulkResult?.Added.Count ?? 0;
                 var alreadyTrackedCount = bulkResult?.AlreadyTracked.Count ?? 0;
-
-                Logger.LogInformation("Bulk result: Added={Added}, AlreadyTracked={AlreadyTracked}", addedCount, alreadyTrackedCount);
 
                 // Summary line on the modal. Reads the actual numbers from the response, not
                 // "Complete!" — and tells the user the next thing that will happen, which is

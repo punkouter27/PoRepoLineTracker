@@ -25,7 +25,7 @@ internal static class RepositoryEndpoints
     {
         // One group carries the prefix and the authorization requirement for the whole
         // slice. Every route below is authenticated because the group says so, not because each
-        // endpoint remembered to say so (the "#6 fix" comments below record the era when they didn't).
+        // endpoint remembered to say so.
         var repos = endpoints.MapGroup("/api/repositories")
             .WithTags("Repositories")
             .RequireAuthorization();
@@ -48,7 +48,6 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetAllRepositories");
 
-        // #6 fix: added RequireAuthorization() - was unprotected
         repos.MapGet("/{repositoryId}/linehistory/{days}", async (RepositoryId repositoryId, int days, HttpContext ctx, GetLineCountHistoryQueryHandler lineHistoryHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
@@ -100,7 +99,6 @@ internal static class RepositoryEndpoints
         })
         .WithName("GetAllRepositoriesLineHistory");
 
-        // #6 fix: added RequireAuthorization() + ownership check - was fully unprotected
         repos.MapDelete("/{repositoryId}", async (RepositoryId repositoryId, HttpContext ctx, DeleteRepositoryCommandHandler deleteHandler, IRepositoryDataService repoDataService, AnalysisQueue queue) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
@@ -238,7 +236,6 @@ internal static class RepositoryEndpoints
         })
         .WithName("SetRepositoryVisibility");
 
-        // #6 fix: added RequireAuthorization() - was unprotected
         repos.MapGet("/{repositoryId}/file-extension-percentages", async (RepositoryId repositoryId, HttpContext ctx, GetFileExtensionPercentagesQueryHandler extensionHandler, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))

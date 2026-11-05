@@ -5,10 +5,9 @@ namespace PoRepoLineTracker.API.Features.Insights;
 public record GetYearInReviewQuery(UserId UserId, int Year, int UtcOffsetMinutes);
 
 /// <summary>
-/// The Year in Review figures. In the Insights slice beside the digest because it reads the same
-/// fan-out (<see cref="IRepositoryDataService.GetAllRepositoriesWithCommitsAsync"/>) and uses the
-/// same shared definitions of a streak and a size; it is a separate handler because a year needs
-/// almost none of the digest's output.
+/// The Year in Review figures. In the Insights slice beside the portfolio query because it reads the
+/// same fan-out (<see cref="IRepositoryDataService.GetAllRepositoriesWithCommitsAsync"/>) and uses the
+/// same shared definitions of a streak and a size.
 ///
 /// <para>ponytail: one fixed offset for the whole year, so commits on the far side of a DST change
 /// are an hour off in the busiest-hour figure. Accurate per-commit zones would need the viewer's

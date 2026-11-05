@@ -14,7 +14,7 @@ internal static class DiagnosticsEndpoints
         // /health is served by the registered IHealthCheck pipeline via app.MapHealthChecks("/health")
         // in Program.cs — no custom implementation needed here.
 
-        // The single server-side diagnostics surface. The Blazor client keeps a /diag PAGE route
+        // The single server-side diagnostics surface. The Blazor client keeps a /diagnostics PAGE route
         // (Pages/Diagnostics.razor) whose data comes from here, so a browser never needs a
         // content-negotiating server route on the same path.
         var diagnostics = endpoints.MapGroup("/api/diagnostics")

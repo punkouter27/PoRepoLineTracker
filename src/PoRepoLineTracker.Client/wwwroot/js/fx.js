@@ -5,9 +5,9 @@
 //
 // Nothing here is on a data path. Every entry point is wrapped, and a failure (or this file never
 // loading) leaves the page exactly as it was. Callers need to know none of the switches:
-//   - sound plays only when the header toggle stored localStorage 'sound' = 'on' (index.html);
+//   - sound plays only when the Settings switch stored localStorage 'sound' = 'on' (index.html);
 //   - motion (particles, tilt, animated filters) never starts under prefers-reduced-motion;
-//   - localStorage 'fx' = 'off', set by hand in devtools like 'backdrop', turns the visual half off.
+//   - localStorage 'fx' = 'off' (the Settings "Visual effects" switch, with 'backdrop') turns the visual half off.
 (function () {
     'use strict';
 

@@ -1,8 +1,7 @@
 @* Redirects to another route on first render.
 
-   Used where a URL used to be a page of its own and is now somewhere else: the app root ("/")
-   and the old diagnostics path ("/diag"). A redirect rather than a second @page on the target,
-   so the old address stops being a place that can drift away from the page it stands for.
+   Used where a URL is not a page of its own: the app root ("/") goes to the repository list.
+   A redirect rather than a second @page on the target, so one screen has one address.
 
    replace: true, because the old address is not a history entry the user should be able to
    step back to — Back should land where they were before, not on the address that redirects

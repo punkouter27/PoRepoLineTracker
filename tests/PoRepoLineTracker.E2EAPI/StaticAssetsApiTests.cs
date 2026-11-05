@@ -55,7 +55,6 @@ public sealed class StaticAssetsApiTests
         ("rp-stat-spark", "PortfolioStatTiles.razor.css"),
         ("status-cell", "AnalysisStatusCell.razor.css"),
         ("rp-live-dot", "RepositoriesGrid.razor.css"),
-        ("digest__stat-value", "DigestBanner.razor.css"),
         ("health__factor-measure", "CodeHealthCard.razor.css"),
     ];
 

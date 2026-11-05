@@ -1,190 +1,219 @@
-/* Scoped styles for the Insights dashboard.
+/* Rooted at the page's plain .yir div (it also carries .app-stack). Radzen-rendered pieces are
+   reached with ::deep. */
 
-   Colours come from the theme tokens in app.css rather than literals — the heatmap in particular
-   has to stay legible against both a white and a slate card, and a single hex ramp cannot.
-   The intensity ramp is therefore expressed as opacities over the primary hue, so it
-   inherits whatever the theme sets.
-
-   The .ins-kpi / .ins-empty-icon / .ins-kpi__value / .ins-kpi__label / .ins-kpi__unit /
-   .ins-kpi__delta / .ins-kpi__sub rules are gone: KPI tiles now render through <KpiTile> and
-   the page's empty state through <EmptyState>, both of which carry their own chrome. The two
-   extra abstractions paid for themselves the moment the same tile was wanted on another page —
-   one place to fix the tile, not three. */
-
-::deep .ins-title.ins-title {
+::deep .yir-title.yir-title {
     margin: 0 !important;
     font-weight: 700 !important;
 }
 
-::deep .ins-lede.ins-lede {
+::deep .yir-lede.yir-lede {
     margin: 0 !important;
     color: var(--text-secondary) !important;
 }
 
-::deep .ins-muted.ins-muted {
-    margin: 0 !important;
-    color: var(--text-muted) !important;
-}
-
-/* ─── Activity heatmap ───────────────────────────────────────────────────────
-   Column-flow over seven rows: cells are emitted in date order and the browser fills each
-   week down before starting the next, which is what turns a flat list into a calendar without
-   any per-cell positioning. */
-.ins-heat__scroll {
-    padding-bottom: 0.25rem;
-}
-
-/* Columns flex between 11px and 1.25rem. A fixed 11px left the 90-day calendar a ~180px strip
-   in a wide card; letting them reach 2.5rem overcorrected — cells are square, so the card grew
-   to ~300px tall to show thirteen weeks. The 11px floor is below what a year needs on a phone,
-   so the tracks overflow there and .u-scroll-x on the wrapper scrolls them instead of
-   compressing cells into a smear. */
-.ins-heat {
+/* ── Hero: the headline over the city ─────────────────────────────────────────
+   The gradient echoes the summary card and is all there is without WebGL2. On a wide screen the
+   text sits on the left and city.js shifts the city right to clear it; narrower, the text is
+   centred over the city with a shadow. */
+.yir-hero {
+    position: relative;
     display: grid;
-    grid-template-rows: repeat(7, auto);
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(11px, 1.25rem);
-    gap: 3px;
-}
-
-/* "All": years of weeks. At the 11px floor a 2.6-year history is twice the card's width, and
-   what scrolls off the right is the most recent activity. Smaller cells keep the whole history
-   on screen at desktop widths; a longer one still scrolls. */
-.ins-heat--dense {
-    grid-auto-columns: minmax(4px, 1.25rem);
-    gap: 2px;
-}
-
-/* 11px square by default — that is the legend swatch. */
-.ins-heat__cell {
-    width: 11px;
-    aspect-ratio: 1;
-    border-radius: 2px;
-    display: block;
-}
-
-/* Inside the calendar the cell fills its column and stays square. */
-.ins-heat > .ins-heat__cell {
-    width: auto;
-}
-
-.ins-heat--blank {
-    background: transparent;
-}
-
-/* Opacity ramp over the primary hue rather than five literal greens: the same five rules then
-   read correctly on the light and the dark card, and the ramp tracks a theme change for free. */
-.ins-heat--0 { background: var(--border-light); }
-.ins-heat--1 { background: color-mix(in srgb, var(--primary-color) 30%, var(--border-light)); }
-.ins-heat--2 { background: color-mix(in srgb, var(--primary-color) 55%, var(--border-light)); }
-.ins-heat--3 { background: color-mix(in srgb, var(--primary-color) 78%, var(--border-light)); }
-.ins-heat--4 { background: var(--primary-color); }
-
-.ins-heat__legend {
-    display: flex;
     align-items: center;
-    gap: 3px;
-    font-size: var(--text-xs);
+    min-height: clamp(260px, 40dvh, 400px);
+    padding: var(--space-xl);
+    border-radius: 24px;
+    color: #fff;
+    background: linear-gradient(135deg, #4c1d95 0%, #6750a4 55%, #c02d76 100%);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
 }
 
-.ins-heat__legend .ins-muted {
-    margin-inline: 0.25rem;
+.yir-city {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
-/* ─── Outliers ───────────────────────────────────────────────────────────────
-   A wrapping row per commit rather than a table: four short facts, and on a phone they stack
-   instead of scrolling sideways. */
-.ins-outliers {
-    list-style: none;
+.yir-hero__text {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-sm);
+    max-width: 30rem;
+    text-shadow: 0 2px 14px rgb(30 10 60 / 0.55);
+}
+
+@container appwell (max-width: 640px) {
+    .yir-hero__text {
+        justify-self: center;
+        text-align: center;
+    }
+}
+
+.yir-kicker {
     margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.ins-outlier {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem 0.6rem;
-}
-
-.ins-outlier a {
+    font-size: var(--text-lg);
     font-weight: 600;
-    overflow-wrap: anywhere;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.85;
 }
 
-.ins-outlier__size {
-    margin-inline-start: auto;
+.yir-headline {
+    margin: 0;
+    font-size: clamp(2.5rem, 7vw, 4.75rem);
+    font-weight: 800;
+    line-height: 1.05;
     font-variant-numeric: tabular-nums;
 }
 
-.ins-outliers__hint {
-    margin: 0.75rem 0 0;
-    font-size: var(--text-xs);
-    color: var(--text-secondary);
+.yir-caption {
+    margin: 0;
+    font-size: var(--text-lg);
+    opacity: 0.9;
 }
 
-.ins-all-link {
-    align-self: flex-start;
-    font-weight: 600;
+/* ── Bento grid ───────────────────────────────────────────────────────────────
+   Four columns: a wide tile spans two, the feature tile (the month chart) two by two, and
+   `dense` lets the single tiles fill around it. Two columns below --bp-well, one below --bp-tiles
+   (app.css), where every tile is full width. Tiles cascade in, --i (set in the markup) staggering each one. */
+.yir-bento {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    gap: var(--space-md);
 }
 
-/* Inline code chip: extensions in the drift list, SHAs in the outliers. The language-mix bar
-   list that used to follow it renders through ExtensionBreakdownCard now. */
-.ins-lang__code {
-    font-size: var(--text-xs);
-    background: var(--bg-tertiary);
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-    color: var(--text-primary);
+@container appwell (max-width: 640px) {
+    .yir-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* ─── Language drift ─────────────────────────────────────────────────────────
-   A three-column row rather than a chart. The figure is a signed shift in percentage points over
-   six rows — a bar chart of it would need a zero-crossing axis to say what "+2.1 pts" says in
-   four characters. */
-.ins-drift__lede {
-    margin: 0 0 0.75rem;
-    color: var(--text-secondary);
+@container appwell (max-width: 560px) {
+    .yir-bento { grid-template-columns: minmax(0, 1fr); }
+    .yir-tile.yir-tile--wide,
+    .yir-tile.yir-tile--feature { grid-column: auto; grid-row: auto; }
 }
 
-.ins-drift {
+.yir-tile {
     display: flex;
     flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+    padding: var(--space-md) var(--space-lg, 1.25rem);
+    animation-delay: calc(var(--i, 0) * 70ms);
+    transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.yir-tile:hover {
+    transform: translateY(-2px);
+}
+
+.yir-tile--wide {
+    grid-column: span 2;
+}
+
+.yir-tile--feature {
+    grid-column: span 2;
+    grid-row: span 2;
+    color: #fff;
+    background: linear-gradient(135deg, #4c1d95 0%, #6750a4 55%, #c02d76 100%);
+    border-color: transparent;
+}
+
+.yir-tile__head {
+    display: flex;
+    align-items: center;
     gap: 0.4rem;
 }
 
-.ins-drift__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 0.75rem;
+::deep .yir-tile__icon.yir-tile__icon {
+    font-size: 1.25rem !important;
+    color: var(--primary-on-surface);
 }
 
-.ins-drift__span {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
+.yir-tile--feature ::deep .yir-tile__icon.yir-tile__icon {
+    color: #fff;
 }
 
-/* Tabular figures so the deltas line up on the decimal down the column — they are read against
-   each other, not individually. */
-.ins-drift__delta {
-    font-size: 0.78rem;
+.yir-tile__kicker {
+    font-size: 0.75rem;
     font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.yir-tile--feature .yir-tile__kicker {
+    color: rgb(255 255 255 / 0.8);
+}
+
+.yir-tile__value {
+    margin: 0;
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    line-height: 1.1;
     font-variant-numeric: tabular-nums;
-    min-width: 4.5rem;
-    text-align: right;
+    overflow-wrap: anywhere;
 }
 
-/* --status-pos/neg rather than a raw green/red: those are the tokens app.css already darkens far
-   enough to carry AA against the card surface, and re-lightens for the dark theme. */
-.ins-drift__delta--up {
-    color: var(--status-pos);
+.yir-tile--feature .yir-tile__value {
+    font-size: clamp(2rem, 4vw, 3rem);
 }
 
-.ins-drift__delta--down {
-    color: var(--status-neg);
+.yir-tile__caption {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.yir-tile--feature .yir-tile__caption {
+    color: rgb(255 255 255 / 0.9);
+}
+
+.yir-months {
+    width: 100%;
+    max-width: 480px;
+    margin-top: auto;
+}
+
+.yir-bar {
+    fill: rgb(255 255 255 / 0.45);
+}
+
+.yir-bar--peak {
+    fill: #fff;
+}
+
+.yir-month-label {
+    fill: rgb(255 255 255 / 0.8);
+    font-size: 11px;
+}
+
+/* ── The shareable card ───────────────────────────────────────────────────── */
+.yir-summary {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-md);
+    width: 100%;
+}
+
+.yir-holo {
+    width: 100%;
+    max-width: 720px;
+    border-radius: 18px;
+}
+
+.yir-card {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+/* The year / "All time" picker in the hero. */
+.yir-scope {
+    width: 8rem;
 }

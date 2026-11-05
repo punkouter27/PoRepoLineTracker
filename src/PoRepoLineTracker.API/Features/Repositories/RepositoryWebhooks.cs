@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace PoRepoLineTracker.API.Features.Repositories;
@@ -90,15 +91,10 @@ public sealed class RepositoryWebhooks(
     /// <returns>The new hook's id; null on 422 (already exists). Other refusals are logged and also null.</returns>
     private async Task<long?> CreateAsync(GitHubRepository repository, string token, string secret, CancellationToken cancellationToken)
     {
-        var body = new
-        {
-            name = "web",
-            active = true,
-            events = new[] { "push" },
-            config = new { url = CallbackUrl(repository.Id), content_type = "json", secret, insecure_ssl = "0" }
-        };
+        var body = new GitHubHookRequest("web", true, ["push"], new GitHubHookConfig(CallbackUrl(repository.Id), "json", secret, "0"));
 
-        using var response = await SendAsync(HttpMethod.Post, HooksPath(repository), token, JsonContent.Create(body), cancellationToken);
+        using var response = await SendAsync(HttpMethod.Post, HooksPath(repository), token,
+            JsonContent.Create(body, ApiJsonContext.Default.GitHubHookRequest), cancellationToken);
         if (response.IsSuccessStatusCode)
         {
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -214,3 +210,16 @@ internal static class WebhookEndpoints
         .WithName("GitHubPushWebhook");
     }
 }
+
+/// <summary>Body of <c>POST /repos/{owner}/{repo}/hooks</c>, named as GitHub spells it.</summary>
+internal sealed record GitHubHookRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("active")] bool Active,
+    [property: JsonPropertyName("events")] string[] Events,
+    [property: JsonPropertyName("config")] GitHubHookConfig Config);
+
+internal sealed record GitHubHookConfig(
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("content_type")] string ContentType,
+    [property: JsonPropertyName("secret")] string Secret,
+    [property: JsonPropertyName("insecure_ssl")] string InsecureSsl);

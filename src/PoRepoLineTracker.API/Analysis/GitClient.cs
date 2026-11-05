@@ -1,14 +1,13 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using LibGit2Sharp;
 using Microsoft.Extensions.Logging;
 
 namespace PoRepoLineTracker.API.Analysis;
 
 /// <summary>
-/// Git client that uses the git CLI for network operations (clone/pull) to avoid
-/// LibGit2Sharp native SIGABRT crashes in containerized Linux environments, while
-/// retaining LibGit2Sharp for local read-only operations (traversing commits/blobs).
+/// Git client over the git CLI: clone, fetch, and the history and churn logs. Object reads
+/// (trees and blobs) go through <see cref="GitObjectReader"/>. Nothing here uses a native git
+/// library: LibGit2Sharp crashed with SIGABRT on App Service Linux.
 /// Consumed directly by <see cref="GitHubService"/> — the interface it used to sit behind
 /// had one implementation, one injection site, and no test ever substituted it.
 /// </summary>
@@ -48,9 +47,8 @@ public class GitClient
 
         string cloneUrl = BuildAuthUrl(repoUrl, accessToken);
 
-        // Analysis reads exclusively from the git object store (commit/tree/blob traversal
-        // via LibGit2Sharp — see GitHubService.ProcessTreeEntry), so the working tree is never
-        // read. Skip the checkout: it avoids materializing deeply-nested files that blow past
+        // Analysis reads exclusively from the git object store (GitObjectReader), so the
+        // working tree is never read. Skip the checkout: it avoids materializing deeply-nested files that blow past
         // Windows' 260-char MAX_PATH ("path too long"), and it clones faster with less disk.
         RunGitProcess("clone", ["clone", "--quiet", "--no-checkout", "--", cloneUrl, localPath], workingDirectory: null);
 
@@ -108,8 +106,8 @@ public class GitClient
     /// <c>path too long: '…/app-logs/LogFiles/kudu/trace/2025-11-12T20-53-08_…xml'</c>.
     ///
     /// <para>Analysis reads exclusively from the object store (see
-    /// <c>GitHubService.ProcessTreeEntry</c>), and the commit walk starts at
-    /// <c>repo.Head</c> — so all that has to happen here is: fetch the objects, then move the
+    /// <see cref="GitObjectReader"/>), and the commit walk starts at
+    /// <c>HEAD</c> — so all that has to happen here is: fetch the objects, then move the
     /// local branch ref to match the remote. `git fetch` cannot update the currently checked-out
     /// branch itself, hence the explicit <c>update-ref</c>.</para>
     /// </remarks>
@@ -178,9 +176,8 @@ public class GitClient
     /// Per-file change counts since a date, for the hotspot view: how many commits touched each
     /// path, and how many lines they added plus removed.
     ///
-    /// <para>The git CLI rather than a LibGit2Sharp tree diff per commit: `git log --numstat` is
-    /// one process that git has optimised for exactly this, where diffing every commit pair in
-    /// managed code costs seconds per hundred commits. Read-only, so it needs no credential and
+    /// <para>`git log --numstat` is one process that git has optimised for exactly this, where
+    /// diffing every commit pair separately costs seconds per hundred commits. Read-only, so it needs no credential and
     /// is safe beside a running fetch.</para>
     ///
     /// <para><c>--no-renames</c> keeps every path a plain path (no <c>old => new</c> syntax to
@@ -220,9 +217,66 @@ public class GitClient
         return churn;
     }
 
-    public Repository OpenRepository(string path)
+    /// <summary>One commit reachable from HEAD, as the history walk needs it.</summary>
+    public sealed record CommitInfo(string Sha, DateTime AuthorDateUtc, string AuthorName, string AuthorEmail, int ParentCount);
+
+    /// <summary>Every commit reachable from HEAD, newest first.</summary>
+    public List<CommitInfo> Commits(string repositoryPath)
     {
-        return new Repository(path);
+        RunGitProcess("log (commits)", ["log", "--format=%H%x1f%at%x1f%an%x1f%ae%x1f%P", "HEAD"],
+            workingDirectory: repositoryPath, captureOutput: true, out var output);
+        return ParseCommits(output);
+    }
+
+    internal static List<CommitInfo> ParseCommits(string output)
+    {
+        var commits = new List<CommitInfo>();
+        foreach (var line in output.Split('\n'))
+        {
+            var f = line.TrimEnd('\r').Split('\x1f');
+            if (f.Length != 5 || !long.TryParse(f[1], out var unix)) continue;
+            commits.Add(new CommitInfo(f[0], DateTimeOffset.FromUnixTimeSeconds(unix).UtcDateTime, f[2], f[3],
+                f[4].Split(' ', StringSplitOptions.RemoveEmptyEntries).Length));
+        }
+        return commits;
+    }
+
+    /// <summary>
+    /// Lines added and removed by each of the given commits, limited to the pathspecs (all files
+    /// when null). Exactly these commits (<c>--no-walk --stdin</c>), so an incremental run diffs
+    /// only its new ones. A commit missing from the result changed nothing counted. Merges print
+    /// no numstat, so they count zero: their lines were counted on their own branch.
+    /// <c>--no-renames</c> matches the plain tree diff this replaced.
+    /// </summary>
+    public Dictionary<string, (int Added, int Removed)> LineStats(string repositoryPath, IEnumerable<string> shas, IReadOnlyList<string>? pathspecs)
+    {
+        string[] args = ["log", "--no-walk=unsorted", "--stdin", "--format=%x1e%H", "--numstat", "--no-renames"];
+        if (pathspecs is { Count: > 0 }) args = [.. args, "--", .. pathspecs];
+        RunGitProcess("log --numstat (stats)", args, repositoryPath, captureOutput: true, out var output,
+            stdin: string.Join('\n', shas) + "\n");
+        return ParseLineStats(output);
+    }
+
+    internal static Dictionary<string, (int Added, int Removed)> ParseLineStats(string output)
+    {
+        var stats = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
+        foreach (var record in output.Split('\x1e', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var lines = record.Split('\n');
+            var sha = lines[0].Trim();
+            if (sha.Length == 0) continue;
+            int added = 0, removed = 0;
+            foreach (var line in lines.Skip(1))
+            {
+                var parts = line.TrimEnd('\r').Split('\t', 3);
+                if (parts.Length != 3) continue;
+                // "-" for a binary file: no lines.
+                added += int.TryParse(parts[0], out var a) ? a : 0;
+                removed += int.TryParse(parts[1], out var r) ? r : 0;
+            }
+            stats[sha] = (added, removed);
+        }
+        return stats;
     }
 
     /// <summary>The 7-character abbreviated SHA every report shows (or the whole value if shorter).</summary>
@@ -260,7 +314,7 @@ public class GitClient
         => RunGitProcess(operationLabel, arguments, workingDirectory, captureOutput: false, out _);
 
     private void RunGitProcess(string operationLabel, string[] arguments, string? workingDirectory,
-        bool captureOutput, out string output)
+        bool captureOutput, out string output, string? stdin = null)
     {
         _logger.LogDebug("Running git {Operation} (args: {ArgCount})", operationLabel, arguments.Length);
 
@@ -270,6 +324,9 @@ public class GitClient
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = stdin is not null,
+            // git writes UTF-8; the platform default would garble non-ASCII author names and paths on Windows.
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
             CreateNoWindow = true
         };
 
@@ -313,6 +370,11 @@ public class GitClient
             // Read both streams concurrently to avoid deadlock on full buffers
             var stdoutTask = process.StandardOutput.ReadToEndAsync();
             var stderrTask = process.StandardError.ReadToEndAsync();
+            if (stdin is not null)
+            {
+                process.StandardInput.Write(stdin);
+                process.StandardInput.Close();
+            }
             if (!process.WaitForExit(GitTimeout))
             {
                 // The whole tree: git spawns helpers (git-remote-https) that hold the connection.

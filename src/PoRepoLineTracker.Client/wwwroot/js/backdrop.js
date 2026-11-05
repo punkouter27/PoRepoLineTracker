@@ -1,6 +1,6 @@
 // Animated background: one fixed WebGL2 canvas behind the app shell.
 //
-// ON by default (the owner's choice; there is no settings switch). localStorage 'backdrop' = 'off'
+// ON by default; the Settings "Visual effects" switch turns it off. localStorage 'backdrop' = 'off'
 // — set by hand in devtools — is the only way to disable it. Under prefers-reduced-motion it is
 // one still frame, redrawn only when the theme, the size or the mood changes, and no shockwave.
 // Without WebGL2 it does not start — the app's ordinary CSS background stays exactly as it is,

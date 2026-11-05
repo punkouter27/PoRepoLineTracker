@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace PoRepoLineTracker.API.Features.Insights;
 
 /// <summary>
-/// Aggregates every tracked repository into the single figure set the All Time Insights dashboard
+/// Aggregates every tracked repository into the single figure set the Insights page's "All time" view
 /// renders. Everything that page shows reads the whole history; the 30-day figures and the movers
 /// are for the Repositories grid, which asks the same endpoint.
 /// </summary>

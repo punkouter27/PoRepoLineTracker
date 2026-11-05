@@ -53,66 +53,41 @@ public class AntiforgeryCookieTests
             .GetRequiredService<IOptions<AntiforgeryOptions>>().Value;
     }
 
-    [Fact]
-    public void Development_UsesAnUnprefixedCookie_SoThePlainHttpProfileWorks()
-    {
-        var options = OptionsFor("Development");
-
-        options.Cookie.Name.Should().NotStartWith(HostPrefix,
-            "the http launch profile cannot set Secure, and the prefix would make the browser drop the cookie");
-        options.Cookie.Name.Should().NotBeNullOrWhiteSpace();
-    }
-
-    // Staging alongside Production: the default is "secure outside Development", not a check on
-    // any particular environment name. The __Host- prefix must always arrive paired with
-    // SecurePolicy.Always — a __Host- cookie without Secure is rejected outright by the browser.
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    public void NonDevelopmentEnvironments_KeepTheHostPrefixHardening(string environmentName)
-    {
-        var options = OptionsFor(environmentName);
-
-        options.Cookie.Name.Should().StartWith(HostPrefix);
-        options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
-    }
-
     /// <summary>
-    /// The escape hatch the integration tier uses. A host that genuinely serves plain HTTP under
-    /// a non-Development environment name says so, and gets a cookie a plain-HTTP client can
-    /// actually return. This is the case whose absence broke every write in that suite.
+    /// One row per way the choice is made. Development's plain-http profile cannot set Secure, so
+    /// the prefix would make the browser drop the cookie. Staging sits beside Production because
+    /// the default is "secure outside Development", not a check on any particular name. "Test"
+    /// with the setting off is the escape hatch the integration tier uses, and whose absence broke
+    /// every write in that suite; Development with it on shows configuration wins the other way.
     /// </summary>
-    [Fact]
-    public void PlainHttpHost_OptsOutByConfiguration_WhateverItsEnvironmentIsCalled()
+    [Theory]
+    [InlineData("Development", null, false)]
+    [InlineData("Production", null, true)]
+    [InlineData("Staging", null, true)]
+    [InlineData("Test", false, false)]
+    [InlineData("Development", true, true)]
+    public void HostPrefix_ComesOnlyWithSecure_AndEveryVariantKeepsTheDoubleSubmitContract(
+        string environmentName, bool? requireSecureCookies, bool expectHostPrefix)
     {
-        var options = OptionsFor("Test", requireSecureCookies: false);
+        var options = OptionsFor(environmentName, requireSecureCookies);
 
-        options.Cookie.Name.Should().NotStartWith(HostPrefix);
-        options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.SameAsRequest);
-    }
-
-    /// <summary>Configuration wins over the environment default in the other direction too.</summary>
-    [Fact]
-    public void DevelopmentOverHttps_CanOptIn()
-    {
-        var options = OptionsFor("Development", requireSecureCookies: true);
-
-        options.Cookie.Name.Should().StartWith(HostPrefix);
-        options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
-    }
-
-    [Fact]
-    public void EveryEnvironment_KeepsTheDoubleSubmitContract()
-    {
-        foreach (var environmentName in new[] { "Development", "Production" })
+        options.Cookie.Name.Should().NotBeNullOrWhiteSpace();
+        if (expectHostPrefix)
         {
-            var options = OptionsFor(environmentName);
-
-            // The header half is what makes antiforgery work for a JSON API at all — the default
-            // validator reads a form field, and no endpoint here posts a form.
-            options.HeaderName.Should().Be("X-CSRF-TOKEN");
-            options.Cookie.HttpOnly.Should().BeTrue();
-            options.Cookie.SameSite.Should().Be(SameSiteMode.Strict);
+            options.Cookie.Name.Should().StartWith(HostPrefix);
+            options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always,
+                "a __Host- cookie without Secure is rejected outright by the browser");
         }
+        else
+        {
+            options.Cookie.Name.Should().NotStartWith(HostPrefix);
+            options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.SameAsRequest);
+        }
+
+        // The header half is what makes antiforgery work for a JSON API at all — the default
+        // validator reads a form field, and no endpoint here posts a form.
+        options.HeaderName.Should().Be("X-CSRF-TOKEN");
+        options.Cookie.HttpOnly.Should().BeTrue();
+        options.Cookie.SameSite.Should().Be(SameSiteMode.Strict);
     }
 }
