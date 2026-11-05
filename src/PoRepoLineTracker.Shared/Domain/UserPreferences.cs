@@ -36,7 +36,9 @@ public record UserPreferences
         // Web markup & styling
         ".html", ".css", ".scss", ".less",
         // Python
-        ".py"
+        ".py",
+        // C and C++ (Unreal Engine projects; see FileIgnoreFilter for the folders it skips)
+        ".cpp", ".h", ".hpp", ".cc", ".cxx", ".inl", ".c"
     ];
 
     /// <summary>

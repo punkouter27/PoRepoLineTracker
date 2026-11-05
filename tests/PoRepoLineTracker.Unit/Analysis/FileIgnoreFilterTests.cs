@@ -46,6 +46,31 @@ public class FileIgnoreFilterTests
     }
 
     /// <summary>The user's own ignore globs: matched on their own, then applied to files and directories.</summary>
+    /// <summary>
+    /// An Unreal project: its C++ counts, with C-style comments, while the editor's generated and
+    /// vendored trees (at the project root or a plugin's) stay out of the totals.
+    /// </summary>
+    [Fact]
+    public void UnrealProject_CountsCpp_SkipsGeneratedAndEngineFolders()
+    {
+        UserPreferences.DefaultFileExtensions.Should().Contain([".cpp", ".h", ".hpp", ".cc", ".cxx", ".inl", ".c"]);
+        CommentSyntax.For(".cpp").Should().Be(CommentSyntax.For(".cs"));
+        CommentSyntax.For(".h").Should().Be(CommentSyntax.For(".cs"));
+
+        _filter.ShouldIgnoreFile("MyActor.generated.h", "Source/MyGame/MyActor.generated.h").Should().BeTrue();
+        _filter.ShouldIgnoreFile("MyActor.h", "Source/MyGame/MyActor.h").Should().BeFalse();
+
+        _filter.ShouldIgnoreDirectory("Intermediate").Should().BeTrue();
+        _filter.ShouldIgnoreDirectory("Plugins/MyPlugin/Binaries").Should().BeTrue();
+        _filter.ShouldIgnoreDirectory("DerivedDataCache").Should().BeTrue();
+        _filter.ShouldIgnoreDirectory("Saved").Should().BeTrue();
+        _filter.ShouldIgnoreDirectory("Source/ThirdParty").Should().BeTrue();
+        _filter.ShouldIgnoreDirectory("Plugins/MyPlugin/Source/ThirdParty").Should().BeTrue();
+
+        _filter.ShouldIgnoreDirectory("Source/MyGame").Should().BeFalse();
+        _filter.ShouldIgnoreDirectory("Source/MyGame/Saved").Should().BeFalse(); // Saved/ only at the root
+    }
+
     [Fact]
     public void CustomGlobs_MatchAndPruneFilesAndDirectories()
     {

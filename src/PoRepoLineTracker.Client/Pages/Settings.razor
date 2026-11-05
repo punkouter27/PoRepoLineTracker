@@ -196,7 +196,8 @@
         { ".NET", [".cs", ".razor", ".cshtml", ".xaml", ".csproj"] },
         { "JavaScript", [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"] },
         { "Web", [".html", ".css", ".scss", ".less"] },
-        { "Python", [".py"] }
+        { "Python", [".py"] },
+        { "C/C++", [".cpp", ".h", ".hpp", ".cc", ".cxx", ".inl", ".c"] }
     };
 
     private bool _soundOn;
@@ -264,6 +265,7 @@
         "Web" => BadgeStyle.Info,
         "JavaScript" => BadgeStyle.Warning,
         "Python" => BadgeStyle.Success,
+        "C/C++" => BadgeStyle.Danger,
         "Data" => BadgeStyle.Secondary,
         "Scripts" => BadgeStyle.Dark,
         _ => BadgeStyle.Light

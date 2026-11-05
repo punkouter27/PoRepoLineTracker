@@ -35,6 +35,12 @@ public class UserPreferencesEntity : ITableEntity
     /// </summary>
     public DateTime LastUpdated { get; set; }
 
+    /// <summary>
+    /// The last defaults upgrade applied to this list (<c>DefaultsUpgrade</c>); 0 on older rows.
+    /// Server-only: the client never sees it, and a save keeps the stored value.
+    /// </summary>
+    public int DefaultsVersion { get; set; }
+
     public UserPreferencesEntity() { }
 
     public UserPreferencesEntity(PoRepoLineTracker.Shared.Domain.UserPreferences prefs)

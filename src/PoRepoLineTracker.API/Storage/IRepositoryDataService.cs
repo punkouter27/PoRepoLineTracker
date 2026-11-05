@@ -17,6 +17,9 @@ public interface IRepositoryDataService
     /// </summary>
     Task<IEnumerable<GitHubRepository>> GetResumableRepositoriesAsync();
 
+    /// <summary>Every repository of every user (a cross-partition scan; startup upgrades only).</summary>
+    Task<IReadOnlyList<GitHubRepository>> GetEveryRepositoryAsync();
+
     Task AddCommitLineCountAsync(CommitLineCount commitLineCount);
     Task<IEnumerable<CommitLineCount>> GetCommitLineCountsByRepositoryIdAsync(RepositoryId repositoryId);
     Task<IEnumerable<DailyLineCountDto>> GetLineCountHistoryAsync(RepositoryId repositoryId, int days);

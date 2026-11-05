@@ -108,6 +108,7 @@ public sealed class AnalysisQueue(
         }
 
         await ResumeUnfinishedAsync();
+        await UpgradeDefaultsAsync();
         await Task.WhenAll(Enumerable.Range(0, Workers).Select(_ => WorkAsync(stoppingToken)));
     }
 
@@ -135,6 +136,20 @@ public sealed class AnalysisQueue(
         catch (Exception ex)
         {
             logger.LogError(ex, "Resume sweep could not read unfinished analyses; skipping this startup");
+        }
+    }
+
+    /// <summary>One-time file-type upgrades (<see cref="DefaultsUpgrade"/>); never fatal to startup.</summary>
+    private async Task UpgradeDefaultsAsync()
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            await DefaultsUpgrade.RunAsync(scope.ServiceProvider, this, logger);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "File-type defaults upgrade failed; it runs again on the next start");
         }
     }
 

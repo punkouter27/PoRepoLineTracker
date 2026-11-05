@@ -279,6 +279,14 @@ public class GitClient
         return stats;
     }
 
+    /// <summary>Every file path at HEAD (<c>ls-tree -r -z</c>: NUL-separated, so no quoting to undo).</summary>
+    public string[] TrackedFiles(string repositoryPath)
+    {
+        RunGitProcess("ls-tree", ["ls-tree", "-r", "--name-only", "-z", "HEAD"],
+            workingDirectory: repositoryPath, captureOutput: true, out var output);
+        return output.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+    }
+
     /// <summary>The 7-character abbreviated SHA every report shows (or the whole value if shorter).</summary>
     internal static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;
 

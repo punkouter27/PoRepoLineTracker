@@ -23,4 +23,10 @@ public interface IUserPreferencesService
 
     /// <summary>Deletes the user's stored preferences. No-op when there are none.</summary>
     Task DeletePreferencesAsync(UserId userId);
+
+    /// <summary>
+    /// Adds <paramref name="added"/> to the user's saved list once per <paramref name="version"/>,
+    /// creating the row (from the defaults) if there is none. False when already at that version.
+    /// </summary>
+    Task<bool> UpgradeDefaultsAsync(UserId userId, int version, IReadOnlyList<string> added);
 }

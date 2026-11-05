@@ -89,8 +89,8 @@ public class FileIgnoreFilter
         [
             // Build output
             ".dll", ".exe", ".pdb", ".obj", ".cache", ".lib", ".exp", ".ilk", ".idb", ".nupkg",
-            // Auto-generated
-            ".designer.cs", ".g.cs", ".g.i.cs", ".designer.vb", ".g.vb",
+            // Auto-generated (.generated.h: Unreal Header Tool output, only present if committed)
+            ".designer.cs", ".g.cs", ".g.i.cs", ".designer.vb", ".g.vb", ".generated.h",
             // Third-party minified
             ".min.js", ".min.css",
             // IDE config
@@ -133,6 +133,13 @@ public class FileIgnoreFilter
             "3rdparty/", "3rd_party/", "packages/", "external/", "externals/",
             "extern/", "deps/", "dependencies/", "submodules/",
 
+            // Unreal Engine build output and caches, at a project's root or a plugin's
+            // (Plugins/X/Intermediate/...), so matched at any depth. Intermediate/ is where the
+            // generated .gen.cpp files live. ThirdParty/ is already covered by "thirdparty/".
+            // ponytail: a hand-written folder named Intermediate or Binaries would be skipped too;
+            // narrow to "beside a .uproject/.uplugin" if that ever happens.
+            "intermediate/", "binaries/", "deriveddatacache/",
+
             // Python. A checked-in virtualenv or site-packages tree is somebody else's code by
             // definition, and both are commonly committed by accident.
             "site-packages/", "dist-packages/", ".venv/", "venv/", "virtualenv/",
@@ -157,7 +164,10 @@ public class FileIgnoreFilter
         _rootOnlyDirectoryNames =
         [
             "library", "temp", "logs", "builds", "build", "obj", "dist",
-            "usersettings", "memorycaptures", "recordings"
+            "usersettings", "memorycaptures", "recordings",
+            // Unreal's Saved/ (logs, autosaves, local config): a real source folder could be
+            // called that deeper in a tree, so only at the root.
+            "saved"
         ];
     }
 

@@ -116,6 +116,15 @@ public class RepositoryDataService : IRepositoryDataService
         return entities;
     }
 
+    public async Task<IReadOnlyList<GitHubRepository>> GetEveryRepositoryAsync()
+    {
+        await EnsureTablesExistAsync();
+        var repositories = new List<GitHubRepository>();
+        await foreach (var entity in _repositoryTableClient.QueryAsync<GitHubRepositoryEntity>())
+            repositories.Add(entity.ToDomainModel());
+        return repositories;
+    }
+
     public async Task<IEnumerable<GitHubRepository>> GetResumableRepositoriesAsync()
     {
         await EnsureTablesExistAsync();

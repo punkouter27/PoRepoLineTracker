@@ -30,7 +30,8 @@ public sealed record CommentSyntax(string? LinePrefix, (string Start, string End
     private static readonly (string[] Extensions, CommentSyntax Syntax)[] Families =
     [
         // C-style: // line comments, /* */ blocks.
-        ([".cs", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"], new CommentSyntax("//", ("/*", "*/"))),
+        ([".cs", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+          ".cpp", ".h", ".hpp", ".cc", ".cxx", ".inl", ".c"], new CommentSyntax("//", ("/*", "*/"))),
 
         // CSS has NO line-comment syntax — only /* */. Registered with "//" it truncated every
         // line from the first "//" onward, so `url(https://…)` lost its tail and a line holding

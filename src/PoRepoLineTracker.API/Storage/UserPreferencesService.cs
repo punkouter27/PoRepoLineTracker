@@ -68,6 +68,9 @@ public class UserPreferencesService : IUserPreferencesService
             // Create entity with updated timestamp (preferences is a record so we use 'with')
             var updatedPrefs = preferences with { LastUpdated = DateTime.UtcNow };
             var entity = new UserPreferencesEntity(updatedPrefs);
+            // Replace would reset the defaults marker the client never sends; carry it over.
+            var stored = await _preferencesTableClient.GetEntityIfExistsAsync<UserPreferencesEntity>("PREFS", entity.RowKey);
+            entity.DefaultsVersion = stored.HasValue ? stored.Value!.DefaultsVersion : 0;
             await _preferencesTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
             _logger.LogInformation(
                 "Saved preferences for user {UserId} with {Count} extensions",
@@ -79,6 +82,26 @@ public class UserPreferencesService : IUserPreferencesService
             _logger.LogError(ex, "Error saving preferences for user {UserId}", preferences.UserId);
             throw;
         }
+    }
+
+    public async Task<bool> UpgradeDefaultsAsync(UserId userId, int version, IReadOnlyList<string> added)
+    {
+        await EnsureTableExistsAsync();
+        var stored = await _preferencesTableClient.GetEntityIfExistsAsync<UserPreferencesEntity>("PREFS", userId.ToString());
+        if (stored.HasValue && stored.Value!.DefaultsVersion >= version) return false;
+
+        var prefs = stored.HasValue
+            ? stored.Value!.ToDomainModel()
+            : new UserPreferences { UserId = userId, FileExtensions = UserPreferences.DefaultFileExtensions };
+        var extensions = prefs.FileExtensions.ToList();
+        extensions.AddRange(added.Where(e => !extensions.Contains(e, StringComparer.OrdinalIgnoreCase)));
+
+        var entity = new UserPreferencesEntity(prefs with { FileExtensions = extensions, LastUpdated = DateTime.UtcNow })
+        {
+            DefaultsVersion = version
+        };
+        await _preferencesTableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+        return true;
     }
 
     public async Task DeletePreferencesAsync(UserId userId)
