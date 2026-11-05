@@ -30,8 +30,7 @@ public sealed class AzuriteFixture : IAsyncLifetime
     {
         try
         {
-            _container = new AzuriteBuilder()
-                .WithImage("mcr.microsoft.com/azure-storage/azurite:latest")
+            _container = new AzuriteBuilder("mcr.microsoft.com/azure-storage/azurite:latest")
                 .Build();
             await _container.StartAsync();
             AzuriteState.ConnectionString = _container.GetConnectionString();

@@ -454,6 +454,7 @@
 
     private void OnRowClick(DataGridRowMouseEventArgs<RepositoryGridRow> args)
     {
+        if (args.Data is null) return;
         Navigation.NavigateTo(AppRoutes.ForRepository(args.Data.Id));
     }
 
@@ -467,6 +468,7 @@
     /// </summary>
     private void OnRowRender(RowRenderEventArgs<RepositoryGridRow> args)
     {
+        if (args.Data is null) return;
         args.Attributes["style"] = "cursor: pointer;";
         args.Attributes["tabindex"] = "0";
         args.Attributes["data-repo"] = args.Data.Id.ToString(); // where fx.js finds a repository's row

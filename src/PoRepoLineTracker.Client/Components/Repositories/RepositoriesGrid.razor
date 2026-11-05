@@ -392,7 +392,7 @@ else
 
     private Task OnSort(DataGridColumnSortEventArgs<RepositoryGridRow> args)
     {
-        _sortProperty = args.SortOrder is null ? null : args.Column.Property;
+        _sortProperty = args.SortOrder is null ? null : args.Column?.Property;
         _sortDescending = args.SortOrder == SortOrder.Descending;
         return SaveSettingsAsync();
     }
@@ -436,7 +436,7 @@ else
 
     private Task OnPickedColumnsChanged(DataGridPickedColumnsChangedEventArgs<RepositoryGridRow> args)
     {
-        _hidden = PickableTitles.Except(args.Columns.Select(column => column.Title)).ToHashSet();
+        _hidden = PickableTitles.Except((args.Columns ?? []).Select(column => column.Title)).ToHashSet();
         return SaveSettingsAsync();
     }
 
