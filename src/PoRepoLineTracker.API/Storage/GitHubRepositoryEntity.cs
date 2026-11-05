@@ -27,6 +27,8 @@ public class GitHubRepositoryEntity : ITableEntity
     public DateTime? AnalysisQueuedUtc { get; set; }
     public bool QueuedFullReanalysis { get; set; }
     public bool IsPublic { get; set; }
+    public long? WebhookId { get; set; }
+    public string? WebhookSecret { get; set; }
 
     public GitHubRepository ToDomainModel()
     {
@@ -43,7 +45,9 @@ public class GitHubRepositoryEntity : ITableEntity
             LastAnalysisError = LastAnalysisError,
             AnalysisQueuedUtc = AnalysisQueuedUtc,
             QueuedFullReanalysis = QueuedFullReanalysis,
-            IsPublic = IsPublic
+            IsPublic = IsPublic,
+            WebhookId = WebhookId,
+            WebhookSecret = WebhookSecret
         };
     }
 
@@ -66,7 +70,9 @@ public class GitHubRepositoryEntity : ITableEntity
             LastAnalysisError = model.LastAnalysisError,
             AnalysisQueuedUtc = model.AnalysisQueuedUtc,
             QueuedFullReanalysis = model.QueuedFullReanalysis,
-            IsPublic = model.IsPublic
+            IsPublic = model.IsPublic,
+            WebhookId = model.WebhookId,
+            WebhookSecret = model.WebhookSecret
         };
     }
 }

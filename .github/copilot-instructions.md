@@ -35,31 +35,37 @@ Not lazy about: understanding the problem (read it fully and trace the real flow
 
 These are the owner's standing rules for this repository. Where one conflicts with the ponytail text above, the rule here wins.
 
-## 1. Branching & version control
+## 1. Git & workflow
 
-- **Master first:** work only on `master`. Use another branch only when explicitly asked.
-- **Human-like commits:** on "git sync", make a short commit in non-technical American slang (it should feel human) and push automatically.
+- **Stay on `master`:** commit directly to `master`. Create branches only when specifically asked.
+- **Casual commits:** write short, natural commit messages using informal American phrasing. Auto-commit and push on sync.
 
-## 2. Runtime, testing & quality
+## 2. Running, testing & clean code
 
-- **Startup verification:** after any code change, restart the app and verify it started successfully.
-- **Targeted testing:** don't run the full suite. Run only the tests relevant to the change, or none for minor edits.
-- **Zero warnings:** compiler warnings are errors; fix them immediately.
+- **Run only related tests:** test only what was touched. Skip tests for minor edits; never run the whole test suite.
+- **Zero warnings:** fix all build warnings immediately. Treat every warning as a failure.
 
-## 3. Architecture & configuration
+## 3. Architecture & setup
 
-- **Docs check:** read the root `DOCS/` folder (if present) and `README.md` first for architecture context. Update both immediately when dependencies, configuration keys or major endpoints change.
-- **Secrets:** never use dotnet user-secrets. Use appsettings or Azure Key Vault.
-- **Maximum automation:** don't make the owner type CLI commands or click through a web GUI when it can be automated.
-- **Build version:** the app shows the build version `YYMMDD` in the bottom-right corner, stamped automatically at build time (`AssemblyMetadata` `BuildVersion` in the client csproj). Keep it working.
+- **Keep docs updated:** check `DOCS/` and `README.md` first to get a quick overview of the app (if they exist).
+- **Fully automated:** run all builds, scripts and setup commands directly. Do not ask the user to run terminal commands.
 
-## 4. UI changes & reporting
+## 4. UI & output rules
 
-- **Visual documentation:** for UI changes, capture and annotate the old and new states, save them as `SCREENSHOTS/YYMMDD-feature-name.html`, and give its valid full path.
-- **TL;DR:** end any answer longer than 100 words with a TL;DR of about 20 words.
-- **3-tier diff summary:** for any code change over 20 lines, add a TL;DR with exactly one line per tier:
-  1. Toddler: one-sentence simple intuition.
-  2. Child: one-sentence summary of the behaviour.
-  3. Adult: one-sentence technical/architectural summary.
-- **Big removals:** if more than 100 lines of code are removed overall in one prompt, say so.
-- **Direction questions:** after any code change over 100 lines, if the prompt asked no other questions, end with 3 optional high-level questions about the app's purpose and direction that could lead to further changes.
+- **UI previews:** for visual changes, save before-and-after HTML mockups to `SCREENSHOTS/{YYMMDD}-{feature}.html`, plus a single annotated PNG showing the before and after with notes.
+- **Clarifying questions:** if modifying more than 100 lines and no pending questions exist, list 3 key follow-up questions about future direction or logic.
+- **Required footers:**
+  - **Short recap:** if your response is over 100 words, add a recap under 20 words at the very end.
+  - **3-level summary:** if a code change is over 20 lines, add 3 single-sentence summaries:
+    - *Toddler:* explain the idea simply.
+    - *Child:* explain what the app actually does now.
+    - *Adult:* explain how it was built.
+
+## CI/CD and Azure (same section in every Po repo)
+
+- A push to `master` builds, tests, deploys and health-gates (`.github/workflows/deploy.yml`). Nothing is deployed by hand.
+- Azure sign-in is GitHub OIDC (the `gh-<repo>-deploy` app). Its IDs are repo **variables** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`, and the App Service name is `AZURE_WEBAPP_NAME`. Never move them to secrets or write resource names into workflows.
+- Every permission the app and CI need lives in `SCRIPTS/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
+- The app answers `/health/live` (process up, no dependencies) and `/health` (dependencies reachable). The deploy's health gate checks both.
+- Tests pass on any machine: no drive-letter, temp-folder or working-directory assumptions, and no live config value hard-coded as an expected result (read it from the same config the app reads).
+- A red run on the default branch gets an ntfy push from the CI watcher in PoPunkouterSoftware. Fix it, or say why it is red.

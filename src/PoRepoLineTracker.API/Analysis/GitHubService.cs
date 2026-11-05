@@ -629,7 +629,9 @@ public class GitHubService : IGitHubService
                     CloneUrl = repo.clone_url ?? string.Empty,
                     Description = repo.description ?? string.Empty,
                     IsPrivate = repo.@private,
-                    Language = repo.language ?? string.Empty
+                    Language = repo.language ?? string.Empty,
+                    IsFork = repo.fork,
+                    IsArchived = repo.archived
                 };
             }).ToList();
 
@@ -652,5 +654,7 @@ public class GitHubService : IGitHubService
         public string? description { get; set; }
         public bool @private { get; set; }
         public string? language { get; set; }
+        public bool fork { get; set; }
+        public bool archived { get; set; }
     }
 }

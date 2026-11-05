@@ -146,7 +146,7 @@ internal static class RepositoryEndpoints
         })
         .WithName("RemoveAllRepositories");
 
-        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, AddMultipleRepositoriesCommandHandler addHandler, AnalysisQueue queue) =>
+        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, AddMultipleRepositoriesCommandHandler addHandler, AnalysisQueue queue, RepositoryWebhooks webhooks, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -178,6 +178,18 @@ internal static class RepositoryEndpoints
             // resumes, so a restart before these run loses nothing.
             foreach (var added in result.Added)
                 queue.Enqueue(added.Id);
+
+            // Re-importing is how repositories tracked before webhooks existed get one: an
+            // incremental run brings each up to date and registers its hook on the way out.
+            if (webhooks.Enabled && result.AlreadyTracked.Count > 0)
+            {
+                var alreadyTracked = result.AlreadyTracked.Select(r => r.Id).ToHashSet();
+                foreach (var row in await repoDataService.GetAllRepositoriesAsync(userId))
+                {
+                    if (row.WebhookId is null && alreadyTracked.Contains(row.Id))
+                        await queue.EnqueueReanalysisAsync(row, repoDataService, full: false);
+                }
+            }
 
             return Results.Ok(result);
         })

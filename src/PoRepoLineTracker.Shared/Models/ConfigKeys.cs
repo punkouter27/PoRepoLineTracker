@@ -53,6 +53,16 @@ public static class ConfigKeys
         public const string LocalReposPath = "GitHub:LocalReposPath";
     }
 
+    /// <summary>Facts about where the app is running.</summary>
+    public static class Hosting
+    {
+        /// <summary>
+        /// The app's public host name, set by App Service itself. Push webhooks are registered
+        /// against it and are off when it is absent (a local run GitHub cannot reach).
+        /// </summary>
+        public const string PublicHostName = "WEBSITE_HOSTNAME";
+    }
+
     // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a
     // recorded deviation, see SPEC.md §9. GitHub is the only provider.
 

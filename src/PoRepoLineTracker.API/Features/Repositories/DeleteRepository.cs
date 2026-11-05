@@ -6,10 +6,16 @@ public class DeleteRepositoryCommandHandler(
     IRepositoryDataService repositoryDataService,
     IGitHubService gitHubService,
     ICodeHealthSnapshotStore snapshotStore,
+    RepositoryWebhooks webhooks,
     ILogger<DeleteRepositoryCommandHandler> logger)
 {
     public async Task Handle(DeleteRepositoryCommand request, CancellationToken cancellationToken = default)
     {
+        // Read first: the hook's id lives on the row. A hook left behind would keep posting
+        // every push to a route that now answers 404.
+        if (await repositoryDataService.GetRepositoryByIdAsync(request.RepositoryId) is { } repository)
+            await webhooks.RemoveAsync(repository);
+
         await repositoryDataService.DeleteRepositoryAsync(request.RepositoryId);
         await DeleteDerivedDataAsync(request.RepositoryId, gitHubService, snapshotStore, logger);
     }

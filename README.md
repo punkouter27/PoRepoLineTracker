@@ -24,6 +24,8 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 - Account: `DELETE /api/account` removes everything stored for the user and revokes the GitHub OAuth grant; Settings also offers the JSON/CSV export of `GET /api/repositories/export`.
 - Hotspots: `GET /api/repositories/{id}/hotspots/{days}` ranks files by commits × code lines, read from the clone (`git log --numstat`).
 - Year in Review: `GET /api/insights/year/{year}?offset=<minutes>` (page `/year-in-review`).
+- Push webhooks: after an analysis, the app registers a GitHub push hook on the repository (owner's token, `repo` scope, a per-repository HMAC secret) pointing at anonymous `POST /api/webhooks/github/{id}`. A push to the default branch queues an incremental analysis. On only when `WEBSITE_HOSTNAME` is set (App Service sets it; local runs have no hooks). Re-running the import connects repositories tracked earlier; deleting a repository removes its hook.
+- One-click import skips forks and archived repositories and sends large accounts in chunks of 200.
 - Public badges (opt-in per repository via `PUT /api/repositories/{id}/visibility`): anonymous `GET /badge/{id}/lines.svg`, `/badge/{id}/health.svg` and the share page `/share/{id}`. Rate-limited per address; nothing is public until the owner switches it on.
 - Analysis pipeline: the app clones or pulls repositories locally (no working-tree checkout), filters files by user-selected extensions and the vendored-code ignore rules, computes commit-level totals, and writes derived records back to Azure Table Storage.
 - Presentation: the client reads repository history, extension percentages, contributor stats, and user preferences from the same API host.

@@ -92,7 +92,12 @@
         // Fetch failed: leave the modal up showing the error alert; the user closes it via X.
         if (!string.IsNullOrEmpty(pageState.ErrorMessage)) return;
 
-        if (pageState.GitHubUserRepositories.Count == 0)
+        // Forks repeat someone else's history and archived repositories never change, so the
+        // one-click import leaves both out. Already-tracked ones are re-sent on purpose: the
+        // server brings them up to date and connects their push webhook.
+        _selected = pageState.GitHubUserRepositories.Where(r => !r.IsFork && !r.IsArchived).ToList();
+
+        if (!_selected.Any())
         {
             // Nothing on GitHub to import — close quietly; the page behind already shows what is
             // tracked.
@@ -100,7 +105,6 @@
             return;
         }
 
-        _selected = pageState.GitHubUserRepositories;
         await AddSelectedRepositories();
     }
 
@@ -221,16 +225,24 @@
                     i, repo.Owner, repo.RepoName);
             }
 
-            Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", repositoriesToAdd.Count);
-            var response = await Http.PostAppJsonAsync("/api/repositories/bulk", repositoriesToAdd,
-                AppJsonSerializerContext.Default.ListBulkRepositoryDto, _addCts!.Token);
+            // The server takes at most 200 per request, so a bigger account goes in chunks.
+            var bulkResult = new BulkAddResult();
+            HttpResponseMessage response = null!;
+            foreach (var chunk in repositoriesToAdd.Chunk(200))
+            {
+                Logger.LogInformation("Making POST request to /api/repositories/bulk with {Count} repositories", chunk.Length);
+                response = await Http.PostAppJsonAsync("/api/repositories/bulk", chunk.ToList(),
+                    AppJsonSerializerContext.Default.ListBulkRepositoryDto, _addCts!.Token);
+                Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
+                if (!response.IsSuccessStatusCode) break;
 
-            Logger.LogInformation("Bulk repository add response: Status={StatusCode}", response.StatusCode);
+                var part = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
+                bulkResult.Added.AddRange(part?.Added ?? []);
+                bulkResult.AlreadyTracked.AddRange(part?.AlreadyTracked ?? []);
+            }
 
             if (response.IsSuccessStatusCode)
             {
-                Logger.LogInformation("Reading response content as JSON...");
-                var bulkResult = await response.Content.ReadAppJsonAsync(AppJsonSerializerContext.Default.BulkAddResult);
 
                 var addedCount = bulkResult?.Added.Count ?? 0;
                 var alreadyTrackedCount = bulkResult?.AlreadyTracked.Count ?? 0;

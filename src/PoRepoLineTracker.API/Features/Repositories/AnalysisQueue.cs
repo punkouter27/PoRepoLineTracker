@@ -39,6 +39,17 @@ public sealed class AnalysisQueue(
     private readonly ConcurrentDictionary<RepositoryId, byte> _pending = new();
 
     /// <summary>
+    /// Pushes that arrived while a run was pending. That run may already have pulled, so one more
+    /// incremental run follows it.
+    /// ponytail: in memory, so a restart in that window loses the extra run. The next push or a
+    /// manual re-analyse catches the commit up.
+    /// </summary>
+    private readonly ConcurrentDictionary<RepositoryId, byte> _runAgain = new();
+
+    /// <summary>Asks for one more incremental run once the pending one ends (webhook pushes).</summary>
+    public void RunAgainAfterCurrent(RepositoryId repositoryId) => _runAgain.TryAdd(repositoryId, 0);
+
+    /// <summary>
     /// Whether a job for this repository is queued or running. Re-analyse, delete and visibility
     /// changes answer 409 on it: a delete would leave a queued job cloning a repository that no
     /// longer exists, and the running job's final row write would undo a visibility change.
@@ -50,10 +61,11 @@ public sealed class AnalysisQueue(
     public bool Enqueue(RepositoryId repositoryId) => Write(new AnalyzeRepositoryCommitsCommand(repositoryId));
 
     /// <summary>
-    /// Stamps the row, then queues a full re-analysis. False if one is already pending. The stamp
-    /// comes first so that there is no moment where the job is queued but a restart would lose it.
+    /// Stamps the row, then queues a re-analysis: full by default, incremental (new commits only)
+    /// for a webhook push. False if one is already pending. The stamp comes first so that there is
+    /// no moment where the job is queued but a restart would lose it.
     /// </summary>
-    public async Task<bool> EnqueueReanalysisAsync(GitHubRepository repository, IRepositoryDataService repositoryDataService)
+    public async Task<bool> EnqueueReanalysisAsync(GitHubRepository repository, IRepositoryDataService repositoryDataService, bool full = true)
     {
         if (AnalyzeRepositoryCommitsCommandHandler.IsRunning(repository.Id) || !_pending.TryAdd(repository.Id, 0))
             return false;
@@ -61,7 +73,7 @@ public sealed class AnalysisQueue(
         try
         {
             repository.AnalysisQueuedUtc = DateTime.UtcNow;
-            repository.QueuedFullReanalysis = true;
+            repository.QueuedFullReanalysis = full;
             await repositoryDataService.UpdateRepositoryAsync(repository);
         }
         catch
@@ -70,7 +82,7 @@ public sealed class AnalysisQueue(
             throw;
         }
 
-        _channel.Writer.TryWrite(new AnalyzeRepositoryCommitsCommand(repository.Id, ClearExistingData: true));
+        _channel.Writer.TryWrite(new AnalyzeRepositoryCommitsCommand(repository.Id, ClearExistingData: full));
         return true;
     }
 
@@ -166,10 +178,37 @@ public sealed class AnalysisQueue(
             logger.LogError(ex, "Analysis failed for repository {RepositoryId}: {Message}", command.RepositoryId, ex.Message);
         }
 
+        var dataService = scope.ServiceProvider.GetRequiredService<IRepositoryDataService>();
+
+        // Still inside the pending window, so no other write to the row can interleave.
+        await EnsureWebhookAsync(scope.ServiceProvider, dataService, command.RepositoryId, stoppingToken);
+
         // Clear the stamp BEFORE releasing the pending slot: in the other order a re-analysis
         // queued in between would have its fresh stamp wiped.
-        await ClearQueuedStampAsync(scope.ServiceProvider.GetRequiredService<IRepositoryDataService>(), command.RepositoryId);
+        await ClearQueuedStampAsync(dataService, command.RepositoryId);
         _pending.TryRemove(command.RepositoryId, out _);
+
+        if (_runAgain.TryRemove(command.RepositoryId, out _))
+            Write(new AnalyzeRepositoryCommitsCommand(command.RepositoryId));
+    }
+
+    /// <summary>A fresh read, after the handler's last row write. Only for a run that succeeded:
+    /// a failed one (revoked token, deleted repository) would only be refused by GitHub too.</summary>
+    private async Task EnsureWebhookAsync(IServiceProvider services, IRepositoryDataService dataService, RepositoryId repositoryId, CancellationToken stoppingToken)
+    {
+        var webhooks = services.GetRequiredService<RepositoryWebhooks>();
+        if (!webhooks.Enabled) return;
+
+        try
+        {
+            var repository = await dataService.GetRepositoryByIdAsync(repositoryId);
+            if (repository is { LastAnalysisError: null, WebhookId: null })
+                await webhooks.EnsureAsync(repository, dataService, stoppingToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Webhook check failed for repository {RepositoryId}", repositoryId);
+        }
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ public class RemoveAllRepositoriesCommandHandler(
     IRepositoryDataService repositoryDataService,
     IGitHubService gitHubService,
     ICodeHealthSnapshotStore snapshotStore,
+    RepositoryWebhooks webhooks,
     ILogger<RemoveAllRepositoriesCommandHandler> logger)
 {
     public async Task Handle(RemoveAllRepositoriesCommand request, CancellationToken cancellationToken = default)
@@ -19,6 +20,8 @@ public class RemoveAllRepositoriesCommandHandler(
         // is shared by every user of the deployment.
         foreach (var repository in repositories)
         {
+            // Account delete runs this before the user row (and so the token) is gone.
+            await webhooks.RemoveAsync(repository);
             await DeleteRepositoryCommandHandler.DeleteDerivedDataAsync(
                 repository.Id, gitHubService, snapshotStore, logger);
         }

@@ -31,7 +31,10 @@ public sealed class RemoveAllRepositoriesCommandHandlerTests
 
     private Task WhenRemovingAll() =>
         new RemoveAllRepositoriesCommandHandler(
-                _dataService, _gitHub, _snapshots, Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>())
+                _dataService, _gitHub, _snapshots,
+                new RepositoryWebhooks(Substitute.For<IHttpClientFactory>(), Substitute.For<IUserService>(),
+                    Substitute.For<Microsoft.Extensions.Configuration.IConfiguration>(), Substitute.For<ILogger<RepositoryWebhooks>>()),
+                Substitute.For<ILogger<RemoveAllRepositoriesCommandHandler>>())
             .Handle(new RemoveAllRepositoriesCommand(_userId), CancellationToken.None);
 
     [Fact]

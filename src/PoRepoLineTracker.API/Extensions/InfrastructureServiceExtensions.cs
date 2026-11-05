@@ -204,6 +204,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAllRepositoriesLineCountHistoryQueryHandler>();
         services.AddScoped<GetFileExtensionPercentagesQueryHandler>();
         services.AddScoped<DeleteRepositoryCommandHandler>();
+        services.AddScoped<RepositoryWebhooks>();
         services.AddScoped<RemoveAllRepositoriesCommandHandler>();
         services.AddScoped<DeleteAccountCommandHandler>();
         services.AddScoped<AddMultipleRepositoriesCommandHandler>();

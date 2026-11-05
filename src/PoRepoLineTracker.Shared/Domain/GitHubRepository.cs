@@ -44,6 +44,16 @@ public class GitHubRepository
     /// </summary>
     public bool IsPublic { get; set; }
 
+    /// <summary>GitHub's id for the push hook this app registered; null when there is none.</summary>
+    public long? WebhookId { get; set; }
+
+    /// <summary>
+    /// The hook's HMAC secret, unique to this repository. Server-side only: never serialised, so
+    /// no response that carries this type can hand it to a browser.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? WebhookSecret { get; set; }
+
     /// <summary>
     /// The only clone URL the server uses: built from owner/name, never accepted from a caller.
     /// The user's token is embedded in whatever URL git is handed, so a caller-supplied URL sent

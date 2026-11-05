@@ -403,3 +403,17 @@ Owner request: organise the app's links, pages and components logically. No new 
 - **Operator pages are apart.** `Pages/Diagnostics.razor` moved to `Pages/Operator/`, so the eight files in `Pages/` are all user destinations. It is still not in the sidebar, by the owner's choice.
 - **Components are filed by kind.** `Components/Charts/` holds the seven chart components (AllReposComparisonChart, ContributorChart, CodeHealthRadar, CodeHealthTrendCard, CommitActivityHeatmap, HotspotTreemap, ExtensionBreakdownCard), which had been split between the folder root and `Components/Repositories/`. `Components/Auth/` holds LoginDisplay and RedirectToLogin (components, not layouts) and `Components/Account/` holds AccountDataCard.
 - **One empty state.** `OnboardingEmptyState` became `EmptyStateKind.Onboarding` — the first-run panel is the one kind of `EmptyState` with a second presentation, rather than a second component with the same job and its own copy of the card chrome.
+
+
+---
+
+## Delta: push webhooks restored, self-registering 2026-11-04
+
+Owner picks #2 and #4. Reverses the 2026-09-21 webhook removal (§D.1 item 1): it was removed because nothing registered a hook or set its secret, and now the app does both. No new table, Bicep resource or Key Vault secret. The repository row gains `WebhookId` and `WebhookSecret` (Table Storage takes new columns without a migration).
+
+- **Registration** (`Features/Repositories/RepositoryWebhooks`). After every analysis that succeeded and has no hook yet, `AnalysisQueue` calls `EnsureAsync` while the job is still pending, so no other row write can interleave. It does `POST /repos/{owner}/{name}/hooks` (push events, JSON) with the owner's token and a random 40-hex secret per repository. A 422 (a hook already exists for the URL, so its secret was lost) deletes that hook and creates a fresh one. A refusal (no admin rights) is logged and retried after the next analysis. Off when `WEBSITE_HOSTNAME` (`ConfigKeys.Hosting.PublicHostName`) is absent.
+- **Receiver.** Anonymous `POST /api/webhooks/github/{id}`. It sits under `/api`, so the page gate and the service worker already pass it. It carries the `public` rate limit, skips antiforgery and caps the body at 5 MB. Unknown repository or no secret: 404. Bad `X-Hub-Signature-256` (HMAC-SHA256 over the raw body, constant-time compare): 401. `ping` and non-push events: 200. A push to a branch other than the default: 200, ignored. A default-branch push queues an incremental run with the same durable stamp as re-analyse (`EnqueueReanalysisAsync(full: false)`). If a run is already pending, `RunAgainAfterCurrent` adds one more run after it (`ponytail:` in memory).
+- **Secret.** Stored on the row and `[JsonIgnore]` on the domain type, so it never reaches a browser.
+- **Removal.** Delete and remove-all (and so account delete, which runs remove-all before the user row and token go) delete the hook first, best-effort.
+- **Backfill.** `/bulk` queues an incremental run for already-tracked rows that have no hook, so re-running the one-click import connects them.
+- **Import (#2).** The Add dialog was already a one-click import of every repository. It now skips forks and archived repositories (`GitHubUserRepositoryDto.IsFork` / `IsArchived`) and posts in chunks of 200, the server's per-request cap, so accounts over 200 no longer fail.
