@@ -34,6 +34,7 @@ public sealed class ResponsiveLayoutUiTests
     {
         var page = await _fixture.OpenAsync(Viewport("desktop"), "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
         (await page.InnerTextAsync("body")).Should().NotBeNullOrWhiteSpace();
@@ -47,6 +48,7 @@ public sealed class ResponsiveLayoutUiTests
     {
         var page = await OpenRouteAsync("mobile", "/repositories");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 25000 });
         await page.WaitForTimeoutAsync(2500);
@@ -63,6 +65,7 @@ public sealed class ResponsiveLayoutUiTests
     {
         var page = await OpenRouteAsync("mobile", "/repositories");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 25000 });
         await page.WaitForTimeoutAsync(2500);

@@ -1,0 +1,273 @@
+/* PoRepoLineTracker Design Tokens & Fonts (Rule 5 & Rule 6) */
+@font-face {
+    font-family: 'Inter';
+    src: url('/_content/Radzen.Blazor/fonts/InterVariable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    src: url('/_content/Radzen.Blazor/fonts/MaterialSymbolsOutlined.woff2') format('woff2');
+    font-weight: 100 700;
+    font-style: normal;
+    font-display: block;
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 20px;
+    line-height: 1;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+    /* Brand — M3 Purple, matches --rz-primary. WCAG AA against white.
+       This is THE definition. Every tint, shadow and wash below derives from it
+       with color-mix() rather than restating the rgb triplet: `rgba(103, 80,
+       164, x)` was written out 24 times across this file and effects.css, so
+       rebranding meant a find-and-replace that could not be verified. Now it is
+       this one line. */
+    --primary-color: #6750A4;
+    --primary-dark: #5B4397;
+    --primary-light: #7C6CAF;
+
+    /* The two companion hues used only by the decorative mesh gradients (e.g.
+       PageHero). They are NOT tints of the primary — the mesh reads as flat
+       when every stop shares a hue — so they are their own tokens rather than
+       color-mix() of the above. */
+    --brand-violet: #7C3AED;
+    --brand-violet-light: #A78BFA;
+
+    /* The brand purple AS TEXT OR AN ICON, which is a different job from the
+       brand purple as a fill.
+
+       --primary-color is tuned to carry white on top of it (5.6:1), which is
+       exactly what makes it too dark to sit ON a dark surface: measured 2.27:1
+       for the breadcrumb link and 2.59:1 for the onboarding icons against the
+       dark card, both failing WCAG 2.2 AA. The dark theme had no answer for this
+       because a single token cannot be both a 5.6:1 background and a 4.5:1
+       foreground.
+
+       So: fills keep --primary-color, and anything that PAINTS GLYPHS uses this.
+       The dark value is Material 3's dark-scheme primary for this palette, which
+       clears AA on both dark surfaces the app paints (#0f172a and Radzen's
+       #121212 card). */
+    --primary-on-surface: var(--primary-color);
+
+    /* The magenta accent. Radzen's own secondary (#E31C65) misses AA on the app's well by a
+       hair — 4.34:1 against --bg-secondary, where 4.5 is the floor — so outlined/text Secondary
+       buttons ("Upload Local", "Refresh") use this slightly deeper magenta instead. Inline <code>
+       reads as the same accent and shares it. */
+    --accent-secondary: #c02d76;
+    --code-color: var(--accent-secondary);
+
+    --secondary-color: #64748b;
+    --secondary-dark: #475569;
+    --secondary-light: #94a3b8;
+
+    /* Darkened from #059669. Both places this paints are a small circular badge with a WHITE
+       glyph centred in it (the header brand mark and the login logomark), and white on #059669
+       measures 3.76:1 — under the 4.5:1 AA floor for the 8.8px glyph it carries. #047857 is
+       5.5:1 and reads as the same green at badge size. */
+    --success-color: #047857;
+    --warning-color: #d97706;
+    --danger-color: #dc2626;
+
+    /* Surfaces */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --bg-dark: #0f172a;
+    --bg-dark-secondary: #1e293b;
+
+    /* Text */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --text-inverse: #f8fafc;
+
+    /* Borders */
+    --border-light: #e2e8f0;
+    --border-medium: #cbd5e1;
+    --border-dark: #475569;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    /* Spacing scale — fluid, so one token covers phone through desktop instead of every
+       component hardcoding a literal and drifting out of rhythm with its neighbours. The
+       clamp floors are the old phone values and the ceilings the old desktop ones, so
+       nothing jumps at a breakpoint. */
+    --space-xs: clamp(0.2rem, 0.5vw, 0.25rem);
+    --space-sm: clamp(0.375rem, 0.9vw, 0.5rem);
+    --space-md: clamp(0.625rem, 1.6vw, 1rem);
+    --space-lg: clamp(0.875rem, 2.4vw, 1.5rem);
+    --space-xl: clamp(1.25rem, 3.2vw, 2rem);
+    --space-2xl: clamp(1.75rem, 4.5vw, 3rem);
+
+    /* Status colours. Previously hardcoded hex scattered across five scoped stylesheets, none
+       of which flipped for dark mode — measured at 1.74:1 (a warning tone on --rz-base-100) and
+       2.09:1 (added), both failing WCAG 2.2 AA. These pairs are picked to clear 4.5:1 for body
+       text against the surface each theme actually paints. */
+    --status-pos: #15803d;
+    --status-neg: #b91c1c;
+    --status-warn: #a16207;
+    --status-info: #0e7490;
+    --status-crit: #b91c1c;
+
+    /* Categorical series palette — one source for the chart legends that previously kept two
+       independent index-keyed lists (.cc-swatch--N and .arc-legend__swatch--N). */
+    --series-0: #5b3df5;
+    --series-1: #d46ae8;
+    --series-2: #ff7a59;
+    --series-3: #ffb84d;
+    --series-4: #f95d9b;
+    --series-5: #34c3b3;
+    --series-6: #5aa9ff;
+    --series-7: #9b7bff;
+    --series-8: #8bc34a;
+    --series-9: #ffd54f;
+    --series-10: #ec407a;
+    --series-11: #26a69a;
+
+    /* Type scale */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 1.875rem;
+
+    /* Shell metrics — referenced by the grid and the mobile drawer offset. */
+    --shell-sidebar-width: 240px;
+    --shell-header-height: 60px;
+
+    /* Chart box. One source for the plot's guard rails, consumed by `.rz-chart` and by
+       ChartCard's loading skeleton — those two drifted apart (38dvh vs 38vh) precisely because
+       each restated the number. The height itself is no longer a fixed clamp: see `.rz-chart`. */
+    --chart-aspect: 16 / 9;
+    --chart-h-min: clamp(200px, 30dvh, 280px);
+    --chart-h-max: min(56dvh, 480px);
+
+    /* Minimum column width for the dashboard grid. A custom property rather than a literal so a
+       page can raise it for panels that need room (wide tables) or lower it for dense tiles,
+       without a second grid class per density. */
+    --dash-min: 420px;
+
+    /* Radzen primary, single source of truth. */
+    --rz-primary: var(--primary-color);
+    --rz-on-primary: #FFFFFF;
+    --rz-primary-lighter: color-mix(in srgb, var(--primary-color) 12%, transparent);
+
+    /* Ambient backdrop glow behind the content well — see `.rz-body`. A token rather than a
+       literal so the dark variant can raise the opacity without duplicating the gradient. */
+    --ambient-glow: color-mix(in srgb, var(--primary-color) 6%, transparent);
+}
+
+/* ─── Dark theme ─────────────────────────────────────────────────────────────
+   Only this app's own tokens are redefined here. Radzen's `--rz-*` scale is
+   deliberately left alone: index.html swaps in material-dark.css, which already
+   sets it correctly, and overriding pieces of it actively breaks the rest.
+
+   Concretely — setting `--rz-base-100`/`--rz-base-200` here made
+   `--rz-text-secondary-color` resolve to #0f172a against Radzen's #121212 dark
+   surface, because the dark theme derives its secondary text colour from that
+   base scale. Every caption and description styled with it became invisible.
+   Redefine an `--rz-*` token only after checking what else derives from it.
+
+   The token list is duplicated across the two selectors on purpose: a media
+   query cannot be merged into a plain selector list. Keep the two in step. The
+   media block is a fallback only — the boot script always stamps data-theme. */
+/* color-scheme must track data-theme, not the OS. index.html declares
+   `<meta name="color-scheme" content="light dark">`, which tells the UA to follow the SYSTEM
+   preference — but this app paints from data-theme (saved choice first, OS only as the default).
+   Toggling to dark on a light OS therefore left every UA-rendered surface light: scrollbars,
+   form controls, and the native <progress> bars used for the extension breakdown and the
+   contributor bars. Setting it per theme is what makes those follow the app. */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --border-light: rgba(255, 255, 255, 0.14);
+    --border-medium: rgba(255, 255, 255, 0.24);
+
+    /* Lightened so they clear 4.5:1 against the dark card surface rather than the light one. */
+    --status-pos: #4ade80;
+    --status-neg: #f87171;
+    --status-warn: #fbbf24;
+    --status-info: #38bdf8;
+    --status-crit: #fb7185;
+
+    --ambient-glow: color-mix(in srgb, var(--brand-violet) 18%, transparent);
+
+    --primary-on-surface: #D0BCFF;
+    /* #c02d76 measured 3.08:1 on the dark card. */
+    --accent-secondary: #F48FB1;
+
+    /* The exception to "leave --rz-* alone", checked against that rule: each of these is a LEAF
+       in material-dark.css — read by the card / grid background declarations and by nothing
+       that derives a further token (the frozen-stripe pair only forwards the stripe pair).
+       Radzen resolves them to its neutral greys (#1e1e1e / #121212), so every plain <RadzenCard>
+       and data grid (the Insights KPI tiles, the /diag cards and tables) sat grey beside the
+       navy `.u-glass` cards on the same page. */
+    --rz-card-background-color: var(--bg-secondary);
+    --rz-grid-background-color: var(--bg-secondary);
+    --rz-grid-header-background-color: var(--bg-secondary);
+    --rz-grid-stripe-odd-background-color: var(--bg-secondary);
+    --rz-grid-stripe-background-color: var(--bg-primary);
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-tertiary: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --border-light: rgba(255, 255, 255, 0.14);
+        --border-medium: rgba(255, 255, 255, 0.24);
+
+        --status-pos: #4ade80;
+        --status-neg: #f87171;
+        --status-warn: #fbbf24;
+        --status-info: #38bdf8;
+        --status-crit: #fb7185;
+
+        --ambient-glow: color-mix(in srgb, var(--brand-violet) 18%, transparent);
+
+        --primary-on-surface: #D0BCFF;
+        /* #c02d76 measured 3.08:1 on the dark card. */
+        --accent-secondary: #F48FB1;
+
+        --rz-card-background-color: var(--bg-secondary);
+        --rz-grid-background-color: var(--bg-secondary);
+        --rz-grid-header-background-color: var(--bg-secondary);
+        --rz-grid-stripe-odd-background-color: var(--bg-secondary);
+        --rz-grid-stripe-background-color: var(--bg-primary);
+    }
+}
+

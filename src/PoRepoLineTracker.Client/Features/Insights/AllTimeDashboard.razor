@@ -1,0 +1,332 @@
+@inject RepoApiClient Api
+@inject ILogger<AllTimeDashboard> Logger
+@inject NavigationManager Navigation
+@using PoRepoLineTracker.Client.Features.Shared
+@using PoRepoLineTracker.Client.Features.Charts
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* The "All time" view of the Insights page: every figure reads the whole history (owner, 2026-10-24), so
+   there is no range to pick. Everything here is one GET of /api/insights/portfolio — the
+   aggregation runs where the commit data already lives rather than shipping it to the browser to
+   be reduced (see PortfolioInsightsDto for the reasoning). *@
+
+@* A plain <div>, not <RadzenStack Gap="1rem">. Two reasons, both concrete:
+
+   1. Scope anchor. <RadzenStack> is a component, so nothing it renders carries this file's scope
+      id — which meant `::deep` had no plain ancestor to hang off anywhere on the page, and the
+      rules that needed it (`.ins-kpi`, `.ins-empty-icon`) silently matched nothing.
+   2. Rhythm. The stack hardcoded a 1rem gap at every viewport, next to a `--space-*` scale that
+      exists precisely so vertical rhythm tracks the width. `.app-stack` uses the token. *@
+<div class="app-stack">
+    @if (_state.HasData)
+    {
+        var summary = _state.Data!;
+        <RadzenText TextStyle="TextStyle.Body1" class="ins-lede">
+            Every commit since @(summary.FirstCommitDate?.ToString("MMMM yyyy") ?? "the start") · @summary.AnalyzedCount of @summary.RepositoryCount analyzed
+            @if (summary.RepositoryCount > summary.AnalyzedCount)
+            {
+                @* Analysis runs in the background, so the first visit after adding a repository
+                   legitimately shows more tracked than analyzed. *@
+                <span> · @(summary.RepositoryCount - summary.AnalyzedCount) still being analyzed</span>
+            }
+        </RadzenText>
+    }
+
+    @* LoadingState<T> replaces the three-field ladder (_isLoading, _error, _insights). The four
+       states (loading / failed / empty / loaded) cannot co-exist on the same render — fixing
+       two bugs at once: an error banner that survived a successful reload, and a 0-repo page
+       that still showed the KPI tiles. *@
+    @switch (_state)
+    {
+        case LoadingState<PortfolioInsightsDto>.Loading:
+            <div class="app-dashboard app-dashboard--tiles">
+                @for (var i = 0; i < 3; i++)
+                {
+                    <RadzenCard><RadzenSkeleton Width="100%" Height="72px" /></RadzenCard>
+                }
+            </div>
+            <RadzenCard><RadzenSkeleton Width="100%" Height="220px" /></RadzenCard>
+            break;
+
+        case LoadingState<PortfolioInsightsDto>.Failed f:
+            @* Closing retries. It used to set the state to Loading without starting a load, which
+               swapped the alert for a skeleton that nothing would ever replace. *@
+            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true"
+                         Close="@LoadAsync">
+                @f.Message
+            </RadzenAlert>
+            break;
+
+        case LoadingState<PortfolioInsightsDto>.Empty:
+            <EmptyState Kind="EmptyStateKind.NoInsights"
+                        Title="Nothing to summarise yet"
+                        Description="Add and analyze a repository and this page fills in.">
+                <Actions>
+                    <RadzenButton Text="Go to Repositories" Icon="storage"
+                                  Click="@(() => Navigation.NavigateTo(AppRoutes.Repositories))" />
+                </Actions>
+            </EmptyState>
+            break;
+
+        case LoadingState<PortfolioInsightsDto>.Loaded loaded:
+            @RenderLoaded(loaded.Value!)
+            break;
+    }
+</div>
+
+@* Body of the populated dashboard — extracted as a local function so the switch reads as a flat
+   list of states rather than a deeply nested tree. *@
+@code {
+    private RenderFragment RenderLoaded(PortfolioInsightsDto data) =>
+        @<text>
+            @* ─── KPI row ─────────────────────────────────────────────────────────────
+               Lifetime figures, each with the context that makes it mean something: the size
+               beside everything written and deleted to reach it, the commits beside how many days
+               they were spread over. *@
+            <div class="app-dashboard app-dashboard--tiles">
+                <KpiTile Label="Total lines"
+                         Delta="@($"+{data.LinesAddedAllTime:N0} written")"
+                         Sub="@($"{(data.LinesRemovedAllTime > 0 ? "−" : "")}{data.LinesRemovedAllTime:N0} removed")"
+                         DeltaClass="kpi__delta--pos">
+                    @data.TotalLines.ToString("N0")
+                </KpiTile>
+
+                <KpiTile Label="Commits"
+                         Delta="@($"across {data.ActiveDaysAllTime:N0} active {(data.ActiveDaysAllTime == 1 ? "day" : "days")}")">
+                    @data.CommitsAllTime.ToString("N0")
+                </KpiTile>
+
+                @{ var streak = Streak; }
+                <KpiTile Label="@StreakHeading"
+                         Unit="@streak.Unit"
+                         Delta="@($"best {data.LongestStreakDays} d ever")">
+                    @if (data.CurrentStreakDays > 0)
+                    {
+                        @* Burns taller the longer the streak, full height at 30 days (effects.css). *@
+                        <span class="u-flame" style="--flame:@ChartFormat.StreakFlame(data.CurrentStreakDays)" aria-hidden="true"></span>
+                    }
+                    @streak.Value
+                </KpiTile>
+            </div>
+
+        @* ─── Activity: a GitHub-style calendar per year that had a commit, newest first ─── *@
+        <ChartCard Title="Activity"
+                   Description="Commits per day across every tracked repository, one calendar per active year"
+                   IsEmpty="@(_years.Count == 0)"
+                   EmptyIcon="calendar_month"
+                   EmptyText="No commit activity recorded yet.">
+            <ChildContent>
+                <div class="ins-years">
+                    @foreach (var (year, counts) in _years)
+                    {
+                        <ContributionCalendar @key="year" Year="@year" Counts="@counts" />
+                    }
+                </div>
+            </ChildContent>
+        </ChartCard>
+
+        @* ─── Portfolio growth & outliers ────────────────────────────────────── *@
+        <div class="app-dashboard app-dashboard--panels">
+            <ChartCard Title="Portfolio growth"
+                       Description="Total lines across every repository, from the first commit to today"
+                       IsEmpty="@(data.TrendLine.Count == 0)"
+                       EmptyIcon="show_chart"
+                       EmptyText="No history to chart yet.">
+                <RadzenChart>
+                    <RadzenAreaSeries Data="@data.TrendLine"
+                                      CategoryProperty="Date"
+                                      ValueProperty="TotalLines"
+                                      Title="Total lines"
+                                      Stroke="var(--rz-primary)"
+                                      Fill="color-mix(in srgb, var(--primary-color) 14%, transparent)"
+                                      StrokeWidth="3">
+                        <RadzenMarkers MarkerType="MarkerType.Circle" />
+                    </RadzenAreaSeries>
+
+                    @* Whole-day Step: see ChartFormat.DateAxisStep. *@
+                    <RadzenCategoryAxis FormatString="{0:MMM yyyy}"
+                                        Step="@ChartFormat.DateAxisStep(data.TrendLine.Select(p => p.Date))"
+                                        LabelAutoRotation="-45">
+                        <RadzenGridLines Visible="true" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                        <RadzenGridLines Visible="true" />
+                    </RadzenValueAxis>
+                    <RadzenLegend Visible="false" />
+                </RadzenChart>
+            </ChartCard>
+
+            @* Commits far outside their repository's norm. Nearly always a vendored library or a
+               generated file inflating the totals above, which is why the fix is offered with it.
+               No card at all when nothing stands out. *@
+            @if (data.Outliers.Count > 0)
+            {
+                <ChartCard Title="Unusually large commits (all time)"
+                           Description="Far more lines added than is normal for the repository">
+                    <ul class="ins-outliers">
+                        @foreach (var outlier in data.Outliers)
+                        {
+                            <li class="ins-outlier">
+                                <a href="@($"/repositories/{outlier.RepositoryId}")">@outlier.Owner/@outlier.Name</a>
+                                <code class="ins-lang__code">@outlier.CommitSha</code>
+                                <span class="ins-muted">@outlier.CommitDate.ToString("MMM d")</span>
+                                <span class="ins-outlier__size">+@outlier.LinesAdded.ToString("N0") lines (typical ~@outlier.TypicalLinesAdded.ToString("N0"))</span>
+                            </li>
+                        }
+                    </ul>
+                    <p class="ins-outliers__hint">
+                        These are usually vendored or generated files. Folders that look like a whole vendored
+                        project are already skipped; for anything else, drop its file type from the counted
+                        extensions in <a href="@AppRoutes.Settings">Settings</a> and re-analyze.
+                    </p>
+                </ChartCard>
+            }
+        </div>
+
+        @* The "All repositories" table that sat here was the Repositories grid a second time —
+           same rows, fewer columns. Its 30-day columns moved into that grid. *@
+        <a class="ins-all-link" href="@AppRoutes.Repositories">View all repositories →</a>
+
+        @* ─── Language mix & Language drift ──────────────────────────────────── *@
+        <div class="app-dashboard app-dashboard--panels">
+            <ExtensionBreakdownCard Title="Language mix"
+                                    Description="Share of current lines by file type"
+                                    EmptyHint="Re-analyze a repository to populate it."
+                                    Extensions="@(data.LanguageMix.Select(l => new FileExtensionPercentageDto { FileExtension = l.Extension, Percentage = l.Percentage, LineCount = l.Lines }).ToList())" />
+
+            <ChartCard Title="Language drift"
+                       Description="How the mix moved since each repository's first commit, in share"
+                       IsEmpty="@(data.LanguageDrift.Count == 0)"
+                       EmptyIcon="swap_vert"
+                       EmptyText="No drift to report yet."
+                       EmptyHint="Needs history across at least two file types.">
+                @if (data.RisingLanguage is not null || data.FadingLanguage is not null)
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="ins-drift__lede">
+                        @if (data.RisingLanguage is not null)
+                        {
+                            <text>You drifted toward <code class="ins-lang__code">@data.RisingLanguage</code></text>
+                        }
+                        @if (data.RisingLanguage is not null && data.FadingLanguage is not null)
+                        {
+                            <text> and away from </text>
+                        }
+                        @if (data.FadingLanguage is not null)
+                        {
+                            <text><code class="ins-lang__code">@data.FadingLanguage</code></text>
+                        }
+                        .
+                    </RadzenText>
+                }
+
+                <div class="ins-drift">
+                    @foreach (var drift in data.LanguageDrift)
+                    {
+                        <div class="ins-drift__row">
+                            <code class="ins-lang__code">@drift.Extension</code>
+                            <span class="ins-drift__span">
+                                @drift.StartPercent.ToString("F1")% → @drift.EndPercent.ToString("F1")%
+                            </span>
+                            <span class="@(drift.PercentDelta > 0 ? "ins-drift__delta ins-drift__delta--up" : "ins-drift__delta ins-drift__delta--down")">
+                                @(drift.PercentDelta > 0 ? "+" : "")@drift.PercentDelta.ToString("F1") pts
+                            </span>
+                        </div>
+                    }
+                </div>
+            </ChartCard>
+        </div>
+        </text>;
+}
+
+@code {
+    private LoadingState<PortfolioInsightsDto> _state = new LoadingState<PortfolioInsightsDto>.Loading();
+
+    /// <summary>Per active year (newest first), commits per day with index 0 = 1 January.
+    /// Built when the data arrives, not per render.</summary>
+    private List<(int Year, int[] Counts)> _years = [];
+
+    private void BuildHeatmap()
+    {
+        _years = !_state.HasData ? [] : _state.Data!.Activity
+            .Where(d => d.Commits > 0)
+            .GroupBy(d => d.Date.Year)
+            .OrderByDescending(g => g.Key)
+            .Select(g =>
+            {
+                var counts = new int[DateTime.IsLeapYear(g.Key) ? 366 : 365];
+                foreach (var day in g) counts[day.Date.DayOfYear - 1] += day.Commits;
+                return (g.Key, counts);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// "Current streak: 0d" is technically accurate but reads like a feature is broken. When the
+    /// streak is zero, the tile rephrases as "last active Nd ago" using the most recent
+    /// non-zero-commit day from <see cref="PortfolioInsightsDto.Activity"/>. The "best … ever"
+    /// line underneath keeps the same anchor in both states so the tile reads as one tile.
+    /// </summary>
+    private string StreakHeading =>
+        !_state.HasData || _state.Data!.CurrentStreakDays > 0
+            ? "Current streak"
+            : "Last active";
+
+    /// <summary>
+    /// Figure and its unit as separate strings, rendered as separate nodes by the template. An
+    /// earlier version returned one string with the <c>&lt;span&gt;</c> baked in, which Razor
+    /// HTML-encodes — the tile printed the markup as visible text.
+    /// </summary>
+    private (string Value, string? Unit) Streak
+    {
+        get
+        {
+            if (!_state.HasData) return ("—", null);
+            var data = _state.Data!;
+            if (data.CurrentStreakDays > 0) return ($"{data.CurrentStreakDays}", "d");
+
+            var last = data.Activity.LastOrDefault(d => d.Commits > 0);
+            if (last is null) return ("—", null);
+
+            var days = Math.Max(0, (int)(DateTime.UtcNow.Date - last.Date.Date).TotalDays);
+            return days switch
+            {
+                0 => ("today", null),
+                1 => ("yesterday", null),
+                _ => ($"{days}", "d ago")
+            };
+        }
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        // Show the loading skeleton rather than the previous error banner; LoadingState
+        // deliberately re-renders as Loading on retry so the user always sees a refresh happen.
+        _state = new LoadingState<PortfolioInsightsDto>.Loading();
+        StateHasChanged();
+
+        try
+        {
+            var data = await Api.GetPortfolioInsightsAsync();
+
+            _state = data is null || data.RepositoryCount == 0
+                ? new LoadingState<PortfolioInsightsDto>.Empty()
+                : new LoadingState<PortfolioInsightsDto>.Loaded(data);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Insights: failed to load portfolio insights");
+            _state = new LoadingState<PortfolioInsightsDto>.Failed("Could not load your insights. Please try again.");
+        }
+        finally
+        {
+            BuildHeatmap();
+            StateHasChanged();
+        }
+    }
+}

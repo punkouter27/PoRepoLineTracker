@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace PoRepoLineTracker.API.Features.Diagnostics;
+namespace PoRepoLineTracker.Api.Features.Diagnostics;
 
 /// <summary>
 /// Health check for Azure Key Vault availability. Configuration-only:

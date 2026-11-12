@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace PoRepoLineTracker.API.Telemetry;
+namespace PoRepoLineTracker.Api.Telemetry;
 
 /// <summary>
 /// Centralized telemetry instrumentation for the Application layer.

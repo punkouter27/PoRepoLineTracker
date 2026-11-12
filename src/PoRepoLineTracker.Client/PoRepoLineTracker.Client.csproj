@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Rule 1.2 — trimming enabled.
          The former blocker was reflection-based JSON: with the reflection resolver reachable, the
@@ -50,6 +53,8 @@
          source-generated resolver the HTTP calls use — see AnalysisFeedClient. -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Radzen.Blazor" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,7 +64,7 @@
   <ItemGroup>
     <!-- YYMMDD build stamp shown bottom-right by App.razor. UTC build date, not commit date, so
          re-running an old commit's deploy stamps it with the re-run day. -->
-    <AssemblyMetadata Include="BuildVersion" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
+    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
   </ItemGroup>
 
   <ItemGroup>

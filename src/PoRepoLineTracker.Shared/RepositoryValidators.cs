@@ -1,14 +1,12 @@
+using FluentValidation;
 using PoRepoLineTracker.Shared.Models.Dtos;
 
 namespace PoRepoLineTracker.Shared.Models;
 
-using PoRepoLineTracker.Shared.Models.Dtos;
-
 /// <summary>
-/// The bulk-add repository rules. This used to be a FluentValidation validator — two packages and
-/// an assembly scan for four rules; now it is the four rules, in the shape the /bulk endpoint
-/// needs. Returns null when the DTO is valid, otherwise one entry per invalid field for
-/// <see cref="Microsoft.AspNetCore.Http.Results.ValidationProblem"/>.
+/// The bulk-add repository rules. Returns null when valid, otherwise field errors for
+/// <see cref="Microsoft.AspNetCore.Http.Results.ValidationProblem"/>, and exposes a FluentValidation
+/// <see cref="BulkRepositoryDtoValidator"/> for forms and minimal endpoints.
 /// </summary>
 public static class RepositoryValidators
 {
@@ -46,4 +44,23 @@ public static class RepositoryValidators
     public static bool IsGitHubName(string value) =>
         value is not ("." or "..")
         && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.');
+}
+
+/// <summary>
+/// FluentValidation validator wrapping <see cref="RepositoryValidators"/> (Rule 11 & Rule 17).
+/// </summary>
+public sealed class BulkRepositoryDtoValidator : AbstractValidator<BulkRepositoryDto>
+{
+    public BulkRepositoryDtoValidator()
+    {
+        RuleFor(x => x.Owner)
+            .NotEmpty().WithMessage("'Owner' must not be empty.")
+            .MaximumLength(100).WithMessage("'Owner' must be 100 characters or fewer.")
+            .Must(RepositoryValidators.IsGitHubName).WithMessage("'Owner' may only contain letters, digits, '-', '_' and '.'.");
+
+        RuleFor(x => x.RepoName)
+            .NotEmpty().WithMessage("'RepoName' must not be empty.")
+            .MaximumLength(100).WithMessage("'RepoName' must be 100 characters or fewer.")
+            .Must(RepositoryValidators.IsGitHubName).WithMessage("'RepoName' may only contain letters, digits, '-', '_' and '.'.");
+    }
 }

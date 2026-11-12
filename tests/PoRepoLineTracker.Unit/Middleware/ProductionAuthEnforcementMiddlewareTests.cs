@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
 using NSubstitute;
-using PoRepoLineTracker.API.Middleware;
+using PoRepoLineTracker.Api.Middleware;
 
 namespace PoRepoLineTracker.Unit;
 

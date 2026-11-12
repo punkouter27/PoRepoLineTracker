@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace PoRepoLineTracker.API.Features.Diagnostics;
+namespace PoRepoLineTracker.Api.Features.Diagnostics;
 
 /// <summary>
 /// Health check for the GitHub REST API. Rate-limit aware: returns

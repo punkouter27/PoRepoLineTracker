@@ -23,8 +23,9 @@ public sealed class ChartAndShellUiTests
     /// <summary>Waits for the repositories page to finish its initial data load.</summary>
     private static async Task WaitForRepositoriesAsync(IPage page)
     {
-        await page.WaitForSelectorAsync(".rp-grid, .chart-card, .onboarding__card",
-            new PageWaitForSelectorOptions { Timeout = 25000 });
+        await page.Locator(".rp-grid:visible, .rp-card-list:visible, .chart-card:visible, .onboarding__card:visible")
+            .First
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 25000 });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle,
             new PageWaitForLoadStateOptions { Timeout = 25000 });
     }
@@ -34,6 +35,7 @@ public sealed class ChartAndShellUiTests
     {
         var desktopPage = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = desktopPage.Context;
+        await using var desktopGuard = PlaywrightErrorGuard.Watch(desktopPage);
         await WaitForRepositoriesAsync(desktopPage);
 
         var layout = await desktopPage.EvaluateAsync<string>(
@@ -49,6 +51,7 @@ public sealed class ChartAndShellUiTests
 
         var mobilePage = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/repositories");
         await using var __ = mobilePage.Context;
+        await using var mobileGuard = PlaywrightErrorGuard.Watch(mobilePage);
         await WaitForRepositoriesAsync(mobilePage);
 
         var bodyLeftMobile = await mobilePage.EvaluateAsync<int>(
@@ -67,7 +70,7 @@ public sealed class ChartAndShellUiTests
         var page = await _fixture.OpenAuthenticatedAsync(viewport, "/repositories");
         await WaitForRepositoriesAsync(page);
 
-        var row = page.Locator(".rz-data-row").First;
+        var row = page.Locator(".rz-data-row:visible, .rp-repo-card__link:visible").First;
         await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 25000 });
 
         await row.ClickAsync();
@@ -82,6 +85,7 @@ public sealed class ChartAndShellUiTests
     {
         var desktopPage = await OpenFirstRepositoryAsync(E2EUiFixture.Desktop);
         await using var _ = desktopPage.Context;
+        await using var desktopGuard = PlaywrightErrorGuard.Watch(desktopPage);
 
         // Only the line-count chart is wrapped in a ChartCard; the rest moved into tabs after
         // the trend chart was removed.
@@ -105,6 +109,7 @@ public sealed class ChartAndShellUiTests
 
         var mobilePage = await OpenFirstRepositoryAsync(E2EUiFixture.Mobile);
         await using var __ = mobilePage.Context;
+        await using var mobileGuard = PlaywrightErrorGuard.Watch(mobilePage);
 
         var overflow = await mobilePage.EvaluateAsync<int>(
             "() => document.documentElement.scrollWidth - document.documentElement.clientWidth");

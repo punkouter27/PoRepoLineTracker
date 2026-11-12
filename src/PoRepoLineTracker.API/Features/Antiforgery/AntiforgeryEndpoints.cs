@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
 
-namespace PoRepoLineTracker.API.Features.Antiforgery;
+namespace PoRepoLineTracker.Api.Features.Antiforgery;
 
 /// <summary>
 /// Issues the antiforgery request token the WASM client echoes back on state-changing calls.

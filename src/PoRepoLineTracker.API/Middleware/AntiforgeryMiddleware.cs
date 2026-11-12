@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
 
-namespace PoRepoLineTracker.API.Middleware;
+namespace PoRepoLineTracker.Api.Middleware;
 
 /// <summary>
 /// Validates the antiforgery token on every state-changing API request.

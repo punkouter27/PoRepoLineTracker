@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Hybrid;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>
 /// The app's only anonymous data: README badges and a share page, for repositories whose owner

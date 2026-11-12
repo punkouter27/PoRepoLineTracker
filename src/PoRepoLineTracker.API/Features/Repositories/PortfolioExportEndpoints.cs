@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
-using PoRepoLineTracker.API.Storage;
+using PoRepoLineTracker.Api.Storage;
 using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using PoRepoLineTracker.Shared.Serialization;
 using System.Text;
 using System.Text.Json;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 public static class PortfolioExportEndpoints
 {
@@ -58,10 +58,10 @@ public static class PortfolioExportEndpoints
         {
             var owner = EscapeCsv(r.Owner);
             var name = EscapeCsv(r.Name);
-            var lines = r.TotalLines.HasValue ? r.TotalLines.Value.ToString() : "";
-            var date = r.LastAnalyzedUtc.HasValue ? r.LastAnalyzedUtc.Value.ToString("o") : "";
+            var lines = r.TotalLines.HasValue ? r.TotalLines.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+            var date = r.LastAnalyzedUtc.HasValue ? r.LastAnalyzedUtc.Value.ToString("o", System.Globalization.CultureInfo.InvariantCulture) : "";
             var url = EscapeCsv(r.CloneUrl);
-            sb.AppendLine($"{owner},{name},{lines},{date},{url}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{owner},{name},{lines},{date},{url}");
         }
         return sb.ToString();
     }

@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 /// <summary>
 /// Filters files and directories that should be excluded from line counting.
@@ -69,7 +69,7 @@ public class FileIgnoreFilter
     // Two, not one. A single stray LICENSE.md next to a bundled asset should not take out a
     // directory the author actually wrote, and real vendored roots carry a whole cluster of these
     // — the ml-agents copy above has six. Requiring a pair keeps the rule specific enough that
-    // this project's own `src/PoRepoLineTracker.API/` (no licence, no .github, no CODEOWNERS)
+    // this project's own `src/PoRepoLineTracker.Api/` (no licence, no .github, no CODEOWNERS)
     // cannot trip it.
     private const int RepositoryRootMarkerThreshold = 2;
 
@@ -272,7 +272,7 @@ public class FileIgnoreFilter
         var normalized = NormalizePath(directoryPath) + "/";
 
         var shouldIgnore = _directoryPatterns.Any(p =>
-            normalized.EndsWith(p) || normalized.Contains("/" + p) || normalized.StartsWith(p));
+            normalized.EndsWith(p, StringComparison.Ordinal) || normalized.Contains("/" + p, StringComparison.Ordinal) || normalized.StartsWith(p, StringComparison.Ordinal));
 
         shouldIgnore = shouldIgnore || GeneratedPathFragments.Any(normalized.Contains);
         shouldIgnore = shouldIgnore || ReverseDomainPackageDirectory.IsMatch(normalized);

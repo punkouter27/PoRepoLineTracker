@@ -1,0 +1,15 @@
+.app-build-version {
+    position: fixed;
+    right: 0.75rem;
+    bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    pointer-events: none;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .app-build-version {
+        bottom: calc(3.75rem + env(safe-area-inset-bottom));
+    }
+}

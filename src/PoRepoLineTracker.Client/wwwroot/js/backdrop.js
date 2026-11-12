@@ -153,7 +153,7 @@
     window.backdrop = {
         mood: function (energy, heat) {
             target = [Math.max(0, Math.min(1, +energy || 0)), Math.max(0, Math.min(1, +heat || 0))];
-            try { localStorage.setItem('backdrop-mood', JSON.stringify(target)); } catch (e) { }
+            try { localStorage.setItem('porepolinetracker:backdrop-mood', JSON.stringify(target)); } catch (e) { }
             if (gl && still) draw(performance.now());
         },
         pulse: function (x, y) {
@@ -171,7 +171,7 @@
             // index.html's global, defined by the inline boot script before this deferred file runs.
             still = prefersReducedMotion();
             try {
-                var saved = JSON.parse(localStorage.getItem('backdrop-mood'));
+                var saved = JSON.parse(localStorage.getItem('porepolinetracker:backdrop-mood'));
                 if (saved && saved.length === 2) mood = target = [+saved[0] || 0, +saved[1] || 0];
                 mood = mood.slice();
             } catch (e) { }
@@ -215,6 +215,6 @@
     }
 
     var off = false;
-    try { off = localStorage.getItem('backdrop') === 'off'; } catch (e) { }
+    try { off = localStorage.getItem('porepolinetracker:backdrop') === 'off'; } catch (e) { }
     if (!off) start();
 })();

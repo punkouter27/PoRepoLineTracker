@@ -40,7 +40,7 @@ Secondary: counted file types (`/api/settings/user-preferences`), appearance & e
 
 ```powershell
 dotnet build PoRepoLineTracker.slnx
-dotnet run --project src/PoRepoLineTracker.API --launch-profile https    # https://localhost:5001
+dotnet run --project src/PoRepoLineTracker.Api --launch-profile https    # https://localhost:5001
 
 dotnet test tests/PoRepoLineTracker.Unit           # the CI gate
 dotnet test tests/PoRepoLineTracker.Integration    # Testcontainers Azurite (or npm azurite)
@@ -48,13 +48,13 @@ dotnet test tests/PoRepoLineTracker.E2EAPI         # needs the app running
 dotnet test tests/PoRepoLineTracker.E2EUI          # needs the app running + `playwright.ps1 install` once
 ```
 
-A running app locks the build (MSB3027): `Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force`.
+A running app locks the build (MSB3027): `Get-Process -Name PoRepoLineTracker.Api | Stop-Process -Force`.
 
 ## 5. Project structure
 
 ```
 src/
-  PoRepoLineTracker.API/          host; serves the WASM client
+  PoRepoLineTracker.Api/          host; serves the WASM client
     Program.cs                    composition root; middleware order is load-bearing (§8)
     ApiJsonContext.cs             source-generated JSON for server-only payloads
     Analysis/                     GitClient, GitObjectReader, GitHubService, FileIgnoreFilter,
@@ -78,10 +78,10 @@ src/
   PoRepoLineTracker.Shared/       domain types, DTOs, validators, ConfigKeys, AppJsonSerializerContext
 tests/                            Unit, Integration, E2EAPI, E2EUI
 infra/                            Bicep + setup/verify scripts
-SCRIPTS/ensure-azure-access.ps1   every role the app and CI need
+scripts/ensure-azure-access.ps1   every role the app and CI need
 ```
 
-Files that look deletable but are not: `src/PoRepoLineTracker.API/startup.sh` (App Service startup; installs `git`), `PrefixKeyVaultSecretManager.cs` (strips the `PoRepoLineTracker--` secret prefix), `appsettings.Development.local.json.template` (copy for per-machine OAuth credentials; loads after Key Vault).
+Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (App Service startup; installs `git`), `PrefixKeyVaultSecretManager.cs` (strips the `PoRepoLineTracker--` secret prefix), `appsettings.Development.local.json.template` (copy for per-machine OAuth credentials; loads after Key Vault).
 
 ## 6. Conventions
 

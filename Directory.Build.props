@@ -1,26 +1,14 @@
 <Project>
   <PropertyGroup>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <!-- Fail the build on a NuGet advisory, direct or transitive, rather than emitting a warning
-         nobody reads. Fix one by bumping the version in Directory.Packages.props. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
-    <!-- Target is C# 15, but the SDK pinned in global.json (10.0.100) ships a Roslyn that
-         rejects LangVersion=15.0 — C# 14 is its newest numbered version. "preview" selects the
-         newest language version the installed compiler supports, so this picks up C# 15 the
-         moment an SDK that implements it is installed, with no edit here. Revisit and pin to
-         15.0 once that SDK is the one in global.json. -->
-    <LangVersion>preview</LangVersion>
-    <!-- Git-Driven Versioning: MinVer derives AssemblyVersion/FileVersion/
-         InformationalVersion from the nearest Git tag (prefix "v", e.g. v1.2.3).
-         With no tags it yields 0.0.0-alpha.0.<height> so fresh checkouts still build. -->
-    <MinVerTagPrefix>v</MinVerTagPrefix>
-    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- Build-time only; PrivateAssets=all keeps it out of downstream package graphs. -->
-    <PackageReference Include="MinVer" PrivateAssets="all" />
-  </ItemGroup>
 </Project>

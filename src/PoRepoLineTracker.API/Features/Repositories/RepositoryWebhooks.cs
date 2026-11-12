@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>
 /// Push webhooks: GitHub tells the app about a push, and the app queues an incremental analysis.

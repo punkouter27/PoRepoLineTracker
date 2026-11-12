@@ -4,7 +4,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 
-namespace PoRepoLineTracker.API.Extensions;
+namespace PoRepoLineTracker.Api.Extensions;
 
 public static class TelemetryServiceExtensions
 {
@@ -71,7 +71,8 @@ public static class TelemetryServiceExtensions
                 if (!configuration.GetValue(ConfigKeys.Telemetry.EnableAspNetCoreMeters, false))
                 {
                     metrics.AddView(instrument =>
-                        instrument.Meter.Name is "Microsoft.AspNetCore.Hosting" or "System.Net.Http"
+                        instrument.Meter.Name.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal)
+                        || instrument.Meter.Name.StartsWith("System.Net.", StringComparison.Ordinal)
                             ? MetricStreamConfiguration.Drop
                             : null);
                 }
@@ -94,9 +95,8 @@ public static class TelemetryServiceExtensions
                 {
                     o.ConnectionString = aiCs;
 
-                    // Live Metrics / QuickPulse stays active globally for real-time CPU,
-                    // memory and traffic-spike visibility.
-                    o.EnableLiveMetrics = true;
+                    // Live Metrics / QuickPulse disabled in Production to avoid bypassing adaptive sampling.
+                    o.EnableLiveMetrics = !environment.IsProduction();
 
                     // Sampling profile: full fidelity (100%) in Dev/Test so nothing
                     // is dropped during debugging and E2E runs; capped to ~10% in Production.

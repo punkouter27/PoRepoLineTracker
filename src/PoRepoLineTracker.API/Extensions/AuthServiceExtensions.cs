@@ -1,4 +1,4 @@
-using PoRepoLineTracker.API.Platform;
+using PoRepoLineTracker.Api.Platform;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -6,7 +6,7 @@ using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Claims;
 
-namespace PoRepoLineTracker.API.Extensions;
+namespace PoRepoLineTracker.Api.Extensions;
 
 public static class AuthServiceExtensions
 {

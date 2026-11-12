@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 /// <summary>
 /// Git client over the git CLI: clone, fetch, and the history and churn logs. Object reads
@@ -91,7 +91,7 @@ public class GitClient
     }
 
     private static string SafePrefix(string token)
-        => token.Length <= 8 ? token : token.Substring(0, 4) + "…" + token.Substring(token.Length - 4);
+        => token.Length <= 8 ? token : string.Concat(token.AsSpan(0, 4), "…", token.AsSpan(token.Length - 4));
 
     /// <summary>
     /// Brings the local clone up to date WITHOUT materialising a working tree.
@@ -208,8 +208,8 @@ public class GitClient
             var parts = rawLine.TrimEnd('\r').Split('\t', 3);
             if (parts.Length != 3 || parts[2].Length == 0) continue;
 
-            int.TryParse(parts[0], out var added);
-            int.TryParse(parts[1], out var removed);
+            _ = int.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var added);
+            _ = int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var removed);
             churn[parts[2]] = churn.TryGetValue(parts[2], out var existing)
                 ? new FileChurn(existing.Commits + 1, existing.LinesChanged + added + removed)
                 : new FileChurn(1, added + removed);

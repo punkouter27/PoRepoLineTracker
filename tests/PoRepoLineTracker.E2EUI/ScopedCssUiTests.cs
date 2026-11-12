@@ -22,6 +22,7 @@ public sealed class ScopedCssUiTests
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync(".login-card", new PageWaitForSelectorOptions { Timeout = 20000 });
 
         // The scoped rule must actually reach the Radzen-rendered card — a rule that never

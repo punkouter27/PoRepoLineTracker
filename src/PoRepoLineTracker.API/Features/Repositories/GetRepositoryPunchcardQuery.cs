@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using PoRepoLineTracker.API.Storage;
+using PoRepoLineTracker.Api.Storage;
 using PoRepoLineTracker.Shared.Models.Dtos;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 public record GetRepositoryPunchcardQuery(RepositoryId RepositoryId, int Days = 365);
 

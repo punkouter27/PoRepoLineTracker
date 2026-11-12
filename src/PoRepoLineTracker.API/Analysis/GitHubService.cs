@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 public sealed class GitHubService : IGitHubService, IDisposable
 {
@@ -178,11 +178,11 @@ public sealed class GitHubService : IGitHubService, IDisposable
     /// Counts a commit's lines by extension. Reads directly from the git object store; no
     /// working-tree checkout is needed.
     /// </summary>
-    public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string fullRepoPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
+    public async Task<Dictionary<string, int>> CountLinesInCommitAsync(string repositoryPath, string commitSha, IEnumerable<string> fileExtensionsToCount)
     {
-        if (!GitObjectReader.IsRepository(fullRepoPath))
+        if (!GitObjectReader.IsRepository(repositoryPath))
         {
-            _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot count lines.", fullRepoPath);
+            _logger.LogError("Local repository not found or invalid at {RepoPath}. Cannot count lines.", repositoryPath);
             return new Dictionary<string, int>();
         }
 
@@ -198,17 +198,17 @@ public sealed class GitHubService : IGitHubService, IDisposable
         InvalidateCachesIfExtensionsChanged(extensionsToCount);
 
         // One cat-file process for the whole history walk, not one per commit.
-        if (_readerPath != fullRepoPath)
+        if (_readerPath != repositoryPath)
         {
             _reader?.Dispose();
-            _reader = new GitObjectReader(fullRepoPath);
-            _readerPath = fullRepoPath;
+            _reader = new GitObjectReader(repositoryPath);
+            _readerPath = repositoryPath;
         }
 
         var tree = _reader!.ReadTree(commitSha);
         if (tree is null)
         {
-            _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, fullRepoPath);
+            _logger.LogWarning("Commit {CommitSha} not found in repository at {RepoPath}", commitSha, repositoryPath);
             return new Dictionary<string, int>();
         }
 

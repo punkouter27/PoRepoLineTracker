@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 /// <summary>
 /// Static analysis of source text into maintainability metrics, in the spirit of Visual Studio's
@@ -94,7 +94,7 @@ public sealed class CodeMetricsAnalyzer
             var line = rawLine.TrimEnd('\r');
 
             if (line.Length > LongLineChars) longLines++;
-            debt += DebtMarkers.Matches(line).Count;
+            debt += DebtMarkers.Count(line);
 
             var startedInComment = inBlockComment;
             var code = StripComments(line, syntax, ref inBlockComment);
@@ -116,7 +116,7 @@ public sealed class CodeMetricsAnalyzer
                 // Only code counts toward complexity, and only when the line did not begin inside
                 // a block comment — a commented-out `if` is not a branch.
                 if (!startedInComment && decisions is not null)
-                    complexity += decisions.Matches(code).Count;
+                    complexity += decisions.Count(code);
             }
         }
 

@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Middleware;
+namespace PoRepoLineTracker.Api.Middleware;
 
 /// <summary>
 /// Answers 404 (JSON) for an <c>/api</c> path that no API route claimed.

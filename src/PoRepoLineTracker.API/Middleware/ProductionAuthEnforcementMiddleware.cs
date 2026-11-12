@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Middleware;
+namespace PoRepoLineTracker.Api.Middleware;
 
 /// <summary>
 /// Production sign-in gate for PAGE navigations.

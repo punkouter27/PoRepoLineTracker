@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Hybrid;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 public record GetRepositoryHotspotsQuery(RepositoryId RepositoryId, int Days);
 

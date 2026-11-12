@@ -2,7 +2,7 @@ using Azure.Data.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// Azure Table Storage implementation of user preferences service.

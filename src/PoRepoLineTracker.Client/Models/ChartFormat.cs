@@ -23,7 +23,7 @@ public static class ChartFormat
     {
         if (value >= 1_000_000) return $"{value / 1_000_000:F1}M";
         if (value >= 1_000) return $"{value / 1_000:F0}k";
-        return value.ToString("N0");
+        return value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public static class ChartFormat
     public static string Delta(int value) => value switch
     {
         > 0 => $"+{value:N0}",
-        < 0 => value.ToString("N0"),
+        < 0 => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture),
         _ => "no change"
     };
 

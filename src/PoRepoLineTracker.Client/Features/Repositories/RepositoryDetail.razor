@@ -1,0 +1,460 @@
+@page "/repositories/{Id:guid}"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject RepoApiClient Api
+@inject ILogger<RepositoryDetail> Logger
+@inject NavigationManager Navigation
+@inject Radzen.NotificationService NotificationService
+@inject RepositoryCommandClient Commands
+@inject AnalysisFeedClient Feed
+@inject ILogger<AnalysisWatcher> WatcherLogger
+@inject IJSRuntime JS
+@using PoRepoLineTracker.Client.Features.Shared
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Shared.Domain
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* Names the repository once it is loaded. With several detail tabs open, a constant title made
+   them indistinguishable in the tab strip and in history. *@
+<PageTitle>@(_repo is null ? "Repository" : $"{_repo.Owner}/{_repo.Name}") · PoRepoLineTracker</PageTitle>
+
+<div class="app-stack">
+
+    @* ─── Hero ──────────────────────────────────────────────────────────────── *@
+    <PageHero>
+        <Heading>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                              Click="@GoBackAsync" title="Back" aria-label="Back" />
+                @if (_repo != null)
+                {
+                    <RadzenStack Gap="0.15rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <h1 class="page-hero__title rd-title">@_repo.Owner/@_repo.Name</h1>
+                            <GitHubLink Url="@($"https://github.com/{_repo.Owner}/{_repo.Name}")"
+                                         Title="@($"Open {_repo.Owner}/{_repo.Name} on GitHub in a new tab")"
+                                         Size="GitHubLink.LinkSize.Medium" />
+                        </RadzenStack>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem">
+                            @if (_repo.LastAnalyzedCommitDate.HasValue)
+                            {
+                                @* "Last commit", not "Analyzed": LastAnalyzedCommitDate is the newest
+                                   commit's own date, not when the analysis ran. *@
+                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Last commit {ChartFormat.RelativeTime(_repo.LastAnalyzedCommitDate)}")" />
+                                @if (_repoLatestLines > 0)
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="@($"{_repoLatestLines:N0} lines")" />
+                                }
+                            }
+                            else if (_isReanalyzing)
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Re-analyzing…" />
+                            }
+                            else
+                            {
+                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Not yet analyzed" />
+                            }
+                        </RadzenStack>
+                    </RadzenStack>
+                }
+                else if (_isPageLoading)
+                {
+                    <RadzenSkeleton Width="220px" Height="28px" />
+                }
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            @* One range for the whole page. Every chart below reads ChartDays.
+
+               There used to be three independent selectors — this card's, ContributorChart's, and
+               one on a since-deleted card — defaulting to 365, 90 and 90. The page
+               therefore opened showing a year of line history above two 90-day authorship charts,
+               and moving any one of them left the other two where they were. Whatever else that
+               is, it is not a comparison. *@
+            <ChartRangeSelector Days="@ChartDays" DaysChanged="@OnChartRangeChanged" />
+            @* Their own flex item, so on a phone the two buttons wrap to a row together under the
+               range pills. As three siblings they shared one row with the selector and
+               "Re-analyze" was squeezed to "Re anal". *@
+            <div class="rd-hero-buttons">
+                <RadzenButton Text="Re-analyze" Icon="refresh"
+                              ButtonStyle="ButtonStyle.Warning"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ConfirmReanalyze"
+                              Disabled="@(_repo == null || _isReanalyzing)" />
+                <RadzenButton Text="Delete" Icon="delete"
+                              ButtonStyle="ButtonStyle.Danger"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@ConfirmDelete"
+                              Disabled="@(_repo == null || _isReanalyzing)" />
+            </div>
+        </Actions>
+    </PageHero>
+
+    @* ─── Errors ─────────────────────────────────────────────────────────────── *@
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="true" Close="@(() => _errorMessage = string.Empty)">
+            @_errorMessage
+        </RadzenAlert>
+    }
+
+    @* ─── Page loading skeleton ───────────────────────────────────────────────── *@
+    @if (_isPageLoading)
+    {
+        <RadzenCard>
+            <RadzenSkeleton Width="100%" Height="350px" />
+        </RadzenCard>
+    }
+    else if (_repo == null)
+    {
+        <EmptyState Kind="EmptyStateKind.NotFound"
+                    Title="Repository not found"
+                    Description="This repository is not in your tracked list — it may have been deleted or never added.">
+            <Actions>
+                <RadzenButton Text="Back to Repositories" Icon="arrow_back"
+                              Click="@(() => Navigation.NavigateTo(AppRoutes.Repositories))" />
+            </Actions>
+        </EmptyState>
+    }
+    else
+    {
+        @* ─── Re-analyzing banner ──────────────────────────────────────────────── *@
+        @if (_isReanalyzing)
+        {
+            <RadzenCard class="rd-progress-card">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                    <RadzenIcon Icon="sync" class="spin-icon rd-progress-icon" />
+                    <RadzenStack Gap="0.1rem">
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rd-progress-title">Re-analysis in progress</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rd-muted-tight">Commits are being scanned. This page will refresh automatically when complete.</RadzenText>
+                    </RadzenStack>
+                    <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" class="rd-progress-bar" />
+                </RadzenStack>
+            </RadzenCard>
+        }
+
+        @* ─── Line Count Chart ─────────────────────────────────────────────────── *@
+        <ChartCard Title="Line Count History"
+                   Description="@ChartDescription"
+                   IsLoading="@_isLoadingChart"
+                   ErrorMessage="@_chartError"
+                   OnRetry="@(() => LoadLineHistory(ChartDays))"
+                   IsEmpty="@(_lineHistory is null || !_lineHistory.Any())"
+                   EmptyIcon="bar_chart"
+                   EmptyText="@(_repo.LastAnalyzedCommitDate is null ? "No history data yet." : $"No commits in the last {ChartDays} days.")"
+                   EmptyHint="@(_repo.LastAnalyzedCommitDate is null ? "Click Re-analyze to start scanning this repository." : "Pick a longer range above to look back further.")">
+            <ChildContent>
+                <RadzenChart>
+                    <RadzenAreaSeries Data="@DisplayedLineHistory"
+                                      CategoryProperty="Date"
+                                      ValueProperty="TotalLines"
+                                      Title="@ChartSeriesTitle"
+                                      Stroke="var(--rz-primary)"
+                                      Fill="color-mix(in srgb, var(--primary-color) 14%, transparent)"
+                                      StrokeWidth="3">
+                        <RadzenMarkers MarkerType="@(DisplayedLineHistory.Count <= 60 ? MarkerType.Circle : MarkerType.None)" />
+                        <RadzenSeriesTrendLine Stroke="var(--series-2)" StrokeWidth="2" LineType="LineType.Dashed" />
+                    </RadzenAreaSeries>
+
+                    <RadzenCategoryAxis FormatString="{0:MMM d}"
+                                        Step="@ChartFormat.DateAxisStep(DisplayedLineHistory.Select(d => d.Date))"
+                                        LabelAutoRotation="-45">
+                        <RadzenAxisTitle Text="Date" />
+                        <RadzenGridLines Visible="true" />
+                    </RadzenCategoryAxis>
+                    <RadzenValueAxis Min="0" Formatter="@ChartFormat.Lines">
+                        <RadzenAxisTitle Text="Lines of Code" />
+                        <RadzenGridLines Visible="true" />
+                    </RadzenValueAxis>
+                    <RadzenLegend Visible="false" />
+                </RadzenChart>
+            </ChildContent>
+        </ChartCard>
+
+        @* ─── Composition + Authorship + Health consolidated into RadzenTabs ─────── *@
+        <RadzenTabs RenderMode="TabRenderMode.Client" class="rd-tabs"
+                    SelectedIndex="@TabIndex" SelectedIndexChanged="@OnTabChanged">
+            <Tabs>
+                <RadzenTabsItem Text="Activity & Authorship" Icon="group">
+                    <div class="app-dashboard app-dashboard--panels">
+                        <ContributorChart RepositoryId="@RepositoryId" Days="@ChartDays" />
+                        <CommitActivityHeatmap RepositoryId="@RepositoryId" Days="@ChartDays" />
+                    </div>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Composition" Icon="donut_large">
+                    <ExtensionBreakdownCard Extensions="@_extensions" />
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Code Health" Icon="health_and_safety">
+                    <div class="app-dashboard app-dashboard--panels">
+                        <CodeHealthCard RepositoryId="@RepositoryId" />
+                        <CodeHealthTrendCard RepositoryId="@RepositoryId" />
+                    </div>
+                </RadzenTabsItem>
+                <RadzenTabsItem Text="Hotspots" Icon="local_fire_department">
+                    <HotspotTreemap RepositoryId="@RepositoryId" Owner="@_repo.Owner" Name="@_repo.Name" Days="@ChartDays" />
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The Blazor router only materialises its built-in route-constraint types, so a
+    /// {Id:guid} segment always arrives as a <see cref="Guid"/>. Declaring the parameter as
+    /// the strongly-typed <see cref="Domain.Models.RepositoryId"/> made the router try to
+    /// assign a Guid to it, throwing InvalidCastException and blanking the page. Bind the raw
+    /// Guid, then wrap it once here so the rest of the component keeps the domain type
+    /// and cannot transpose it with a UserId.
+    /// </summary>
+    [Parameter] public Guid Id { get; set; }
+
+    private RepositoryId RepositoryId => new(Id);
+
+    private GitHubRepository? _repo;
+    private List<DailyLineCountDto>? _lineHistory;
+    private List<FileExtensionPercentageDto>? _extensions;
+    private bool _isPageLoading = true;
+    private bool _isLoadingChart = false;
+    private bool _isReanalyzing = false;
+    /// <summary>
+    /// The one range for the page, so its three charts cannot disagree on open. The choices and
+    /// the default (180 days) are ChartRangeSelector's — see <see cref="ChartFormat.RangeDays"/>.
+    ///
+    /// <para>Held in the URL (<c>?days=</c>, omitted at the default), with the active tab beside
+    /// it (<c>?tab=</c>): a reload or Back used to drop both. Written with replace: true so
+    /// picking a range does not stack history entries.</para>
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "days")] public string? Days { get; set; }
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
+    private int ChartDays => ChartFormat.RangeDays(Days);
+
+    /// <summary>
+    /// Tab order as rendered; the first is the default and stays out of the URL. The list lives in
+    /// <see cref="AppRoutes"/> beside the route itself, so a link that names a tab and the page
+    /// that renders it cannot drift apart.
+    /// </summary>
+    private static readonly string[] TabNames = AppRoutes.RepositoryTabs;
+
+    /// <summary>An unknown name falls back to the first tab rather than selecting none.</summary>
+    private int TabIndex => Math.Max(0, Array.IndexOf(TabNames, Tab));
+
+    private Task OnTabChanged(int index) =>
+        Navigation.ReplaceQueryAsync(JS, "tab", index > 0 && index < TabNames.Length ? TabNames[index] : null);
+
+    /// <summary>The range the line history on screen was fetched for; -1 before the first fetch.</summary>
+    private int _loadedDays = -1;
+    private int _repoLatestLines = 0;
+    private string _errorMessage = string.Empty;
+    private string _chartError = string.Empty;
+
+    /// <summary>
+    /// Completion of a re-analysis started here comes through the same two sources as the grid's:
+    /// hub frames, and the watcher's fallback poll when the hub is down. This page used to run its
+    /// own five-second poll of <c>/api/repositories</c> — a third path (SPEC §10).
+    /// </summary>
+    private AnalysisWatcher _watcher = null!;
+
+    private IReadOnlyList<DailyLineCountDto> DisplayedLineHistory =>
+        (_lineHistory ?? []).OrderBy(d => d.Date).ToList();
+
+    private const string ChartDescription = "Total lines of code by day";
+    private const string ChartSeriesTitle = "Total Lines";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _watcher = new AnalysisWatcher(Api, Feed, WatcherLogger) { FrameReady = OnAnalysisProgressAsync };
+        Feed.ProgressReceived += OnAnalysisProgressAsync;
+        // A hub that drops mid-job has to restart the fallback poll; see Repositories.razor.
+        Feed.StateChanged += _watcher.StartIfNeeded;
+        // Not awaited: the page does not need the hub to render, and a failed handshake just
+        // means the watcher polls.
+        _ = Feed.EnsureConnectedAsync();
+
+        try
+        {
+            var repos = await Api.GetRepositoriesAsync();
+            _repo = repos?.FirstOrDefault(r => r.Id == RepositoryId);
+            if (_repo != null)
+            {
+                await Task.WhenAll(
+                    LoadLineHistory(ChartDays),
+                    LoadExtensions()
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RepositoryDetail: failed to load repo {Id}", RepositoryId);
+            _errorMessage = $"Could not load repository: {ex.Message}";
+        }
+        finally
+        {
+            _isPageLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Back to where the user came from. This page is linked from Repositories, Insights and Code
+    /// Health; a hard-coded NavigateTo("/") sent all of them to
+    /// Repositories and dropped their scroll position. A deep link or a new tab has nothing
+    /// behind it, so that case still goes home.
+    /// </summary>
+    private async Task GoBackAsync()
+    {
+        if (await JS.GetValueAsync<int>("history.length") > 1) await JS.InvokeVoidAsync("history.back");
+        else Navigation.NavigateTo(AppRoutes.Repositories);
+    }
+
+    private Task OnChartRangeChanged(int days) =>
+        Navigation.ReplaceQueryAsync(JS, "days", ChartFormat.RangeQuery(days));
+
+    /// <summary>
+    /// The range changes by navigation — the selector, Back, Forward — so the reload hangs off
+    /// the parameter rather than the click. Skipped until the first load has run: on the way in
+    /// OnInitializedAsync fetches for whatever the URL already says.
+    /// </summary>
+    protected override Task OnParametersSetAsync() =>
+        _repo is not null && _loadedDays != -1 && _loadedDays != ChartDays
+            ? LoadLineHistory(ChartDays)
+            : Task.CompletedTask;
+
+    private async Task LoadLineHistory(int days)
+    {
+        if (_disposed) return;
+
+        _loadedDays = days;
+        _isLoadingChart = true;
+        _chartError = string.Empty;
+        StateHasChanged();
+        try
+        {
+            _lineHistory = await Api.GetLineHistoryAsync(RepositoryId, days);
+            // "No data" is not an error and must not go in _chartError: ChartCard renders that as
+            // a warning with a Retry button, and retrying an empty range returns the same nothing.
+            // An empty list falls through to the card's EmptyText / EmptyHint.
+            if (_lineHistory?.Any() == true)
+                _repoLatestLines = _lineHistory.OrderByDescending(d => d.Date).First().TotalLines;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RepositoryDetail: failed to load line history for {Id}", RepositoryId);
+            _chartError = $"Error loading chart data: {ex.Message}";
+        }
+        finally
+        {
+            // Guarded rather than an early `return`: control cannot leave a finally block
+            // (CS0157). Same intent — do not touch component state after disposal.
+            if (!_disposed)
+            {
+                _isLoadingChart = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private async Task LoadExtensions()
+    {
+        try
+        {
+            _extensions = await Api.GetFileExtensionPercentagesAsync(RepositoryId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "RepositoryDetail: could not load extensions for {Id}", RepositoryId);
+        }
+    }
+
+    private async Task ConfirmReanalyze()
+    {
+        if (_repo != null && await Commands.ConfirmReanalyzeAsync(_repo))
+            await StartReanalyze();
+    }
+
+    private async Task StartReanalyze()
+    {
+        if (_repo == null) return;
+
+        var priorAttempt = _repo.LastAnalysisAttemptUtc; // baseline for the fallback poll
+        _isReanalyzing = true;
+        StateHasChanged();
+
+        // Toast, logging and the failure path all live on the command client (it never throws).
+        if (await Commands.QueueReanalysisAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
+            _watcher.Watch(RepositoryId, priorAttempt);
+        else
+            _isReanalyzing = false;
+    }
+
+    /// <summary>
+    /// Hub and fallback-poll frames alike. Only this repository's terminal frame, and only while
+    /// this page is waiting on a re-analysis it queued — the server refuses a second job on a
+    /// repository while one runs (409), so that frame is this job's. No running-frame guard: the
+    /// poll can report a fast failure without ever having seen it run.
+    /// </summary>
+    private async Task OnAnalysisProgressAsync(AnalysisProgressDto progress)
+    {
+        if (_disposed || !_isReanalyzing || progress.IsRunning || progress.RepositoryId != RepositoryId) return;
+
+        _isReanalyzing = false;
+        _watcher.StopWatching(RepositoryId);
+
+        if (progress.ErrorMessage is null)
+        {
+            try
+            {
+                var repos = await Api.GetRepositoriesAsync();
+                _repo = repos?.FirstOrDefault(r => r.Id == RepositoryId) ?? _repo;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "RepositoryDetail: could not refresh repo {Id} after analysis", RepositoryId);
+            }
+            if (_disposed) return;
+
+            await Task.WhenAll(LoadLineHistory(ChartDays), LoadExtensions());
+        }
+
+        if (_disposed) return;
+        NotificationService.Notify(progress.ErrorMessage is null
+            ? new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Analysis Complete", Detail = $"'{progress.Owner}/{progress.Name}' has been re-analyzed.", Duration = 5000 }
+            : new NotificationMessage { Severity = NotificationSeverity.Error, Summary = "Analysis Failed", Detail = progress.ErrorMessage, Duration = 6000 });
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmDelete()
+    {
+        // Through the command client, like the grid's delete. This page sent the request itself
+        // and so had none of that client's handling: a delete refused because an analysis is
+        // running (409) surfaced as "Delete failed: Conflict".
+        if (_repo != null && await Commands.ConfirmDeleteAsync(_repo)
+            && await Commands.DeleteAsync(RepositoryId, $"{_repo.Owner}/{_repo.Name}"))
+            Navigation.NavigateTo(AppRoutes.Repositories);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+
+        // Unsubscribe only: the feed client is app-scoped and shared.
+        Feed.ProgressReceived -= OnAnalysisProgressAsync;
+        Feed.StateChanged -= _watcher.StartIfNeeded;
+
+        await _watcher.DisposeAsync();
+    }
+
+    /// <summary>
+    /// True after <see cref="DisposeAsync"/> has run. The page carries five Radzen charts, each
+    /// of which holds a <c>DotNetObjectReference</c> that the JS module can still call into for
+    /// a frame or two after disposal — the browser console saw *"There is no tracked object with
+    /// id '6'"* on navigation in. Every async path below early-exits on this flag rather than
+    /// touching torn-down state.
+    /// </summary>
+    private bool _disposed;
+}

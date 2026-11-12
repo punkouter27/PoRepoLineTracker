@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Features.CodeHealth;
+namespace PoRepoLineTracker.Api.Features.CodeHealth;
 
 /// <summary>
 /// Measures one repository's source at its most recent analysed commit.

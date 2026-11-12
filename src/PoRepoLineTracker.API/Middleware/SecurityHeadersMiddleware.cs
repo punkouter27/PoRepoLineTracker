@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Middleware;
+namespace PoRepoLineTracker.Api.Middleware;
 
 /// <summary>
 /// Middleware that adds security headers to HTTP responses to protect against common web vulnerabilities.
@@ -58,10 +58,10 @@ public class SecurityHeadersMiddleware
                         "style-src 'self' 'unsafe-inline'; " +    // Radzen sets inline styles
                         "img-src 'self' data: https:; " +    // GitHub avatars
                         "font-src 'self'; " +    // fonts ship with Radzen under _content/
-                        // wss: is listed explicitly for the /hubs/analysis WebSocket. CSP 3 treats
-                        // 'self' as covering a same-origin ws/wss upgrade, but that was clarified
-                        // late and engines disagreed for years — an omitted scheme here fails as a
-                        // silently blocked connection, so it is named rather than assumed.
+                                                 // wss: is listed explicitly for the /hubs/analysis WebSocket. CSP 3 treats
+                                                 // 'self' as covering a same-origin ws/wss upgrade, but that was clarified
+                                                 // late and engines disagreed for years — an omitted scheme here fails as a
+                                                 // silently blocked connection, so it is named rather than assumed.
                         "connect-src 'self' wss:; " +
                         // Both named rather than left to fall back, for the same reason wss: is.
                         // worker-src falls back through child-src to script-src, and manifest-src

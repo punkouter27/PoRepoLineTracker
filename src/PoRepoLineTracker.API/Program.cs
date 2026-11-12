@@ -1,11 +1,13 @@
-using PoRepoLineTracker.API.Platform;
-using Serilog;
-using Scalar.AspNetCore;
 using Azure.Identity;
-using PoRepoLineTracker.API.Hubs;
+using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using PoRepoLineTracker.Api.Hubs;
+using PoRepoLineTracker.Api.Platform;
+using PoRepoLineTracker.Shared.Models;
+using Scalar.AspNetCore;
+using Serilog;
 
-namespace PoRepoLineTracker.API
+namespace PoRepoLineTracker.Api
 {
     public partial class Program
     {
@@ -14,7 +16,7 @@ namespace PoRepoLineTracker.API
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
                 .Enrich.FromLogContext()
-                .WriteTo.Console()
+                .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture)
                 .CreateBootstrapLogger();
 
             try
@@ -35,6 +37,13 @@ namespace PoRepoLineTracker.API
         public static WebApplication CreateWebApplication(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            if (builder.Environment.IsEnvironment("Test"))
+            {
+                builder.WebHost.UseStaticWebAssets();
+            }
+
+            builder.Services.AddValidatorsFromAssemblyContaining<BulkRepositoryDtoValidator>();
 
             // Azure Key Vault — managed identity in production; DefaultAzureCredential locally
             var keyVaultUrl = builder.Configuration[ConfigKeys.KeyVault.Uri];
@@ -74,16 +83,18 @@ namespace PoRepoLineTracker.API
                     .Enrich.WithProperty(PoPlatform.ApplicationProperty, PoPlatform.AppName)
                     .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
                     .WriteTo.Console(
-                        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+                        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
+                        formatProvider: System.Globalization.CultureInfo.InvariantCulture)
                     .MinimumLevel.Information();
 
-                if (context.HostingEnvironment.IsDevelopment())
+                if (context.HostingEnvironment.IsDevelopment() || context.HostingEnvironment.IsEnvironment("Test"))
                 {
                     cfg.WriteTo.File("logs/log.txt",
                         rollingInterval: RollingInterval.Day,
                         retainedFileCountLimit: 7,
                         shared: true,
-                        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+                        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}",
+                        formatProvider: System.Globalization.CultureInfo.InvariantCulture);
                 }
 
             });
@@ -133,10 +144,8 @@ namespace PoRepoLineTracker.API
                 }).AllowAnonymous();
             }
 
-            // Only redirect to HTTPS in non-Development environments.
-            // In Development the http profile runs without an HTTPS URL, so the
-            // middleware can't determine the redirect port and logs a WRN on every request.
-            if (!app.Environment.IsDevelopment())
+            // Only redirect to HTTPS in non-Development/non-Test environments.
+            if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Test"))
             {
                 app.UseHttpsRedirection();
             }
@@ -158,7 +167,7 @@ namespace PoRepoLineTracker.API
             // the page never boots. `Cache-Control: no-cache` (NOT `no-store`) keeps the cache
             // slot for performance but forces a 304 round-trip on every reload, so the browser
             // sees fresh hashes that match the freshly-built files.
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
             {
                 app.UseStaticFiles(new StaticFileOptions
                 {

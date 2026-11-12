@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Features.CodeHealth;
+namespace PoRepoLineTracker.Api.Features.CodeHealth;
 
 /// <summary>One repository's health over its whole history (owner, 2026-10-24), month by month.</summary>
 public record GetCodeHealthTrendQuery(RepositoryId RepositoryId);

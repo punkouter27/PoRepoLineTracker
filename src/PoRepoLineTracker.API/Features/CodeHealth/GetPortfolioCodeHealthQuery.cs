@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Features.CodeHealth;
+namespace PoRepoLineTracker.Api.Features.CodeHealth;
 
 /// <summary>Every repository the caller owns, scored so they can be ranked against each other.</summary>
 public record GetPortfolioCodeHealthQuery(UserId UserId);

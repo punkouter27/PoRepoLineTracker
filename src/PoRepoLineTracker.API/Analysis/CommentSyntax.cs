@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 /// <summary>
 /// How a language marks comments, and the one table that says which language uses what.

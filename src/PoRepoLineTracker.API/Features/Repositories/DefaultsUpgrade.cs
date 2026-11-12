@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>
 /// One-time upgrade, run at startup, for file types added to the defaults after users already

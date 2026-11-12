@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace PoRepoLineTracker.API.Telemetry;
+namespace PoRepoLineTracker.Api.Telemetry;
 
 /// <summary>
 /// The one place that decides whether telemetry is configured, and from which key.

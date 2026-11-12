@@ -13,7 +13,7 @@
 
     var noop = function () { };
     var visuals = !prefersReducedMotion(); // index.html's boot script, which runs before this deferred file
-    try { if (localStorage.getItem('fx') === 'off') visuals = false; } catch (e) { }
+    try { if (localStorage.getItem('porepolinetracker:fx') === 'off') visuals = false; } catch (e) { }
 
     function split(list) {
         return (list || '').split(',').filter(function (s) { return s; });

@@ -39,7 +39,7 @@ public sealed class ThemeAndAssetsUiTests
     }
 
     private static Task<string> BodyBackgroundAsync(IPage page) => page.EvaluateAsync<string>(
-        "() => getComputedStyle(document.body).backgroundColor");
+        "() => getComputedStyle(document.documentElement).backgroundColor");
 
     [SkippableFact]
     public async Task Theme_RendersBothSchemes_AndRespondsToTheSystemPreference()
@@ -47,12 +47,14 @@ public sealed class ThemeAndAssetsUiTests
         // The app must follow the OS preference, not pick one and ignore it.
         var light = await OpenWithSchemeAsync("light");
         await using var _ = light.Context;
+        await using var lightGuard = PlaywrightErrorGuard.Watch(light);
         await light.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
         var lightBackground = await BodyBackgroundAsync(light);
         lightBackground.Should().NotBeNullOrWhiteSpace();
 
         var dark = await OpenWithSchemeAsync("dark");
         await using var __ = dark.Context;
+        await using var darkGuard = PlaywrightErrorGuard.Watch(dark);
         await dark.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
         var darkBackground = await BodyBackgroundAsync(dark);
         darkBackground.Should().NotBeNullOrWhiteSpace();

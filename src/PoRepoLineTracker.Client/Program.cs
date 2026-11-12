@@ -1,9 +1,11 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.JSInterop;
 using PoRepoLineTracker.Client;
 using PoRepoLineTracker.Client.Services;
+using PoRepoLineTracker.Shared.Models;
 using Radzen;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -21,15 +23,20 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services.AddHttpClient("ApiRaw", client =>
     client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress));
 
+builder.Services.AddTransient<DevFakeUserHandler>();
 builder.Services.AddTransient<AntiforgeryHandler>();
 builder.Services.AddHttpClient("Api", client =>
         client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress))
+    .AddHttpMessageHandler<DevFakeUserHandler>()
     .AddHttpMessageHandler<AntiforgeryHandler>();
 
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
 
+builder.Services.AddScoped<RepoApiClient>();
 builder.Services.AddScoped<UserPreferencesClient>();
+builder.Services.AddScoped<DialogNotificationHelper>();
+builder.Services.AddScoped<IValidator<PoRepoLineTracker.Shared.Models.Dtos.BulkRepositoryDto>, BulkRepositoryDtoValidator>();
 
 // One hub connection shared by the repository grid and the activity feed. Scoped is the whole
 // app's lifetime in a WASM host, which is what makes "shared" true.

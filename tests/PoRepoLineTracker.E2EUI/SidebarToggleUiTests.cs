@@ -54,6 +54,7 @@ public sealed class SidebarToggleUiTests
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await WaitForShellAsync(page);
 
         var before = await SidebarWidthAsync(page);
@@ -105,6 +106,7 @@ public sealed class SidebarToggleUiTests
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Mobile, "/");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await WaitForShellAsync(page);
 
         // The drawer starts closed on a phone, so there is no scrim yet.

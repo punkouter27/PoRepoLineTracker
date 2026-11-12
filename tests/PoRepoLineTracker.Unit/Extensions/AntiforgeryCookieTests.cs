@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using PoRepoLineTracker.API.Extensions;
+using PoRepoLineTracker.Api.Extensions;
 
 namespace PoRepoLineTracker.Unit;
 

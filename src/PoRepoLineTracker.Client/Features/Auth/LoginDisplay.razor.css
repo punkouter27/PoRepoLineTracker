@@ -1,0 +1,30 @@
+/* Scoped styles for the header's session/logout cluster. */
+
+.login-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 640px) {
+    .login-display ::deep .login-display__persona {
+        display: none;
+    }
+}
+
+.login-display ::deep .login-display__avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* White, not --rz-text-color. This sits inside .rz-header, which is a solid brand-purple bar in
+   BOTH themes — so the token that means "text on the page surface" is exactly the wrong one here.
+   In light mode it resolved to #424242 on purple: 1.56:1, i.e. the signed-in user's own name was
+   the least readable text in the shell. The rest of the header already hardcodes #fff for the
+   same reason (see .rz-header in app.css). */
+.login-display ::deep .login-display__identity {
+    color: #fff;
+}

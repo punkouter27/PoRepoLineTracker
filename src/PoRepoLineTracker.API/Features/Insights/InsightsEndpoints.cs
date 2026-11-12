@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Insights;
+namespace PoRepoLineTracker.Api.Features.Insights;
 
 internal static class InsightsEndpoints
 {

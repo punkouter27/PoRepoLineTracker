@@ -75,7 +75,7 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
     private HttpClient CreateClient() =>
         _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-    private HttpRequestMessage Get(string url, string? user = null, string? roles = null)
+    private static HttpRequestMessage Get(string url, string? user = null, string? roles = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("Accept", "application/json");

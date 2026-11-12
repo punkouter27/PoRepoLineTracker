@@ -26,12 +26,14 @@ public sealed class CodeHealthUiTests
             $"Could not seed a repository at {E2EUiFixture.BaseUrl} — is the app running in Development?");
 
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/");
-        await page.WaitForSelectorAsync(".rp-grid, .rz-datatable, .onboarding__card",
-            new PageWaitForSelectorOptions { Timeout = 25000 });
+        await page.Locator(".rp-grid:visible, .rp-card-list:visible, .rz-datatable:visible, .onboarding__card:visible")
+            .First
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 25000 });
 
-        // Straight to the seeded repository's detail page via its link in the grid.
-        var link = page.Locator($"a[href^='/repositories/']").First;
+        // Straight to the seeded repository's detail page via its link/row in the grid.
+        var link = page.Locator("a[href^='/repositories/']:visible, .rz-data-row:visible").First;
         await link.ClickAsync();
+        await page.WaitForURLAsync("**/repositories/**", new PageWaitForURLOptions { Timeout = 20000 });
 
         // The card lives in the third tab; a hidden panel never satisfies a visibility wait.
         await page.Locator(".rz-tabview-nav li", new PageLocatorOptions { HasText = "Code Health" }).ClickAsync();
@@ -44,6 +46,7 @@ public sealed class CodeHealthUiTests
     {
         var page = await OpenSeededRepositoryAsync();
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         // Chrome and the trigger are there...
         (await page.Locator(".health__card").CountAsync()).Should().Be(1);
@@ -59,6 +62,8 @@ public sealed class CodeHealthUiTests
     {
         var page = await OpenSeededRepositoryAsync();
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
+        guard.AllowHttp(System.Net.HttpStatusCode.NotFound, "/api/code-health/");
 
         await page.Locator(".health button").First.ClickAsync();
 

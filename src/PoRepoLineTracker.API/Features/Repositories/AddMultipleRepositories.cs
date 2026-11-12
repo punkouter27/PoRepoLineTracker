@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
-using PoRepoLineTracker.API.Telemetry;
+using PoRepoLineTracker.Api.Telemetry;
 using System.Diagnostics;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>
 /// The single write path for tracking repositories. A one-element list is the "add one" case —

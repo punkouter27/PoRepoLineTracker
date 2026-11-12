@@ -1,5 +1,5 @@
 using FluentAssertions;
-using PoRepoLineTracker.API.Features.CodeHealth;
+using PoRepoLineTracker.Api.Features.CodeHealth;
 
 namespace PoRepoLineTracker.Unit;
 

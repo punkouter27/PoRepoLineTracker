@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Insights;
+namespace PoRepoLineTracker.Api.Features.Insights;
 
 /// <param name="UtcOffsetMinutes">The viewer's offset from UTC (local minus UTC), so days and
 /// hours are theirs. Clamped to the real range of ±14 hours.</param>

@@ -33,7 +33,9 @@
          carrying high-severity advisories, and this solution builds with TreatWarningsAsErrors. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <!-- UI Components -->
-    <PackageVersion Include="Radzen.Blazor" Version="8.7.5" />
+    <PackageVersion Include="Radzen.Blazor" Version="12.1.12" />
+    <PackageVersion Include="FluentValidation" Version="11.12.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.12.0" />
     <!-- Logging (Serilog) -->
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />

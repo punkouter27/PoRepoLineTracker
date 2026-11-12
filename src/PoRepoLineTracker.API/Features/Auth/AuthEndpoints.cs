@@ -5,7 +5,7 @@ using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.Auth;
+namespace PoRepoLineTracker.Api.Features.Auth;
 
 internal static class AuthEndpoints
 {

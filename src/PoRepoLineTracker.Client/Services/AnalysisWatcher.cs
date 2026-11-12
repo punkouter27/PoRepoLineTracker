@@ -23,7 +23,7 @@ namespace PoRepoLineTracker.Client.Services;
 /// navigated away from.</para>
 /// </summary>
 public sealed class AnalysisWatcher(
-    HttpClient http,
+    RepoApiClient api,
     AnalysisFeedClient feed,
     ILogger<AnalysisWatcher> logger) : IAsyncDisposable
 {
@@ -145,10 +145,7 @@ public sealed class AnalysisWatcher(
 
     private async Task PollTickAsync(CancellationToken cancellationToken)
     {
-        var repos = await http.GetAppJsonAsync(
-            "/api/repositories",
-            AppJsonSerializerContext.Default.ListGitHubRepository,
-            cancellationToken);
+        var repos = await api.GetRepositoriesAsync(cancellationToken);
 
         if (repos is null) return;
 
@@ -178,10 +175,7 @@ public sealed class AnalysisWatcher(
             AnalysisProgressDto? progress = null;
             try
             {
-                progress = await http.GetAppJsonAsync(
-                    $"/api/repositories/{repositoryId}/analysis-progress",
-                    AppJsonSerializerContext.Default.AnalysisProgressDto,
-                    cancellationToken);
+                progress = await api.GetAnalysisProgressAsync(repositoryId, cancellationToken);
             }
             catch (OperationCanceledException) { throw; }
             catch

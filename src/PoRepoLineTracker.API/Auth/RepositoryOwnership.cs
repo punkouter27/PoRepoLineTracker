@@ -1,7 +1,7 @@
-using PoRepoLineTracker.API.Storage;
+using PoRepoLineTracker.Api.Storage;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Auth;
+namespace PoRepoLineTracker.Api.Auth;
 
 /// <summary>
 /// The one guard for "does this caller own the repository they named".

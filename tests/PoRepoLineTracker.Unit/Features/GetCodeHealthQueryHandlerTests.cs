@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using PoRepoLineTracker.API.Features.CodeHealth;
-using PoRepoLineTracker.API.Storage;
+using PoRepoLineTracker.Api.Features.CodeHealth;
+using PoRepoLineTracker.Api.Storage;
 
 namespace PoRepoLineTracker.Unit.Features;
 
@@ -159,7 +159,10 @@ public class GetCodeHealthQueryHandlerTests
     {
         _repositories.GetRepositoryByIdAsync(RepoId).Returns(new GitHubRepository
         {
-            Id = RepoId, UserId = OwnerId, Owner = "acme", Name = "widgets"
+            Id = RepoId,
+            UserId = OwnerId,
+            Owner = "acme",
+            Name = "widgets"
         });
         _repositories.GetCommitLineCountsByRepositoryIdAsync(RepoId).Returns([]);
 

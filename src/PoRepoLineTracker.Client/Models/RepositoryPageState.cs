@@ -7,9 +7,9 @@ public class RepositoryPageState
 {
     public string AddRepoMessage { get; set; } = string.Empty;
     public string ErrorMessage { get; set; } = string.Empty;
-    public bool IsLoadingRepositories { get; set; } = false;
-    public bool IsAddingRepository { get; set; } = false;
-    public bool IsLoadingGitHubRepos { get; set; } = false;
+    public bool IsLoadingRepositories { get; set; }
+    public bool IsAddingRepository { get; set; }
+    public bool IsLoadingGitHubRepos { get; set; }
     public string ProgressMessage { get; set; } = string.Empty;
     /// <summary>
     /// Progress percentage (0–100), or <c>null</c> when the work in flight cannot be measured as

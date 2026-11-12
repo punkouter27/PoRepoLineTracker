@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 /// <summary>One entry of a git tree: a file (blob), a directory (tree) or a submodule (commit).</summary>
 public sealed record GitTreeEntry(string Name, string Sha, bool IsTree, bool IsBlob);

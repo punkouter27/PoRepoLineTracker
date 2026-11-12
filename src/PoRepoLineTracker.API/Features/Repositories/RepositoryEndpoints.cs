@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 internal static class RepositoryEndpoints
 {

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.ComponentModel.DataAnnotations;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.Diagnostics;
+namespace PoRepoLineTracker.Api.Features.Diagnostics;
 
 internal static class DiagnosticsEndpoints
 {

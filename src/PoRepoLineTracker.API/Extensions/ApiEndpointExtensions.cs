@@ -1,15 +1,15 @@
-using PoRepoLineTracker.API.Features.Antiforgery;
-using PoRepoLineTracker.API.Features.Auth;
-using PoRepoLineTracker.API.Features.CodeHealth;
-using PoRepoLineTracker.API.Features.Contributors;
-using PoRepoLineTracker.API.Features.Dev;
-using PoRepoLineTracker.API.Features.Diagnostics;
-using PoRepoLineTracker.API.Features.GitHub;
-using PoRepoLineTracker.API.Features.Insights;
-using PoRepoLineTracker.API.Features.Repositories;
-using PoRepoLineTracker.API.Features.Settings;
+using PoRepoLineTracker.Api.Features.Antiforgery;
+using PoRepoLineTracker.Api.Features.Auth;
+using PoRepoLineTracker.Api.Features.CodeHealth;
+using PoRepoLineTracker.Api.Features.Contributors;
+using PoRepoLineTracker.Api.Features.Dev;
+using PoRepoLineTracker.Api.Features.Diagnostics;
+using PoRepoLineTracker.Api.Features.GitHub;
+using PoRepoLineTracker.Api.Features.Insights;
+using PoRepoLineTracker.Api.Features.Repositories;
+using PoRepoLineTracker.Api.Features.Settings;
 
-namespace PoRepoLineTracker.API.Extensions;
+namespace PoRepoLineTracker.Api.Extensions;
 
 /// <summary>
 /// GoF Facade Pattern: Provides a unified interface to register all API endpoint groups.
@@ -27,7 +27,7 @@ public static class ApiEndpointExtensions
 {
     public static WebApplication MapApiEndpoints(this WebApplication app)
     {
-        var isDevelopment = app.Environment.IsDevelopment();
+        var isDevOrTest = Auth.FakeAuthHandler.IsAllowedIn(app.Environment);
 
         app.MapAntiforgeryEndpoints();
         app.MapAuthEndpoints();
@@ -43,7 +43,7 @@ public static class ApiEndpointExtensions
         app.MapInsightsEndpoints();
         app.MapCodeHealthEndpoints();
 
-        if (isDevelopment)
+        if (isDevOrTest)
         {
             // Writes arbitrary history to the caller's account, so it is gated exactly like
             // FakeAuthHandler — see SeedEndpoints for why the UI tier needs it.

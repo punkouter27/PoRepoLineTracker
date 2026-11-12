@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 using FluentAssertions;
-using PoRepoLineTracker.API.Hubs;
+using PoRepoLineTracker.Api.Hubs;
 using PoRepoLineTracker.Shared.Domain;
 using PoRepoLineTracker.Shared.Models;
 

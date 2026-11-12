@@ -1,6 +1,6 @@
 using System.Diagnostics.Metrics;
 using FluentAssertions;
-using PoRepoLineTracker.API.Telemetry;
+using PoRepoLineTracker.Api.Telemetry;
 using PoRepoLineTracker.Shared.Domain;
 
 namespace PoRepoLineTracker.Unit.Telemetry;

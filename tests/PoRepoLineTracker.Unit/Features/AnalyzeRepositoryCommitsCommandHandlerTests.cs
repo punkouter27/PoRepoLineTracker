@@ -205,7 +205,7 @@ public class AnalyzeRepositoryCommitsCommandHandlerTests
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "new-sha", Arg.Any<IEnumerable<string>>())
             .Returns(new Dictionary<string, int> { { ".cs", 100 }, { ".js", 50 } });
         _gitHubService.CountLinesInCommitAsync(Arg.Any<string>(), "fail-sha", Arg.Any<IEnumerable<string>>())
-            .ThrowsAsync(new Exception("boom"));
+            .ThrowsAsync(new InvalidOperationException("boom"));
 
         await _sut.Handle(new AnalyzeRepositoryCommitsCommand(repoId), CancellationToken.None);
 

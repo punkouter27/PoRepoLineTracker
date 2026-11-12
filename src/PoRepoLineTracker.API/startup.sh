@@ -29,7 +29,7 @@ fi
 # Avoids 'dubious ownership' when a clone is owned by a different uid than the app process.
 git config --global --add safe.directory '*' 2>/dev/null || true
 
-DLL="$WWWROOT/PoRepoLineTracker.API.dll"
+DLL="$WWWROOT/PoRepoLineTracker.Api.dll"
 
 if [ ! -f "$DLL" ]; then
     echo "[startup] FATAL: no PoRepoLineTracker entry assembly found in $WWWROOT" >&2

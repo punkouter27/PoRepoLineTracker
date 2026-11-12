@@ -3,7 +3,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
-namespace PoRepoLineTracker.API.Auth;
+namespace PoRepoLineTracker.Api.Auth;
 
 /// <summary>
 /// Dev/Test authentication driven entirely by request headers, so an automated
@@ -99,5 +99,5 @@ internal sealed class FakeAuthHandler : AuthenticationHandler<AuthenticationSche
     /// across processes and runs — a random GUID would make fixtures unrepeatable.
     /// </summary>
     private static Guid StableGuid(string value)
-        => new(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
+        => new(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value))[..16]);
 }

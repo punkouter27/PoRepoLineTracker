@@ -21,6 +21,7 @@ public sealed class AccessibilityUiTests
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
 
         // WCAG 3.1.1 — screen readers pick pronunciation from this.
@@ -78,6 +79,7 @@ public sealed class AccessibilityUiTests
         // WCAG 2.1.1 — pressing Tab must move focus onto a real control.
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
 
         await page.Keyboard.PressAsync("Tab");
@@ -103,6 +105,7 @@ public sealed class AccessibilityUiTests
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, route);
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions { Timeout = 25000 });
 
         var h1Count = await page.Locator("h1").CountAsync();
@@ -125,6 +128,7 @@ public sealed class AccessibilityUiTests
     {
         var page = await _fixture.OpenAuthenticatedAsync(E2EUiFixture.Desktop, "/insights");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions { Timeout = 25000 });
 
         // Focus starts at the document, so one Tab must reach the skip link — anything else means

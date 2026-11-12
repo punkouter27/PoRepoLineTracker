@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace PoRepoLineTracker.API.Extensions;
+namespace PoRepoLineTracker.Api.Extensions;
 
 /// <summary>
 /// Reads the caller's identity off the authenticated principal.

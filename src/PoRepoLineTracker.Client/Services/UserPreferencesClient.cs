@@ -10,7 +10,7 @@ namespace PoRepoLineTracker.Client.Services;
 /// on the same page share a single HTTP round-trip instead of issuing redundant
 /// parallel requests. The cache is refreshed on every successful SaveAsync call.
 /// </summary>
-public sealed class UserPreferencesClient(HttpClient httpClient)
+public sealed class UserPreferencesClient(HttpClient httpClient) : IDisposable
 {
     // Guard against concurrent initial fetches from multiple components.
     private readonly SemaphoreSlim _fetchLock = new(1, 1);
@@ -57,4 +57,6 @@ public sealed class UserPreferencesClient(HttpClient httpClient)
 
         return saved;
     }
+
+    public void Dispose() => _fetchLock.Dispose();
 }

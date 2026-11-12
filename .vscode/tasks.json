@@ -26,7 +26,7 @@
 			"type": "process",
 			"args": [
 				"publish",
-				"${workspaceFolder}/src/PoRepoLineTracker.API",
+				"${workspaceFolder}/src/PoRepoLineTracker.Api",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],
@@ -77,7 +77,7 @@
 			"args": [
 				"run",
 				"--project",
-				"src/PoRepoLineTracker.API",
+				"src/PoRepoLineTracker.Api",
 				"--launch-profile",
 				"https"
 			],

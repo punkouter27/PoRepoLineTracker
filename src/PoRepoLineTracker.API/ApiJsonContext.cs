@@ -1,9 +1,9 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
-using PoRepoLineTracker.API.Analysis;
-using PoRepoLineTracker.API.Features.Repositories;
+using PoRepoLineTracker.Api.Analysis;
+using PoRepoLineTracker.Api.Features.Repositories;
 
-namespace PoRepoLineTracker.API;
+namespace PoRepoLineTracker.Api;
 
 /// <summary>
 /// Source-generated JSON for the server's own payloads: GitHub API bodies and the error

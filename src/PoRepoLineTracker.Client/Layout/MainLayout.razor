@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @using PoRepoLineTracker.Client.Layout
-@using PoRepoLineTracker.Client.Components
 @using PoRepoLineTracker.Client.Services
 @using Radzen
 @using Radzen.Blazor
@@ -110,14 +109,30 @@
            single non-link naming the <h1> directly underneath it. Three navigation affordances for
            six destinations is the thing that made this app feel bigger than it is. *@
         <main id="main-content" class="app-content" tabindex="-1" @ref="_mainContent">
-            @Body
+            <ErrorBoundary @ref="_errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    <div class="po-error-panel" role="alert">
+                        <h2>Something went wrong</h2>
+                        <p>This view hit an unexpected error: @ex.Message</p>
+                        <div class="po-error-actions">
+                            <RadzenButton Text="Retry" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Click="@(() => _errorBoundary?.Recover())" />
+                        </div>
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
         </main>
     </RadzenBody>
 </RadzenLayout>
 
+<BottomNav />
+
 @code {
     private const int MobileBreakpointPx = 768;
 
+    private ErrorBoundary? _errorBoundary;
     private bool sidebarExpanded = true;
     private bool _isMobile = false;
     private bool _isDarkMode = false;
@@ -126,6 +141,8 @@
     private ElementReference _mainContent;
 
     private async Task SkipToMainAsync() => await _mainContent.FocusAsync();
+
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
 
     /// <summary>
     /// `app-sidebar--open` drives the off-canvas transform below 768px;

@@ -1,0 +1,286 @@
+@inject RepoApiClient Api
+@inject ILogger<CodeHealthDashboard> Logger
+@implements IDisposable
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using PoRepoLineTracker.Shared.Domain
+@using PoRepoLineTracker.Client.Models
+@using PoRepoLineTracker.Shared.Serialization
+@using Radzen
+@using Radzen.Blazor
+@using Microsoft.AspNetCore.Authorization
+
+@* The "Code health" view of the Insights page: every repository scored against every other. The per-repository card answers "how is this one";
+   this answers "how do they compare", which is the question the score is actually reliable for —
+   the absolute number is a guide, the ranking holds up. Ordered healthiest first.
+
+   The repository grid is loaded on demand rather than on navigation: scoring means walking each
+   repository's tree and parsing its C#, and that is a wait the user should choose. The trend chart,
+   in contrast, is memoised per SHA in storage and is cheap to fetch — auto-loading it on mount
+   replaces an empty chart card with a populated one on every visit past the first, at no extra
+   user-visible cost. *@
+<div class="app-stack">
+    <RadzenText TextStyle="TextStyle.Body1">
+        @if (_isLoading)
+        {
+            <span>Parsing every repository — this walks each tree, so give it a moment…</span>
+        }
+        else if (_rows is not null)
+        {
+            <span>@_measuredCount of @_rows.Count repositories measured · healthiest first</span>
+        }
+        else
+        {
+            <span>Rank every repository you track by how maintainable its code is</span>
+        }
+    </RadzenText>
+
+    <ChartCard Title="Repositories"
+               IsLoading="@_isLoading"
+               ErrorMessage="@_message"
+               OnRetry="@LoadAsync"
+               IsEmpty="@(_rows is null or { Count: 0 })"
+               EmptyText="@GridEmptyText">
+        <Toolbar>
+            <RadzenButton Text="@(_rows is null ? "Analyze all" : "Re-run")"
+                          Icon="@(_isLoading ? "hourglass_top" : "insights")"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Disabled="@_isLoading"
+                          Click="@LoadAsync" />
+        </Toolbar>
+
+        <ChildContent>
+            @if (_rows is { Count: > 0 })
+            {
+                <div class="u-scroll-x">
+                    <RadzenDataGrid Data="@_rows"
+                                    TItem="CodeHealthSummaryDto"
+                                    AllowSorting="true"
+                                    AllowPaging="false"
+                                    Density="Density.Compact"
+                                    Responsive="true"
+                                    class="ch-grid">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Name" Title="Repository" MinWidth="180px">
+                                <Template Context="row">
+                                    <RadzenStack Gap="0.1rem">
+                                        <a href="@($"/repositories/{row.RepositoryId}")" class="ch-repo-link">
+                                            <strong>@row.Owner/@row.Name</strong>
+                                        </a>
+                                        @if (!row.Measured && !string.IsNullOrEmpty(row.UnmeasuredReason))
+                                        {
+                                            <RadzenText TextStyle="TextStyle.Caption" class="ch-unmeasured-reason">@row.UnmeasuredReason</RadzenText>
+                                        }
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            @* Each repository's score over its whole history (the same endpoint as the
+                               Health over time card), filled in row by row after the ranking lands. *@
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Title="All-time trend" Width="170px" Sortable="false">
+                                <Template Context="row">
+                                    @if (!row.Measured)
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                    else if (!_trends.TryGetValue(row.RepositoryId, out var trend))
+                                    {
+                                        <RadzenSkeleton Width="120px" Height="1.25rem" />
+                                    }
+                                    else if (trend is { Points.Count: > 1 } t)
+                                    {
+                                        var change = t.Points[^1].Score - t.Points[0].Score;
+                                        <div class="ch-trend" title="@($"{t.Points[0].Score} in {t.Points[0].Month:MMM yyyy}, {t.Points[^1].Score} now")">
+                                            <div class="ch-trend__spark app-spark">
+                                                @* The series is a child: RadzenSparkline is a chart, and
+                                                   Data/Property set on it are just HTML attributes. *@
+                                                <RadzenSparkline>
+                                                    <RadzenLineSeries Data="@t.Points" CategoryProperty="Month" ValueProperty="Score"
+                                                                      Stroke="var(--primary-color)" StrokeWidth="2" />
+                                                </RadzenSparkline>
+                                            </div>
+                                            <span class="@(change < 0 ? "ch-trend__delta ch-trend__delta--down" : "ch-trend__delta ch-trend__delta--up")">@(change > 0 ? "+" : "")@change</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted" title="Not enough history at a month boundary to draw a trend">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Score" Title="Health" Width="90px" TextAlign="TextAlign.Center" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured)
+                                    {
+                                        <RadzenBadge BadgeStyle="@HealthBadgeStyle(row.Score)" Text="@row.Score.ToString()" class="ch-score-badge" />
+                                    }
+                                    else
+                                    {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="—" />
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="Grade" Title="Grade" Width="80px" TextAlign="TextAlign.Center" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured && !string.IsNullOrEmpty(row.Grade))
+                                    {
+                                        <strong class="ch-grade">@row.Grade</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="MaintainabilityIndex" Title="C# Maintainability" Width="140px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured && row.MaintainabilityIndex.HasValue)
+                                    {
+                                        <span>@row.MaintainabilityIndex.Value.ToString("F1")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="CyclomaticComplexity" Title="Complexity" Width="120px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured)
+                                    {
+                                        <span>@row.CyclomaticComplexity.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="CodeHealthSummaryDto" Property="LinesOfSourceCode" Title="Source Lines" Width="120px" TextAlign="TextAlign.Right" Sortable="true">
+                                <Template Context="row">
+                                    @if (row.Measured)
+                                    {
+                                        <span>@row.LinesOfSourceCode.ToString("N0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ch-muted">—</span>
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </div>
+
+                <RadzenText TextStyle="TextStyle.Caption" class="ch__caveat">
+                    Health folds the parsed C# maintainability index and the line-oriented estimate for every
+                    other language into one figure, weighted by how many lines each describes. The two inputs
+                    are not calibrated against each other — Visual Studio treats any index above 20 as healthy,
+                    while the estimate is built so 90 is an A — so the <em>ranking</em> is the trustworthy part
+                    and a C#-heavy repository grades harsher here than the IDE would call it. Depth of
+                    Inheritance and Class Coupling need a resolved compilation and are not shown.
+                </RadzenText>
+            }
+        </ChildContent>
+    </ChartCard>
+</div>
+
+@code {
+    private List<CodeHealthSummaryDto>? _rows;
+    private bool _isLoading;
+    private string? _message;
+
+    private int _measuredCount => _rows?.Count(r => r.Measured) ?? 0;
+
+    /// <summary>Each measured row's all-time trend once it arrives; absent while loading, null when there is none.</summary>
+    private readonly Dictionary<RepositoryId, CodeHealthTrendDto?> _trends = new();
+    private CancellationTokenSource? _trendLoads;
+
+    /// <summary>Empty-state copy: distinguishes "never fetched" from "fetched and genuinely empty".</summary>
+    private string GridEmptyText => _rows is null
+        ? "Nothing has been measured yet. Analyzing walks each repository's tree and parses its C#, so it takes a few seconds per repository."
+        : "No repositories yet. Add some from the Repositories page and analyze them first.";
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        try
+        {
+            _rows = await Api.GetCodeHealthSummaryAsync();
+            if (_rows is not null) _ = LoadTrendsAsync(_rows);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load portfolio code health");
+            _message = "Could not load code health. Try again in a moment.";
+            _rows = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// The trend column, three repositories at a time: a first run measures each repository's
+    /// history on the server (memoised per commit afterwards), and a portfolio's worth at once
+    /// would queue every clone walk behind the others. A re-run or leaving the page cancels it.
+    /// </summary>
+    private async Task LoadTrendsAsync(List<CodeHealthSummaryDto> rows)
+    {
+        _trendLoads?.Cancel();
+        _trendLoads = new CancellationTokenSource();
+        var token = _trendLoads.Token;
+        _trends.Clear();
+
+        using var gate = new SemaphoreSlim(3);
+        await Task.WhenAll(rows.Where(r => r.Measured).Select(async row =>
+        {
+            CodeHealthTrendDto? trend = null;
+            try
+            {
+                await gate.WaitAsync(token);
+                try
+                {
+                    trend = await Api.GetCodeHealthTrendAsync(row.RepositoryId, token);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // A 404 (no analysed commits) or a failed walk: the cell reads "—", not an error.
+                Logger.LogWarning(ex, "No health trend for {RepositoryId}", row.RepositoryId);
+            }
+
+            if (token.IsCancellationRequested) return;
+            _trends[row.RepositoryId] = trend;
+            StateHasChanged();
+        }));
+    }
+
+    public void Dispose() => _trendLoads?.Cancel();
+
+    private static BadgeStyle HealthBadgeStyle(int score) => score switch
+    {
+        >= 80 => BadgeStyle.Success,
+        >= 60 => BadgeStyle.Info,
+        >= 40 => BadgeStyle.Warning,
+        _     => BadgeStyle.Danger
+    };
+}

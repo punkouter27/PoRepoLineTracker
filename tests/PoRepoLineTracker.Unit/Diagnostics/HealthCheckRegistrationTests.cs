@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using PoRepoLineTracker.API.Features.Diagnostics;
-using PoRepoLineTracker.API.Storage;
+using PoRepoLineTracker.Api.Features.Diagnostics;
+using PoRepoLineTracker.Api.Storage;
 
 namespace PoRepoLineTracker.Unit.Diagnostics;
 

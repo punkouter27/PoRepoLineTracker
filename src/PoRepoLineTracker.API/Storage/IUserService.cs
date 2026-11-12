@@ -1,5 +1,5 @@
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// Service for managing user accounts and authentication state.

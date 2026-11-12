@@ -1,5 +1,5 @@
 using FluentAssertions;
-using PoRepoLineTracker.API.Hubs;
+using PoRepoLineTracker.Api.Hubs;
 
 namespace PoRepoLineTracker.Unit;
 
@@ -113,7 +113,7 @@ public class AnalysisProgressServiceTests
         // nobody began is never published (there is no one to address it to), and the FINAL
         // frame of a job still carries its owner — the reader used to look the owner up after
         // ReportComplete had already forgotten it, so "done" was the one frame never delivered.
-        var channel = PoRepoLineTracker.API.Hubs.AnalysisHub.ProgressChannel.Reader;
+        var channel = PoRepoLineTracker.Api.Hubs.AnalysisHub.ProgressChannel.Reader;
         while (channel.TryRead(out _)) { }
 
         var unownedRepoId = RepositoryId.New();

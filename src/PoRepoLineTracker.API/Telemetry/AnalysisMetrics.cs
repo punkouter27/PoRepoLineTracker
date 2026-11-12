@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using PoRepoLineTracker.Shared.Domain;
 
-namespace PoRepoLineTracker.API.Telemetry;
+namespace PoRepoLineTracker.Api.Telemetry;
 
 /// <summary>
 /// Per-commit telemetry: lines counted (cumulative across the loop) and the wall-clock duration

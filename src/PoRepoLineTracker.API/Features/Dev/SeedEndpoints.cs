@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
-namespace PoRepoLineTracker.API.Features.Dev;
+namespace PoRepoLineTracker.Api.Features.Dev;
 
 /// <summary>
 /// Synthetic repository history for the automated UI tier, Development only.

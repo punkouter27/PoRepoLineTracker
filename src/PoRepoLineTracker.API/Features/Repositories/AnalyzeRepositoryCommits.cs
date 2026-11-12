@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using PoRepoLineTracker.API.Telemetry;
+using PoRepoLineTracker.Api.Telemetry;
 using PoRepoLineTracker.Shared.Models.Dtos;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>
 /// Command to analyze commits for a repository.
@@ -26,7 +26,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
     private readonly IUserPreferencesService _userPreferencesService;
     private readonly IAnalysisProgressService _progressService;
     private readonly ILogger<AnalyzeRepositoryCommitsCommandHandler> _logger;
-    private readonly PoRepoLineTracker.API.Analysis.FileIgnoreFilter? _fileIgnoreFilter;
+    private readonly PoRepoLineTracker.Api.Analysis.FileIgnoreFilter? _fileIgnoreFilter;
 
     // #10 fix: per-repository semaphore prevents git Checkout() race conditions on shared local path
     private static readonly ConcurrentDictionary<RepositoryId, SemaphoreSlim> _repoLocks = new();
@@ -45,7 +45,7 @@ public class AnalyzeRepositoryCommitsCommandHandler
         IUserPreferencesService userPreferencesService,
         IAnalysisProgressService progressService,
         ILogger<AnalyzeRepositoryCommitsCommandHandler> logger,
-        PoRepoLineTracker.API.Analysis.FileIgnoreFilter? fileIgnoreFilter = null)
+        PoRepoLineTracker.Api.Analysis.FileIgnoreFilter? fileIgnoreFilter = null)
     {
         _gitHubService = gitHubService;
         _repositoryDataService = repositoryDataService;

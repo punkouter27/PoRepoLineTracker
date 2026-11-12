@@ -1,0 +1,175 @@
+@inject RepoApiClient Api
+@inject ILogger<CodeHealthTrendCard> Logger
+@using PoRepoLineTracker.Shared.Models.Dtos
+@using PoRepoLineTracker.Shared.Domain
+@using PoRepoLineTracker.Shared.Serialization
+@using Radzen
+@using Radzen.Blazor
+
+@* The repository's health over its whole history, month by month.
+
+   Each point is measured at the last commit on or before that month's 1st — the state the code was
+   actually in that morning; past four years the months are thinned evenly. Loaded with the page like
+   the card above it: a first run measures up to 48 commits, and every run after that is served from
+   the per-commit memo in storage. *@
+
+@* Plain <div> root so this file's scoped rules have an element carrying the scope id. *@
+<div class="trend">
+    <RadzenCard class="trend__card">
+        <div class="trend__head">
+            <div class="trend__title-group">
+                <RadzenIcon Icon="timeline" class="trend__icon" />
+                <div>
+                    <RadzenText TextStyle="TextStyle.H6" class="trend__title">Health over time</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="trend__sub">
+                        @if (_trend is { Points.Count: > 0 } loaded)
+                        {
+                            <span>Since @loaded.Points[0].Month.ToString("MMMM yyyy") · @loaded.Points.Count points, each measured at the last commit on or before a 1st</span>
+                        }
+                        else
+                        {
+                            <span>Score over the repository's whole history</span>
+                        }
+                    </RadzenText>
+                </div>
+            </div>
+
+            <RadzenButton Text="@(_trend is null ? "Chart it" : "Refresh")"
+                          Icon="@(_isLoading ? "hourglass_top" : "timeline")"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined"
+                          Size="ButtonSize.Small"
+                          Disabled="@_isLoading"
+                          Click="@LoadAsync" />
+        </div>
+
+        @if (_isLoading)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="trend__note">
+                Measuring each month's commit. The first run does the work; later ones read the stored results.
+            </RadzenText>
+            <RadzenSkeleton Height="220px" />
+        }
+        else if (!string.IsNullOrEmpty(_message))
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="trend__message">@_message</RadzenText>
+        }
+        else if (_trend is { Points.Count: > 1 } trend)
+        {
+            <RadzenChart>
+                <RadzenLineSeries Data="@trend.Points"
+                                  CategoryProperty="Month"
+                                  ValueProperty="Score"
+                                  Title="Health"
+                                  Stroke="#7c6cf5"
+                                  StrokeWidth="2">
+                    <TooltipTemplate Context="point">
+                        @if (point is CodeHealthTrendPointDto p)
+                        {
+                            <div class="arc-tip">
+                                <div class="arc-tip__title">@p.Month.ToString("MMMM yyyy")</div>
+                                <div class="arc-tip__value">
+                                    <span class="arc-tip__label">Health:</span> @p.Score @(string.IsNullOrEmpty(p.Grade) ? "" : $"({p.Grade})")
+                                </div>
+                                @if (p.MaintainabilityIndex is { } mi)
+                                {
+                                    <div class="arc-tip__value">
+                                        <span class="arc-tip__label">C# index:</span> @mi
+                                    </div>
+                                }
+                                @* The commit, so a surprising point can be traced rather than argued with. *@
+                                <div class="arc-tip__meta">@p.CommitSha · @p.CommitDate.ToString("MMM d, yyyy")</div>
+                            </div>
+                        }
+                    </TooltipTemplate>
+                    <ChildContent>
+                        <RadzenMarkers MarkerType="MarkerType.Circle" />
+                    </ChildContent>
+                </RadzenLineSeries>
+
+                <RadzenCategoryAxis FormatString="{0:MMM yy}" LabelAutoRotation="-45">
+                    <RadzenAxisTitle Text="Month" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenCategoryAxis>
+
+                @* Fixed 0–100 rather than fitted to the data. An auto-scaled axis turns a two-point
+                   wobble into a cliff, which is exactly the misreading this chart invites. *@
+                <RadzenValueAxis Min="0" Max="100">
+                    <RadzenAxisTitle Text="Health score" />
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+
+                <RadzenLegend Visible="false" />
+                <RadzenChartTooltipOptions Shared="false" />
+            </RadzenChart>
+
+            <RadzenText TextStyle="TextStyle.Caption" class="trend__caveat">
+                A flat run means no commits landed in those months — the code did not change, so neither did
+                the score. Months before the first commit are absent rather than zero.
+            </RadzenText>
+        }
+        else if (_trend is { Points.Count: 1 })
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="trend__message">
+                Only one month has history behind it, so there is no trend to draw yet.
+            </RadzenText>
+        }
+        else if (_trend is not null)
+        {
+            @* Empty is not the same as absent. The repository has commits — it just has no commit at
+               a month boundary yet, or none of them could be read here. Saying "no analysed commits"
+               for a repository being actively committed to is simply false. *@
+            <RadzenText TextStyle="TextStyle.Body2" class="trend__message">
+                Not enough history to chart yet — this repository has no commit at a month boundary, or its
+                clone is not on this server. Points appear once its history spans a 1st of the month.
+            </RadzenText>
+        }
+    </RadzenCard>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RepositoryId RepositoryId { get; set; }
+
+    private CodeHealthTrendDto? _trend;
+    private bool _isLoading;
+    private string? _message;
+
+    private RepositoryId? _loadedFor;
+
+    /// <summary>On parameters rather than once: navigating between repositories reuses this component.</summary>
+    protected override Task OnParametersSetAsync()
+    {
+        if (_loadedFor == RepositoryId) return Task.CompletedTask;
+        _loadedFor = RepositoryId;
+        _trend = null;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        StateHasChanged();
+
+        try
+        {
+            _trend = await Api.GetCodeHealthTrendAsync(RepositoryId);
+
+            // A 404 here means "no analysed commits", which is a state rather than a failure.
+            _trend ??= new CodeHealthTrendDto();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _trend = new CodeHealthTrendDto();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load code health trend for {RepositoryId}", RepositoryId);
+            _message = "Could not load the trend. Try again in a moment.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

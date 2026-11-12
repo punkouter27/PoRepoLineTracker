@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <LangVersion>preview</LangVersion>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <RootNamespace>PoRepoLineTracker.Integration</RootNamespace>
     <!-- Coverlet is intentionally NOT enabled here. Coverlet instruments referenced assemblies
-         (e.g. PoRepoLineTracker.API) into %TEMP% and races WebApplicationFactory's host
+         (e.g. PoRepoLineTracker.Api) into %TEMP% and races WebApplicationFactory's host
          build, intermittently causing "entry point exited without ever building an IHost"
          (regression R2). Line-coverage is collected at the unit tier; the integration tier
          validates API/Table-Storage contracts, not coverage. -->
@@ -32,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\PoRepoLineTracker.API\PoRepoLineTracker.API.csproj" />
+    <ProjectReference Include="..\..\src\PoRepoLineTracker.Api\PoRepoLineTracker.Api.csproj" />
   </ItemGroup>
 
 </Project>

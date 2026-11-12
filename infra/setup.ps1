@@ -106,5 +106,5 @@ if ($orphaned) {
 
 # ── Done ───────────────────────────────────────────────────────────────────
 Write-Host "`n=== Setup Complete ===" -ForegroundColor Cyan
-Write-Host "Run the app with: dotnet run --project src/PoRepoLineTracker.API --launch-profile https" -ForegroundColor White
+Write-Host "Run the app with: dotnet run --project src/PoRepoLineTracker.Api --launch-profile https" -ForegroundColor White
 Write-Host "API will be available at http://localhost:5002 / https://localhost:5003" -ForegroundColor White

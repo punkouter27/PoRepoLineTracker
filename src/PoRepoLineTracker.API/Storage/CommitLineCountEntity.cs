@@ -2,7 +2,7 @@ using Azure;
 using Azure.Data.Tables;
 using System.Text.Json;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 public class CommitLineCountEntity : ITableEntity
 {

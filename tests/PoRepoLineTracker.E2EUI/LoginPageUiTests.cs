@@ -20,6 +20,7 @@ public sealed class LoginPageUiTests
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         var errors = new List<string>();
         page.Console += (_, msg) =>
@@ -44,6 +45,7 @@ public sealed class LoginPageUiTests
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/repositories");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
 
         await page.WaitForURLAsync("**/login", new PageWaitForURLOptions { Timeout = 20000 });
 

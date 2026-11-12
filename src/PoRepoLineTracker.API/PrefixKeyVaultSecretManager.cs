@@ -1,7 +1,7 @@
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Security.KeyVault.Secrets;
 
-namespace PoRepoLineTracker.API;
+namespace PoRepoLineTracker.Api;
 
 /// GoF Template Method Pattern: Overrides KeyVaultSecretManager.Load() and GetKey()
 /// to implement a prefix-based secret-naming convention. The base class defines the
@@ -21,9 +21,9 @@ public class PrefixKeyVaultSecretManager : KeyVaultSecretManager
     /// <summary>
     /// Load all secrets — both prefixed (app-specific) and non-prefixed (shared).
     /// </summary>
-    public override bool Load(SecretProperties properties)
+    public override bool Load(SecretProperties secret)
     {
-        return properties.Enabled == true;
+        return secret.Enabled == true;
     }
 
     /// <summary>

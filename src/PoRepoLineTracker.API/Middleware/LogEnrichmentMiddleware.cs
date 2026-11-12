@@ -1,7 +1,7 @@
 using Serilog.Context;
 using System.Security.Claims;
 
-namespace PoRepoLineTracker.API.Middleware;
+namespace PoRepoLineTracker.Api.Middleware;
 
 /// <summary>
 /// Middleware that gives each HTTP request a correlation ID for distributed tracing.

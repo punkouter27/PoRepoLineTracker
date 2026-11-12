@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// Azure Table Storage implementation of IUserService.
@@ -14,7 +14,7 @@ public class UserService : IUserService
 {
     private readonly TableClient _userTableClient;
     private readonly ILogger<UserService> _logger;
-    private bool _tableInitialized = false;
+    private bool _tableInitialized;
 
     /// <summary>
     /// Encrypts the GitHub access token at rest. It is a live `repo`-scope credential — read

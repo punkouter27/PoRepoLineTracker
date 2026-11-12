@@ -93,9 +93,17 @@ namespace PoRepoLineTracker.Integration
                 new CookieContainerHandler());
         }
 
+        private static readonly string[] TestTables =
+        [
+            "PoRepoLineTrackerRepositoriesTest",
+            "PoRepoLineTrackerCommitLineCountsTest",
+            "PoRepoLineTrackerUserPreferencesTest",
+            "PoRepoLineTrackerUsersTest"
+        ];
+
         private UserPreferences _storedPreferences = new()
         {
-            UserId = UserId.Parse(TestAuthHandler.TestUserId),
+            UserId = UserId.Parse(TestAuthHandler.TestUserId, System.Globalization.CultureInfo.InvariantCulture),
             FileExtensions = UserPreferences.DefaultFileExtensions,
             LastUpdated = DateTime.UtcNow
         };
@@ -181,13 +189,7 @@ namespace PoRepoLineTracker.Integration
                     if (_azuriteAvailable)
                     {
                         var serviceClient = new Azure.Data.Tables.TableServiceClient(_azuriteConnectionString);
-                        var testTables = new[] {
-                            "PoRepoLineTrackerRepositoriesTest",
-                            "PoRepoLineTrackerCommitLineCountsTest",
-                            "PoRepoLineTrackerUserPreferencesTest",
-                            "PoRepoLineTrackerUsersTest"
-                        };
-                        foreach (var tableName in testTables)
+                        foreach (var tableName in TestTables)
                         {
                             serviceClient.CreateTableIfNotExists(tableName);
                             foreach (var entity in serviceClient.GetTableClient(tableName).Query<Azure.Data.Tables.TableEntity>())
@@ -332,7 +334,7 @@ namespace PoRepoLineTracker.Integration
         }
 
         // No-op hosted service used to replace real background services during tests
-        private class NoOpHostedService : Microsoft.Extensions.Hosting.BackgroundService
+        private sealed class NoOpHostedService : Microsoft.Extensions.Hosting.BackgroundService
         {
             protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
         }

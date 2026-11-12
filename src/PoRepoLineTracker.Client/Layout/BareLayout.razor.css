@@ -1,0 +1,24 @@
+.bare-layout {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+.bare-layout__main {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.po-error-panel {
+    margin: 2rem auto;
+    max-width: 40rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--danger-color);
+    background: color-mix(in srgb, var(--danger-color) 10%, var(--bg-primary));
+}
+
+.po-error-actions {
+    margin-top: 0.75rem;
+}

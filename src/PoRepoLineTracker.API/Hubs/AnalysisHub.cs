@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using PoRepoLineTracker.Shared.Models;
 
-namespace PoRepoLineTracker.API.Hubs;
+namespace PoRepoLineTracker.Api.Hubs;
 
 /// <summary>
 /// Pushes live analysis progress to the browser.

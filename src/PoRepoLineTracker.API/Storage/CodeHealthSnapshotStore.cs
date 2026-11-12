@@ -3,7 +3,7 @@ using Azure.Data.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// The memo of per-commit code-health figures. See <see cref="CodeHealthSnapshotEntity"/> for why

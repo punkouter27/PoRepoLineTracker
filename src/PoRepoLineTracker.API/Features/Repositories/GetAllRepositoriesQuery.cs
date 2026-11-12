@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 public record GetAllRepositoriesQuery(UserId UserId);
 

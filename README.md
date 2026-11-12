@@ -47,14 +47,14 @@ docker compose up -d
 ### Run the app
 
 ```powershell
-dotnet run --project src/PoRepoLineTracker.API --launch-profile https
+dotnet run --project src/PoRepoLineTracker.Api --launch-profile https
 ```
 
 ### Authenticating without GitHub (Development/Test only)
 
 Tools and tests authenticate by sending an `X-Fake-User` header (a GUID verbatim; any other
 string hashes to a stable GUID) — see
-[src/PoRepoLineTracker.API/api-tests.http](src/PoRepoLineTracker.API/api-tests.http) for
+[src/PoRepoLineTracker.Api/api-tests.http](src/PoRepoLineTracker.Api/api-tests.http) for
 worked examples including the antiforgery pair required by writes.
 
 In a browser, Development also has a sign-in bypass: `/auth/login` signs you in as a fixed

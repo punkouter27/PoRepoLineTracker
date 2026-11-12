@@ -1,5 +1,5 @@
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 public interface IRepositoryDataService
 {

@@ -4,9 +4,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.IO;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
-public class RepositoryDataService : IRepositoryDataService
+public class RepositoryDataService : IRepositoryDataService, IDisposable
 {
     private readonly TableClient _repositoryTableClient;
     private readonly TableClient _commitLineCountTableClient;
@@ -14,7 +14,7 @@ public class RepositoryDataService : IRepositoryDataService
 
     // SemaphoreSlim(1,1) prevents concurrent background tasks from double-initializing tables
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private volatile bool _tablesInitialized = false;
+    private volatile bool _tablesInitialized;
 
     public RepositoryDataService(TableServiceClient tableServiceClient, IConfiguration configuration, ILogger<RepositoryDataService> logger)
     {
@@ -216,7 +216,7 @@ public class RepositoryDataService : IRepositoryDataService
             entitiesToDelete.Add(entity);
         }
 
-        if (entitiesToDelete.Any())
+        if (entitiesToDelete.Count > 0)
         {
             // 100-row transactions (the service's limit; all rows share the repository's
             // partition), sequentially. This was one unbatched DeleteEntityAsync per commit, all
@@ -359,7 +359,7 @@ public class RepositoryDataService : IRepositoryDataService
     /// </summary>
     private async Task RemoveRepositoryEntitiesAsync(List<GitHubRepositoryEntity> entitiesToDelete, UserId userId)
     {
-        if (entitiesToDelete.Any())
+        if (entitiesToDelete.Count > 0)
         {
             _logger.LogInformation("Found {Count} repository entities to delete for user {UserId}.", entitiesToDelete.Count, userId);
 
@@ -392,4 +392,9 @@ public class RepositoryDataService : IRepositoryDataService
         }
     }
 
+    public void Dispose()
+    {
+        _initLock.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

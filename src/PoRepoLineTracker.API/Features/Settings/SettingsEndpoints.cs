@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Settings;
+namespace PoRepoLineTracker.Api.Features.Settings;
 
 internal static class SettingsEndpoints
 {

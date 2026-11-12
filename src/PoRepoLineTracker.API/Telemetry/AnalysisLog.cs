@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Telemetry;
+namespace PoRepoLineTracker.Api.Telemetry;
 
 /// <summary>
 /// Source-generated, allocation-free logging for the high-frequency commit

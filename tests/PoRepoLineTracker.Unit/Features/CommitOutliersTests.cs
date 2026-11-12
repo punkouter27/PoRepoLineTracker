@@ -1,5 +1,5 @@
 using FluentAssertions;
-using PoRepoLineTracker.API.Features.Insights;
+using PoRepoLineTracker.Api.Features.Insights;
 
 namespace PoRepoLineTracker.Unit;
 
@@ -7,6 +7,7 @@ public class CommitOutliersTests
 {
     private static readonly GitHubRepository Repo = new() { Id = RepositoryId.New(), Owner = "acme", Name = "api" };
     private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly int[] OldSpikeSeed = [40_000];
 
     private static List<CommitLineCount> History(params int[] linesAdded) =>
         linesAdded.Select((lines, i) => new CommitLineCount
@@ -42,7 +43,7 @@ public class CommitOutliersTests
         CommitOutliers.Find(Repo, History(smallSpike), Now.AddDays(-30)).Should().BeEmpty();
 
         // A genuine outlier, but outside the window being reported on.
-        var oldSpike = new[] { 40_000 }.Concat(Enumerable.Repeat(30, 60)).ToArray();
+        var oldSpike = OldSpikeSeed.Concat(Enumerable.Repeat(30, 60)).ToArray();
         CommitOutliers.Find(Repo, History(oldSpike), Now.AddDays(-30)).Should().BeEmpty();
     }
 }

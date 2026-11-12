@@ -2,13 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "PoRepoLineTracker.API (Debug)",
+      "name": "PoRepoLineTracker.Api (Debug)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "kill-dotnet-and-build",
-      "program": "${workspaceFolder}/src/PoRepoLineTracker.API/bin/Debug/net10.0/PoRepoLineTracker.API.dll",
+      "program": "${workspaceFolder}/src/PoRepoLineTracker.Api/bin/Debug/net10.0/PoRepoLineTracker.Api.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PoRepoLineTracker.API",
+      "cwd": "${workspaceFolder}/src/PoRepoLineTracker.Api",
       "stopAtEntry": false,
       "serverReadyAction": {
         "action": "openExternally",

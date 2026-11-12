@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System;
 
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 public record GetFileExtensionPercentagesQuery(RepositoryId RepositoryId);
 

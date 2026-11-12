@@ -14,6 +14,7 @@ namespace PoRepoLineTracker.Integration;
 [Collection(IntegrationTestCollection.Name)]
 public class ApiEndpointTests
 {
+    private static readonly string[] ExpectedUpdatedExtensions = [".cs", ".razor"];
     private readonly HttpClient _client;
     private readonly CustomWebApplicationFactory _factory;
 
@@ -60,7 +61,7 @@ public class ApiEndpointTests
 
         var persistedPreferences = await getResponse.Content.ReadFromJsonAsync<UserPreferences>();
         persistedPreferences.Should().NotBeNull();
-        persistedPreferences!.FileExtensions.Should().BeEquivalentTo(new[] { ".cs", ".razor" });
+        persistedPreferences!.FileExtensions.Should().BeEquivalentTo(ExpectedUpdatedExtensions);
     }
 
     // ─── Repositories (Authenticated) ───────────────────────────────────

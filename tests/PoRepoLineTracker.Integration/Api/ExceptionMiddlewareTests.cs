@@ -73,7 +73,7 @@ public class ExceptionMiddlewareFactory : CustomWebApplicationFactory
             var fakeRepo = new GitHubRepository
             {
                 Id = ThrowingRepoId,
-                UserId = UserId.Parse(TestAuthHandler.TestUserId),
+                UserId = UserId.Parse(TestAuthHandler.TestUserId, System.Globalization.CultureInfo.InvariantCulture),
                 Owner = "testowner",
                 Name = "testrepo",
                 CloneUrl = "https://github.com/testowner/testrepo.git"

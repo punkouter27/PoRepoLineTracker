@@ -1,5 +1,5 @@
 # Makes Azure and GitHub match what PoRepoLineTracker needs: the app identity's roles, the CI deploy identity, and the
-# repo variables the deploy workflow reads. Run by a subscription owner:  pwsh SCRIPTS/ensure-azure-access.ps1
+# repo variables the deploy workflow reads. Run by a subscription owner:  pwsh scripts/ensure-azure-access.ps1
 $Repo = 'PoRepoLineTracker'; $Branch = 'master'; $ResourceGroup = 'PoRepoLineTracker'; $App = 'app-porepolinetracker2'
 $Identity = 'system'          # 'system', or the name of a user-assigned identity in PoShared
 $KeyVaultAccess = $true

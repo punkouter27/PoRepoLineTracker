@@ -1,0 +1,94 @@
+@page "/login"
+@layout BareLayout
+@inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnv
+@using Radzen
+@using Radzen.Blazor
+
+<PageTitle>Sign in · PoRepoLineTracker</PageTitle>
+
+<div class="login-canvas">
+    @* Animated mesh-gradient blobs, pure CSS. This used to be the fallback behind a WebGL canvas;
+       the shader layer is gone, so it is simply the backdrop. It costs no JS module, no GL
+       context, and honours prefers-reduced-motion through effects.css like everything else.
+
+       No inline style anywhere inside .login-canvas — ScopedCssUiTests asserts that. *@
+    <div class="login-blob login-blob-1" aria-hidden="true"></div>
+    <div class="login-blob login-blob-2" aria-hidden="true"></div>
+    <div class="login-blob login-blob-3" aria-hidden="true"></div>
+
+    <RadzenCard class="login-card">
+        <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
+            <!-- Logomark -->
+            <div class="login-logomark" aria-hidden="true">
+                <span class="login-logomark-icon">
+                    <RadzenIcon Icon="code" class="login-logomark-icon__glyph" />
+                </span>
+                <span class="login-logomark-badge">
+                    <RadzenIcon Icon="trending_up" class="login-logomark-badge__glyph" />
+                </span>
+            </div>
+
+            <RadzenStack Gap="0.35rem" AlignItems="AlignItems.Center">
+                <h1 class="page-hero__title login-wordmark">PoRepoLineTracker</h1>
+                <RadzenText TextStyle="TextStyle.Body1" class="login-tagline">
+                    Track lines of code across all your GitHub repositories
+                </RadzenText>
+            </RadzenStack>
+
+            <hr class="login-divider" />
+
+            @* GitHub is the only provider. The Microsoft button that used to sit below this one
+               is gone along with its server-side handler — a Microsoft principal carries no
+               GitHub credential, so it could sign in but not read a single repository. See
+               AuthServiceExtensions for the full rationale. *@
+            <RadzenButton Text="Sign in with GitHub"
+                          Icon="login"
+                          aria-label="Sign in with GitHub"
+                          ButtonStyle="ButtonStyle.Primary"
+                          class="login-cta-btn"
+                          Click="@SignIn" />
+
+            @if (HostEnv.Environment == "Development")
+            {
+                <RadzenButton Text="Dev Sign-In (Local Bypass)"
+                              Icon="developer_mode"
+                              aria-label="Dev Sign-In"
+                              ButtonStyle="ButtonStyle.Base"
+                              Variant="Variant.Outlined"
+                              Size="ButtonSize.Small"
+                              Click="@(() => Navigation.NavigateTo("auth/login?dev=true", forceLoad: true))" />
+            }
+
+            <RadzenText TextStyle="TextStyle.Caption" class="login-footnote">
+                Your data stays in your own Azure Table Storage
+            </RadzenText>
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+@code {
+    /// <summary>
+    /// Starts the OAuth round-trip, carrying through wherever the user was originally headed.
+    ///
+    /// <para>The production sign-in gate redirects an unauthenticated page request here with a
+    /// <c>returnUrl</c>, and <c>/auth/login</c> accepts one — but this page used to navigate to
+    /// <c>auth/login</c> bare, so the parameter was dropped on the floor and everyone landed on
+    /// the repositories page regardless of the link they had followed.</para>
+    ///
+    /// <para><c>forceLoad</c> because <c>/auth/login</c> is a server endpoint that issues an OAuth
+    /// challenge; letting the Blazor router try to handle it client-side would find no route.</para>
+    /// </summary>
+    private void SignIn()
+    {
+        var returnUrl = new Uri(Navigation.Uri).Query
+            .TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(part => part.StartsWith("returnUrl=", StringComparison.OrdinalIgnoreCase));
+
+        // Passed on already-encoded, exactly as it arrived. Re-encoding a value that is a path
+        // would double-escape the slashes.
+        var target = returnUrl is null ? "auth/login" : $"auth/login?{returnUrl}";
+        Navigation.NavigateTo(target, forceLoad: true);
+    }
+}

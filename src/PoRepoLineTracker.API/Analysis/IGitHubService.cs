@@ -1,5 +1,5 @@
 
-namespace PoRepoLineTracker.API.Analysis;
+namespace PoRepoLineTracker.Api.Analysis;
 
 public interface IGitHubService
 {

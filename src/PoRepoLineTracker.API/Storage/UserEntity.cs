@@ -1,7 +1,7 @@
 using Azure;
 using Azure.Data.Tables;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// Azure Table Storage entity for User.

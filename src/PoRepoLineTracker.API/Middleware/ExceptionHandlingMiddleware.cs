@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
-namespace PoRepoLineTracker.API.Middleware
+namespace PoRepoLineTracker.Api.Middleware
 {
     public class ExceptionHandlingMiddleware
     {
@@ -66,7 +66,8 @@ namespace PoRepoLineTracker.API.Middleware
             };
 
             // In development, you might want to expose more details
-            if (context.RequestServices.GetService(typeof(Microsoft.AspNetCore.Hosting.IWebHostEnvironment)) is Microsoft.AspNetCore.Hosting.IWebHostEnvironment env && env.IsDevelopment())
+            if (context.RequestServices.GetService(typeof(Microsoft.AspNetCore.Hosting.IWebHostEnvironment)) is Microsoft.AspNetCore.Hosting.IWebHostEnvironment env
+                && (env.IsDevelopment() || env.IsEnvironment("Test")))
             {
                 problemDetails.Detail = exception.Message;
                 problemDetails.Extensions.Add("traceId", System.Diagnostics.Activity.Current?.Id ?? context.TraceIdentifier);

@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```powershell
 docker compose up -d                                          # Azurite (tables) + Jaeger (OTLP, UI :16686)
 dotnet build PoRepoLineTracker.slnx                           # warnings are errors (Directory.Build.props)
-dotnet run --project src/PoRepoLineTracker.API --launch-profile https   # https://localhost:5001, hosts the WASM client too
+dotnet run --project src/PoRepoLineTracker.Api --launch-profile https   # https://localhost:5001, hosts the WASM client too
 
 dotnet test tests/PoRepoLineTracker.Unit                      # the only CI gate (tier caps: 100 unit / 50 integration / 25 API / 25 UI)
 dotnet test tests/PoRepoLineTracker.Integration               # needs Docker (Testcontainers/Azurite)
@@ -21,16 +21,16 @@ dotnet test tests/PoRepoLineTracker.E2EUI                     # needs the app ru
 dotnet test tests/PoRepoLineTracker.Unit --filter "FullyQualifiedName~FileIgnoreFilter"   # single class/test
 ```
 
-- A running app locks the build (MSB3027). Stop it first: `Get-Process -Name PoRepoLineTracker.API | Stop-Process -Force`.
+- A running app locks the build (MSB3027). Stop it first: `Get-Process -Name PoRepoLineTracker.Api | Stop-Process -Force`.
 - A build that worked yesterday can fail today with `NU1903` (a new NuGet security advisory, which warnings-as-errors turns into a failure). Fix it by bumping the version in `Directory.Packages.props` (central management with transitive pinning). Don't suppress it.
 - Without Docker, run Azurite from npm (`azurite --silent --location <dir> --skipApiVersionCheck`). The Integration tier falls back to it automatically.
 - Composition-root changes (`Program.cs`, `AddInfrastructure`, `AddAuth`, middleware order) only fail in the Integration tier, not Unit.
-- Dev auth without GitHub: send `X-Fake-User: <guid>` (Development/Test only), or open `/auth/login?dev=true` in a browser. Writes also need the antiforgery pair; see `src/PoRepoLineTracker.API/api-tests.http`.
+- Dev auth without GitHub: send `X-Fake-User: <guid>` (Development/Test only), or open `/auth/login?dev=true` in a browser. Writes also need the antiforgery pair; see `src/PoRepoLineTracker.Api/api-tests.http`.
 - `POST /api/dev/seed/repository` writes synthetic chart history (Development only). Without it, E2EUI chart tests skip.
 
 ## Architecture
 
-One deployable: `PoRepoLineTracker.API` (ASP.NET Core 10 minimal APIs) serves the Blazor WebAssembly client (`PoRepoLineTracker.Client`, trimmed). `PoRepoLineTracker.Shared` holds domain types, DTOs, validators and the source-generated JSON context used on both sides.
+One deployable: `PoRepoLineTracker.Api` (ASP.NET Core 10 minimal APIs) serves the Blazor WebAssembly client (`PoRepoLineTracker.Client`, trimmed). `PoRepoLineTracker.Shared` holds domain types, DTOs, validators and the source-generated JSON context used on both sides.
 
 - **API layout.** `Features/<Slice>/` holds vertical slices (endpoints + handler/query classes, injected directly; no MediatR). Slices must not reference each other. Shared code lives in `Storage/` (Azure Table Storage services and entities), `Analysis/` (git + line counting + code health), `Auth/`, `Middleware/`, `Telemetry/`. `Extensions/ApiEndpointExtensions.MapApiEndpoints` registers every slice.
 - **Middleware order in `Program.cs` is load-bearing.** Static files come before auth, then `ApiNotFoundMiddleware` (404 for unmatched `/api` GETs, never a catch-all route), then authentication, authorization, rate limiting, `ProductionAuthEnforcementMiddleware`, and `AntiforgeryMiddleware` (after authorization, so unauthenticated writes get 401 rather than 400).

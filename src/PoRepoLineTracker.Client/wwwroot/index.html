@@ -18,7 +18,8 @@
          two Google Fonts stylesheets that used to sit here fetched a second copy of Roboto and a
          "Material Icons" family nothing references — two render-blocking third-origin requests,
          and the reason icons fell back to ligature text when offline. -->
-    <link id="radzen-theme" rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css" />
+    <link id="radzen-theme" rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css?v=12.1.12" />
+    <link rel="stylesheet" href="css/po-tokens.css" />
     <link rel="stylesheet" href="css/app.css" />
     <!-- effects.css AFTER app.css: it redefines glass tokens per theme and layers motion
          utilities over the shell, so it must win on equal specificity. -->
@@ -45,7 +46,7 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
+    <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=12.1.12"></script>
     <script src="_framework/blazor.webassembly.js"></script>
     <!-- Animated background; on unless localStorage 'backdrop' is 'off'. Deferred, so
          it runs after the boot script below has stamped data-theme — it reads the theme's colours. -->
@@ -61,8 +62,8 @@
             var link = document.getElementById('radzen-theme');
             if (link) {
                 link.href = theme === 'dark'
-                    ? '_content/Radzen.Blazor/css/material-dark.css'
-                    : '_content/Radzen.Blazor/css/material-base.css';
+                    ? '_content/Radzen.Blazor/css/material-dark.css?v=12.1.12'
+                    : '_content/Radzen.Blazor/css/material-base.css?v=12.1.12';
             }
             document.documentElement.setAttribute('data-theme', theme);
         }
@@ -70,7 +71,7 @@
         // Explicit user choice: paint it and remember it.
         function setTheme(theme) {
             applyTheme(theme);
-            localStorage.setItem('theme', theme);
+            localStorage.setItem('porepolinetracker:theme', theme);
         }
 
         function prefersDark() {
@@ -98,13 +99,13 @@
         // preference. Deliberately not persisted, so a user who has never chosen
         // keeps following their OS when it changes.
         (function () {
-            var saved = localStorage.getItem('theme');
+            var saved = localStorage.getItem('porepolinetracker:theme');
             applyTheme(saved || (prefersDark() ? 'dark' : 'light'));
 
             if (!saved && window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: dark)')
                     .addEventListener('change', function (e) {
-                        if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+                        if (!localStorage.getItem('porepolinetracker:theme')) applyTheme(e.matches ? 'dark' : 'light');
                     });
             }
         })();
@@ -178,11 +179,11 @@
         // a cue needs to know nothing about the toggle. Here rather than in fx.js because
         // MainLayout reads it on first render, and a switch must not depend on the decoration.
         function soundOn() {
-            try { return localStorage.getItem('sound') === 'on'; } catch (e) { return false; }
+            try { return localStorage.getItem('porepolinetracker:sound') === 'on'; } catch (e) { return false; }
         }
 
         function setSound(on) {
-            try { localStorage.setItem('sound', on ? 'on' : 'off'); } catch (e) { }
+            try { localStorage.setItem('porepolinetracker:sound', on ? 'on' : 'off'); } catch (e) { }
             // Called from the toggle's click: a context created or resumed inside a user gesture
             // is one the browser's autoplay policy lets play later, when an analysis finishes.
             if (on && window.playCue) playCue('done');
@@ -205,13 +206,13 @@
         // Visual effects (particles, the animated background). Both scripts read their key once
         // at load, so a change applies on the next page load. Settings owns the switch.
         function effectsOn() {
-            try { return localStorage.getItem('fx') !== 'off' && localStorage.getItem('backdrop') !== 'off'; } catch (e) { return true; }
+            try { return localStorage.getItem('porepolinetracker:fx') !== 'off' && localStorage.getItem('porepolinetracker:backdrop') !== 'off'; } catch (e) { return true; }
         }
 
         function setEffects(on) {
             try {
-                localStorage.setItem('fx', on ? 'on' : 'off');
-                localStorage.setItem('backdrop', on ? 'on' : 'off');
+                localStorage.setItem('porepolinetracker:fx', on ? 'on' : 'off');
+                localStorage.setItem('porepolinetracker:backdrop', on ? 'on' : 'off');
             } catch (e) { }
         }
 

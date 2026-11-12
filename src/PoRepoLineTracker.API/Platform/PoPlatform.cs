@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 
-namespace PoRepoLineTracker.API.Platform;
+namespace PoRepoLineTracker.Api.Platform;
 
 /// <summary>
 /// The conventions every Po app shares. Deliberately dependency-free beyond the shared

@@ -1,15 +1,15 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
-using PoRepoLineTracker.API.Features.CodeHealth;
-using PoRepoLineTracker.API.Features.Contributors;
-using PoRepoLineTracker.API.Features.Insights;
-using PoRepoLineTracker.API.Features.Repositories;
-using PoRepoLineTracker.API.Features.Diagnostics;
-using PoRepoLineTracker.API.Hubs;
+using PoRepoLineTracker.Api.Features.CodeHealth;
+using PoRepoLineTracker.Api.Features.Contributors;
+using PoRepoLineTracker.Api.Features.Insights;
+using PoRepoLineTracker.Api.Features.Repositories;
+using PoRepoLineTracker.Api.Features.Diagnostics;
+using PoRepoLineTracker.Api.Hubs;
 using Microsoft.AspNetCore.HttpOverrides;
 using Azure.Identity;
 
-namespace PoRepoLineTracker.API.Extensions;
+namespace PoRepoLineTracker.Api.Extensions;
 
 /// <summary>
 /// SOLID — Composition Root: Centralizes all DI registrations as required by the

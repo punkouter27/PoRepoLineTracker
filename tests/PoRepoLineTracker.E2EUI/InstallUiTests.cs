@@ -27,6 +27,7 @@ public sealed class InstallUiTests
     {
         var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/login");
         await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
 
         var manifestHref = await page.GetAttributeAsync("link[rel=manifest]", "href");

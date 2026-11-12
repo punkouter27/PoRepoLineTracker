@@ -1,5 +1,5 @@
 using FluentAssertions;
-using PoRepoLineTracker.Client.Components.Shared;
+using PoRepoLineTracker.Client.Features.Shared;
 
 namespace PoRepoLineTracker.Unit.Shared;
 

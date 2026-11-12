@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Contributors;
+namespace PoRepoLineTracker.Api.Features.Contributors;
 
 internal static class ContributorEndpoints
 {

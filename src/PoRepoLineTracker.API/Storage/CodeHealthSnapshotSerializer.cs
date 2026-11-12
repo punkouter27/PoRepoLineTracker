@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace PoRepoLineTracker.API.Storage;
+namespace PoRepoLineTracker.Api.Storage;
 
 /// <summary>
 /// Converts between a computed <see cref="CodeHealthDto"/> and the row that memoises it.

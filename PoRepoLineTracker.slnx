@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj" />
+    <Project Path="src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj" />
     <Project Path="src/PoRepoLineTracker.Client/PoRepoLineTracker.Client.csproj" />
     <Project Path="src/PoRepoLineTracker.Shared/PoRepoLineTracker.Shared.csproj" />
   </Folder>

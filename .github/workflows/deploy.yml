@@ -39,7 +39,7 @@ env:
   AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
   AZURE_WEBAPP_URL: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
   # Casing matters: the runner is Linux, and the project is .API (not .Api).
-  API_PROJECT_PATH: src/PoRepoLineTracker.API/PoRepoLineTracker.API.csproj
+  API_PROJECT_PATH: src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj
 
 jobs:
   # Compile every Bicep file to ARM on every run — fast, no Azure login, and it

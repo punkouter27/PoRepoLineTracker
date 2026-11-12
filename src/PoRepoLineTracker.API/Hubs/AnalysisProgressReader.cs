@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
-using PoRepoLineTracker.API.Analysis;
+using PoRepoLineTracker.Api.Analysis;
 
-namespace PoRepoLineTracker.API.Hubs;
+namespace PoRepoLineTracker.Api.Hubs;
 
 /// <summary>
 /// Drains the bounded <see cref="AnalysisHub.ProgressChannel"/> and pushes each frame to the

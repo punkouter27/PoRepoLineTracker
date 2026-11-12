@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace PoRepoLineTracker.API.Features.CodeHealth;
+namespace PoRepoLineTracker.Api.Features.CodeHealth;
 
 internal static class CodeHealthEndpoints
 {

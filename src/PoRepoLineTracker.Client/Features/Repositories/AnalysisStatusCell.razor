@@ -1,0 +1,210 @@
+@using PoRepoLineTracker.Client.Features.Shared
+@using PoRepoLineTracker.Shared.Models
+@using Radzen
+@using Radzen.Blazor
+
+@* One repository's analysis state, as it appears in the grid's Status column.
+
+   Lifted verbatim out of an inline <Template> in Repositories.razor that ran to about a hundred
+   lines of nested conditionals inside a column definition — the single densest thing on the page,
+   and impossible to read alongside five other column templates. Its inputs are now explicit
+   parameters rather than three page-level dictionaries reached through a closure. *@
+
+@{
+    // Local alias only. This is a parameter now, not a dictionary lookup per row as it was on the
+    // page — the name is kept short because it appears a dozen times in the branches below.
+    var progress = Progress;
+
+    // A live frame's error first, then the outcome stored on the row. The frame is gone after a
+    // reload, so without the stored one a repository that failed to clone read "Pending" forever.
+    var error = !string.IsNullOrEmpty(progress?.ErrorMessage) ? progress.ErrorMessage
+        : Status is AnalysisStatus.Failed or AnalysisStatus.Reauth ? LastError : null;
+}
+@* A plain <div> root, not the bare <RadzenStack> this started as.
+
+   Nothing a Radzen component renders carries this file's scope id, so with a component at the
+   root every rule in AnalysisStatusCell.razor.css would have compiled to `.rp-x[b-…]` against an
+   attribute no element had, and the whole file would have applied to nothing — the exact failure
+   this codebase has already hit twice. The div is display:contents so it adds no box of its own
+   inside the grid cell. *@
+<div class="status-cell">
+    @if (StartedUtc is not null || (progress != null && progress.IsRunning))
+        {
+            <RadzenStack Gap="0.25rem">
+                @* Step badge + spin icon *@
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="sync" class="spin-icon rp-sync-icon" />
+                    <RadzenBadge BadgeStyle="@(progress?.IsStuck == true ? BadgeStyle.Danger : BadgeStyle.Info)"
+                                 Text="@(progress?.StepName ?? "Analyzing")" />
+                </RadzenStack>
+
+                @* Detailed step description *@
+                @if (progress != null)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
+                        @progress.StepDescription
+                    </RadzenText>
+
+                    @* Progress bar — determinate when commit count is known *@
+                    @if (progress.CommitsTotal > 0)
+                    {
+                        <div class="reanalysis-progress-wrap">
+                            <RadzenProgressBar Mode="ProgressBarMode.Determinate"
+                                               Value="@progress.ProgressPercent"
+                                               ShowValue="false"
+                                               class="rp-prog-bar" />
+                        </div>
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-sub">
+                            @progress.CommitsProcessed / @progress.CommitsTotal commits (@progress.ProgressPercent%)
+                        </RadzenText>
+                    }
+                    else
+                    {
+                        <div class="reanalysis-progress-wrap">
+                            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                               Value="100"
+                                               class="rp-prog-bar" />
+                        </div>
+                    }
+
+                    @* Live tally, throughput and ETA — what the separate "Live activity" panel above the
+                       grid used to show. Folded in here so a running job is read in its own row: a
+                       percentage alone creeping a point every few seconds is indistinguishable from a
+                       hang. The tally is cumulative churn across every commit replayed, not the
+                       repository's size — hence the label. *@
+                    <div class="rp-live">
+                        <AnimatedNumber Value="@((int)Math.Min(progress.LinesCounted, int.MaxValue))" Class="rp-live__count" />
+                        <span>lines counted</span>
+                        @if (CommitsPerSecond(progress) is { } rate)
+                        {
+                            <span>@rate.ToString("N1") commits/s</span>
+                        }
+                        @if (RemainingTime(progress) is { } remaining)
+                        {
+                            <span>@FormatSpan(remaining, "~") left</span>
+                        }
+                        <span>@FormatSpan(Elapsed(progress), "") elapsed</span>
+                    </div>
+
+                    @* Stuck warning *@
+                    @if (progress.IsStuck)
+                    {
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.2rem">
+                            <RadzenIcon Icon="warning" class="rp-warn-icon" />
+                            <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub">
+                                No progress in 3+ min — may be stuck
+                            </RadzenText>
+                        </RadzenStack>
+                    }
+
+                    @* Error message *@
+                    @if (!string.IsNullOrEmpty(progress.ErrorMessage))
+                    {
+                        <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub" title="@progress.ErrorMessage">
+                            Error: @(progress.ErrorMessage.Length > 40 ? progress.ErrorMessage[..40] + "…" : progress.ErrorMessage)
+                        </RadzenText>
+                    }
+                }
+                else if (StartedUtc is { } startTime)
+                {
+                    <div class="reanalysis-progress-wrap">
+                        <RadzenProgressBar Mode="ProgressBarMode.Indeterminate"
+                                           Value="100"
+                                           class="rp-prog-bar" />
+                    </div>
+                    <RadzenText TextStyle="TextStyle.Caption" class="rp-prog-note">
+                        @Elapsed(startTime)
+                    </RadzenText>
+                }
+            </RadzenStack>
+        }
+        else if (Status == AnalysisStatus.Reauth && string.IsNullOrEmpty(progress?.ErrorMessage))
+        {
+            @* GitHub refused the stored token (revoked, expired, or access to this repository
+               removed). The stderr is useless to act on; the fix is one click, so offer it. A
+               full page load, not router navigation: /auth/login is a server route. *@
+            <RadzenStack Gap="0.2rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="key_off" class="rp-error-icon" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Sign-in needed" title="@error" />
+                </RadzenStack>
+                <a class="rp-reauth-link" href="@($"/auth/login?returnUrl={Uri.EscapeDataString(AppRoutes.Repositories)}")">Sign in again with GitHub</a>
+            </RadzenStack>
+        }
+        else if (!string.IsNullOrEmpty(error))
+        {
+            <RadzenStack Gap="0.2rem">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.3rem">
+                    <RadzenIcon Icon="error_outline" class="rp-error-icon" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@AnalysisStatus.Failed" title="@error" />
+                </RadzenStack>
+                @* The whole message, clipped by CSS rather than cut in code: a string truncated
+                   to 50 characters was all a screen reader ever got. *@
+                <RadzenText TextStyle="TextStyle.Caption" class="rp-danger-sub rp-error-text" title="@error">@error</RadzenText>
+            </RadzenStack>
+        }
+        else if (Status == AnalysisStatus.Done)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@AnalysisStatus.Done" />
+        }
+        else if (Status == AnalysisStatus.Empty)
+        {
+            @* Analysed, and there was nothing to count. "Pending" here promised a result that
+               is never coming. *@
+            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@AnalysisStatus.Empty" title="Analyzed — no commits found" />
+        }
+        else
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@AnalysisStatus.Pending" />
+        }
+</div>
+
+@code {
+    /// <summary>The latest frame for this repository, from the hub or the fallback poll. Null when none has arrived.</summary>
+    [Parameter] public AnalysisProgressDto? Progress { get; set; }
+
+    /// <summary>The stored outcome (<c>RepositoryGridRow.Status</c>), so the badge and the column's sort/filter key agree.</summary>
+    [Parameter] public string Status { get; set; } = AnalysisStatus.Pending;
+
+    /// <summary>Why the last finished run failed (<c>LastAnalysisError</c>); shown when <see cref="Status"/> is Failed.</summary>
+    [Parameter] public string? LastError { get; set; }
+
+    /// <summary>When the current re-analysis was requested; set from the click until the job finishes, so it also means "queued".
+    /// Drives the elapsed caption while no frame has arrived yet.</summary>
+    [Parameter] public DateTime? StartedUtc { get; set; }
+
+    private static TimeSpan Elapsed(AnalysisProgressDto progress) =>
+        progress.LastUpdatedUtc > progress.StartedUtc ? progress.LastUpdatedUtc - progress.StartedUtc : TimeSpan.Zero;
+
+    /// <summary>
+    /// Throughput over the whole run, not the last frame: a rate from five commits swings too
+    /// wildly to read. Null for the first second, where a rate is noise.
+    /// </summary>
+    private static double? CommitsPerSecond(AnalysisProgressDto progress)
+    {
+        var seconds = Elapsed(progress).TotalSeconds;
+        return seconds < 1 || progress.CommitsProcessed <= 0 ? null : progress.CommitsProcessed / seconds;
+    }
+
+    /// <summary>Null until the commit total is known — an ETA invented from a step index is a number nobody should trust.</summary>
+    private static TimeSpan? RemainingTime(AnalysisProgressDto progress)
+    {
+        var remaining = progress.CommitsTotal - progress.CommitsProcessed;
+        return progress.CommitsTotal > 0 && remaining > 0 && CommitsPerSecond(progress) is { } rate and > 0
+            ? TimeSpan.FromSeconds(remaining / rate)
+            : null;
+    }
+
+    private static string FormatSpan(TimeSpan span, string prefix) =>
+        span.TotalMinutes < 1 ? $"{prefix}{Math.Max(1, (int)span.TotalSeconds)}s"
+        : span.TotalHours < 1 ? $"{prefix}{(int)span.TotalMinutes}m {span.Seconds}s"
+        : $"{prefix}{(int)span.TotalHours}h {span.Minutes}m";
+
+    private static string Elapsed(DateTime startedUtc)
+    {
+        var elapsed = DateTime.UtcNow - startedUtc;
+        if (elapsed.TotalMinutes < 1) return "just started";
+        if (elapsed.TotalMinutes < 60) return $"started {(int)elapsed.TotalMinutes} min ago";
+        return $"started {(int)elapsed.TotalHours}h ago";
+    }
+}

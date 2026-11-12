@@ -148,10 +148,10 @@ public class CodeHealthScoringCombineTests
         zeroLinesScore.Should().Be(40);
 
         foreach (var mi in new[] { 0, 50, 100 })
-        foreach (var heuristic in new[] { 0, 50, 100 })
-        {
-            var (score, _) = CodeHealthScoring.Combine(mi, 1_000, heuristic, 1_000);
-            score.Should().BeInRange(0, 100);
-        }
+            foreach (var heuristic in new[] { 0, 50, 100 })
+            {
+                var (score, _) = CodeHealthScoring.Combine(mi, 1_000, heuristic, 1_000);
+                score.Should().BeInRange(0, 100);
+            }
     }
 }

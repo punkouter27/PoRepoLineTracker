@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Features.Contributors;
+namespace PoRepoLineTracker.Api.Features.Contributors;
 
 public record GetContributorStatsQuery(RepositoryId RepositoryId, int Days = 365, int TopN = 10);
 

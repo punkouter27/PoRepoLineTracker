@@ -1,4 +1,4 @@
-namespace PoRepoLineTracker.API.Features.Repositories;
+namespace PoRepoLineTracker.Api.Features.Repositories;
 
 /// <summary>Removes every repository a user tracks: table rows, clones on disk, snapshots.</summary>
 public record RemoveAllRepositoriesCommand(UserId UserId);

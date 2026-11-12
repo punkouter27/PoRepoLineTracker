@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace PoRepoLineTracker.API.Features.Insights;
+namespace PoRepoLineTracker.Api.Features.Insights;
 
 /// <summary>
 /// Aggregates every tracked repository into the single figure set the Insights page's "All time" view
