@@ -271,3 +271,30 @@
     }
 }
 
+/* Keep the key theme pairs in one declaration on browsers with light-dark().
+   The selectors above remain the fallback for browsers that do not support it. */
+@supports (color: light-dark(black, white)) {
+    :root {
+        --bg-primary: light-dark(#ffffff, #0f172a);
+        --text-primary: light-dark(#0f172a, #f8fafc);
+        --primary-on-surface: light-dark(var(--primary-color), #D0BCFF);
+        --accent-secondary: light-dark(#c02d76, #F48FB1);
+    }
+
+    :root[data-theme="dark"] {
+        --bg-primary: light-dark(#ffffff, #0f172a);
+        --text-primary: light-dark(#0f172a, #f8fafc);
+        --primary-on-surface: light-dark(var(--primary-color), #D0BCFF);
+        --accent-secondary: light-dark(#c02d76, #F48FB1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            --bg-primary: light-dark(#ffffff, #0f172a);
+            --text-primary: light-dark(#0f172a, #f8fafc);
+            --primary-on-surface: light-dark(var(--primary-color), #D0BCFF);
+            --accent-secondary: light-dark(#c02d76, #F48FB1);
+        }
+    }
+}
+
