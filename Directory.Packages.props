@@ -33,7 +33,7 @@
          carrying high-severity advisories, and this solution builds with TreatWarningsAsErrors. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <!-- UI Components -->
-    <PackageVersion Include="Radzen.Blazor" Version="12.1.12" />
+    <PackageVersion Include="Radzen.Blazor" Version="13.0.0" />
     <PackageVersion Include="FluentValidation" Version="11.12.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.12.0" />
     <!-- Logging (Serilog) -->
