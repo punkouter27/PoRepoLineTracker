@@ -1,209 +1,137 @@
-name: CI/CD — Build, Test & Deploy
+name: Build & Deploy
+
+# SAME FILE IN EVERY PO .NET WEB REPO. The reference copy is PoTraffic's. Never edit it in one
+# repo only: change PoTraffic's, then copy it everywhere with PoPunkouterSoftware/scripts/sync-ci.ps1.
+# The weekly conventions check (PoPunkouterSoftware) fails any repo whose copy differs.
+#
+# Everything that differs between repos lives outside this file:
+#   repo variables  AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID   GitHub OIDC sign-in
+#                   AZURE_WEBAPP_NAME, AZURE_RESOURCE_GROUP                    what is deployed, where
+#                   HEALTH_PATH (optional, default /health)                    the dependency-health JSON route
+#   hook scripts    scripts/ci-checks.ps1                 extra build-time checks, after the unit tests
+#                   scripts/ci-package.ps1 -PublishDir    adds files to the package before upload
+#                   scripts/pre-deploy.ps1 -BaseUrl       optional live-site preparation after quota check
+#                   scripts/post-deploy-smoke.ps1 -BaseUrl  checks the live site after the health gate
+#                   (each hook is optional: the step is skipped when the file does not exist)
+# Layout it relies on: one *.slnx at the root, global.json, src/*.Api/*.csproj, tests/*.Unit/*.csproj.
 
 on:
   push:
     branches: [master]
+  # Pull requests (Dependabot's too) get the build and tests; only master deploys.
   pull_request:
-    branches: [master]
   workflow_dispatch:
-    inputs:
-      deploy_infra:
-        description: 'Apply infra/main.bicep (az deployment sub create) after build'
-        type: boolean
-        default: false
 
-# One deploy at a time — App Service restarts are exclusive, and a parallel run can leave the
-# site half-upgraded.
-#
-# cancel-in-progress is FALSE, deliberately. It used to be true, which caused the very thing the
-# comment above says the lock prevents: push twice in quick succession and the first run was
-# killed, potentially mid-upload, leaving the site serving a partially-written package. Queueing
-# costs a few minutes; cancelling a deploy costs a broken site.
-concurrency:
-  group: deploy-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: false
-
-# Action majors are pinned at v4 (checkout, setup-dotnet, cache, upload/download-artifact).
-# Upgrading checkout/setup-dotnet/cache to their current majors is safe independently, but
-# upload-artifact and download-artifact must be upgraded TOGETHER: an artifact written by one
-# major is not readable by the other, and the failure is a deploy that cannot find the package
-# it just built.
 permissions:
   contents: read
-  # OIDC federated credential — the workflow exchanges the GitHub OIDC token
-  # for an Azure access token via azure/login@v2; no client secret is stored.
-  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  # A newer PR build may replace an older one. A deploy is never cancelled part-way: that could
+  # leave a half-deployed site that nothing rolls back.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  DOTNET_VERSION: '10.0.x'
-  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
-  AZURE_WEBAPP_URL: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
-  # Casing matters: the runner is Linux, and the project is .API (not .Api).
-  API_PROJECT_PATH: src/PoRepoLineTracker.Api/PoRepoLineTracker.Api.csproj
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
 
 jobs:
-  # Compile every Bicep file to ARM on every run — fast, no Azure login, and it
-  # catches template/type errors (and the kind of drift that broke prod) before
-  # any merge. Runs in parallel with the build so it does not add wall-clock time.
-  lint-infra:
-    name: Lint Infra (Bicep)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      # Cached: `az bicep install` pulls the CLI from GitHub releases on every run otherwise,
-      # which was ~20s of the job's total.
-      - name: Cache Bicep CLI
-        uses: actions/cache@v6
-        with:
-          path: ~/.azure/bin
-          key: bicep-${{ runner.os }}
-      - name: Install Bicep CLI
-        run: az bicep install
-      # Every .bicep in the folder, not a hand-listed pair. The list version compiled main and
-      # resources only, so a template added later was linted by nobody — and `find` cannot fall
-      # out of date.
-      - name: Compile Bicep → ARM (catches template errors)
-        run: |
-          set -euo pipefail
-          find infra -name '*.bicep' -print0 | while IFS= read -r -d '' f; do
-            echo "→ $f"
-            az bicep build --file "$f" --stdout > /dev/null
-          done
-
   build:
-    name: Build & Test
+    name: Build & test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      # NuGet cache — keyed on csproj + Directory.Packages.props, so a code-only
-      # change still reuses the cache and skips the network restore.
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
+          fetch-depth: 0   # MinVer versions the build from git tags; a shallow clone has none
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', 'global.json') }}
           restore-keys: nuget-${{ runner.os }}-
-      - name: Restore
-        run: dotnet restore
-      - name: Build (Release, no-restore, treat-warnings-as-errors)
-        run: dotnet build --no-restore -c Release
-      # Unit-only on purpose. See README.md "CI" for the full rationale.
-      - name: Test (Unit only — see README.md "CI")
-        run: dotnet test tests/PoRepoLineTracker.Unit --no-build -c Release --verbosity minimal -p:RunSettingsFilePath=
-      # --no-build, not just --no-restore. Without it publish re-ran the entire Release build that
-      # the step above had already done, compiling every project twice per pipeline.
-      - name: Publish API
-        run: dotnet publish ${{ env.API_PROJECT_PATH }} -c Release --no-build -o publish
-      # Zip HERE, not in the deploy job. The published output is a Blazor WASM site: 475 files /
-      # 102 MB, which compresses to a single 44 MB zip.
-      #
-      # This is NOT a speed fix, and the earlier version of this comment claimed it was. Measured
-      # on run 84: upload 4s, download 1s, zip-in-deploy 4s. Artifact transfer is runner-local and
-      # was never the bottleneck — the time in this job is Build (39s) and Publish (44s). What it
-      # buys is that the deploy job ships the exact bytes the build job produced and tested,
-      # instead of re-zipping a folder it just unpacked, and that the retained artifact is 44 MB
-      # rather than 102 MB for the 14 days it is kept.
-      - name: Package (zip)
-        run: |
-          set -euo pipefail
-          cd publish
-          zip -r ../webapp.zip . -q
-      - name: Upload webapp artifact
-        uses: actions/upload-artifact@v7
+      - name: Build
+        run: dotnet build *.slnx -c Release
+      - name: Unit tests
+        run: for p in tests/*.Unit/*.csproj; do dotnet test "$p" -c Release --no-build; done
+      - name: Repo checks (scripts/ci-checks.ps1)
+        if: hashFiles('scripts/ci-checks.ps1') != ''
+        shell: pwsh
+        run: ./scripts/ci-checks.ps1
+      - name: Publish
+        run: dotnet publish src/*.Api/*.csproj -c Release --no-build -o publish
+      - name: Package extras (scripts/ci-package.ps1)
+        if: hashFiles('scripts/ci-package.ps1') != ''
+        shell: pwsh
+        run: ./scripts/ci-package.ps1 -PublishDir publish
+      - uses: actions/upload-artifact@v7
+        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         with:
           name: webapp
-          path: webapp.zip
-          # Already compressed — re-compressing a zip costs CPU and saves nothing.
-          compression-level: 0
-          # Long enough to redeploy a known-good build by hand after a bad one. At the previous
-          # single day, the only way back from a broken deploy was a revert commit through the
-          # whole pipeline — F1 has no deployment slots to swap.
-          retention-days: 14
+          path: publish
+          retention-days: 1
 
   deploy:
-    name: Deploy to Azure
+    name: Deploy
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # lint-infra as well as build: this job applies infra/ when it changed, and without the
-    # dependency a template the lint job had just rejected could still be applied.
-    needs: [build, lint-infra]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    timeout-minutes: 15
-    # Records the deploy in GitHub's Environments view and gives the URL a home. Add a required
-    # reviewer on the environment to gate production without touching this file.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write   # azure/login OIDC (federated, no stored secret)
     environment:
       name: production
-      url: ${{ env.AZURE_WEBAPP_URL }}
+      url: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
+    env:
+      APP: ${{ vars.AZURE_WEBAPP_NAME }}
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+      BASE_URL: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
+      HEALTH_PATH: ${{ vars.HEALTH_PATH || '/health' }}
     steps:
-      # Full history, not the default shallow clone. The infra-changed check below diffs against
-      # github.event.before, and a depth-1 checkout does not contain that commit — the diff fails,
-      # the guard falls through to "changed", and infra is applied on every push exactly as it was
-      # before the guard existed.
+      - name: Check the repo variables
+        run: |
+          [ -n "$APP" ] || { echo "::error::Repo variable AZURE_WEBAPP_NAME is not set."; exit 1; }
+          [ -n "$RG" ]  || { echo "::error::Repo variable AZURE_RESOURCE_GROUP is not set."; exit 1; }
+
+      # Only scripts/: the deploy job needs the smoke hook and nothing else.
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      # Lands webapp.zip in the workspace root — the build job already packaged it, so this job
-      # deploys the exact bytes that were tested rather than re-zipping a folder it just unpacked.
+          sparse-checkout: scripts
       - uses: actions/download-artifact@v8
         with:
           name: webapp
-          path: .
-      # OIDC federated identity — no client secrets stored in GitHub.
-      # Federated credential subject: repo:punkouter26/PoRepoLineTracker:ref:refs/heads/master
+          path: publish
       - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      # Same step in every Po web repo. F1 gives the app about 60 CPU-minutes a day; once spent, Azure stops the
-      # site (usageState Exceeded) until 00:00 UTC and refuses the package with a bare 403. Say what it is.
+      # F1 gives the app about 60 CPU-minutes a day; once spent, Azure stops the site (usageState
+      # Exceeded) until 00:00 UTC and refuses the package with a bare 403. Say what it is.
       - name: Check the F1 daily CPU quota
         run: |
-          usage=$(az webapp show -g "${{ github.event.repository.name }}" -n "${{ vars.AZURE_WEBAPP_NAME }}" --query usageState -o tsv)
+          usage=$(az webapp show -g "$RG" -n "$APP" --query usageState -o tsv)
           if [ "$usage" = "Exceeded" ]; then
-            echo "::error::${{ vars.AZURE_WEBAPP_NAME }} has used up its F1 daily CPU quota, so Azure refuses the package until 00:00 UTC. Rerun after that."
+            echo "::error::$APP has used up its F1 daily CPU quota, so Azure refuses the package until 00:00 UTC. Rerun after that."
             exit 1
           fi
 
-      # Infra is applied only when the templates actually changed. (Applying it by hand is the
-      # separate apply-infra job below; this job never runs on workflow_dispatch.)
-      #
-      # It used to run on every push. That was added because the App Service had gone missing and
-      # nothing in the pipeline could recreate it — a real problem, fixed the blunt way. The cost
-      # was that every code-only deploy paid for a subscription-scoped deployment, and a Bicep
-      # edit reached production with no what-if in front of it. Gating on the diff keeps the
-      # self-healing property for the case that motivated it while taking it off the hot path.
-      - name: Did infra change?
-        id: infra
-        run: |
-          if git diff --quiet ${{ github.event.before }} ${{ github.sha }} -- infra/ 2>/dev/null; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Prepare the live site (scripts/pre-deploy.ps1)
+        if: hashFiles('scripts/pre-deploy.ps1') != ''
+        shell: pwsh
+        run: ./scripts/pre-deploy.ps1 -BaseUrl "$env:BASE_URL"
 
-      - name: Provision infra (Bicep)
-        if: steps.infra.outputs.changed == 'true'
-        run: |
-          az deployment sub create \
-            --location eastus2 \
-            --template-file infra/main.bicep \
-            --name porepolinetracker-${{ github.run_id }} \
-            -o none
-
-      # Same pair in every Po web repo: keep the live build, and put it back if anything fails once the
-      # new package is live (see "Roll back to the previous build" at the end of this job).
+      # Keep the live build so it can be put back if anything fails once the new one is live.
       - name: Back up the live site
         id: backup
         run: |
           token=$(az account get-access-token --query accessToken -o tsv)
           if curl -fsS --max-time 300 -H "Authorization: Bearer $token" -o previous.zip \
-               "https://${{ vars.AZURE_WEBAPP_NAME }}.scm.azurewebsites.net/api/zip/site/wwwroot/" && [ -s previous.zip ]; then
+               "https://$APP.scm.azurewebsites.net/api/zip/site/wwwroot/" && [ -s previous.zip ]; then
             echo "ok=true" >> "$GITHUB_OUTPUT"
             echo "Backed up $(du -h previous.zip | cut -f1) of the live site."
           else
@@ -211,67 +139,48 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy to App Service
+      - uses: azure/webapps-deploy@v3
         id: deploy
-        uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: webapp.zip
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          resource-group-name: ${{ vars.AZURE_RESOURCE_GROUP }}
+          package: publish
 
-      # The deploy step returns once the package is ACCEPTED, not once the site is serving it —
-      # so without this a crash-on-startup shipped green and nobody knew until someone opened the
-      # page. Same script a developer runs by hand; 30 tries x 10 s rides out the container swap.
-      # Same gate in every Po web repo: the new build is the one answering (X-Commit on /health/live is this
-      # commit, not the old instance still serving), then its dependencies answer (/health).
-      - name: Health gate (this commit on /health/live, then /health)
-        shell: bash
+      # The deploy step succeeds once App Service accepts the package, which says nothing about
+      # whether the app starts. First the new build must be the one answering (X-Commit on
+      # /health/live is this commit, not the old instance), then its dependencies must answer.
+      - name: Health gate (this commit on /health/live, then HEALTH_PATH)
         run: |
-          base="https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net"
-          for attempt in $(seq 1 60); do
-            commit=$(curl -s -D - -o /dev/null --max-time 30 "$base/health/live" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-commit" {print $2}' || true)
+          for attempt in $(seq 1 40); do
+            commit=$(curl -s -D - -o /dev/null --max-time 20 "$BASE_URL/health/live" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-commit" {print $2}' || true)
             [ "$commit" = "$GITHUB_SHA" ] && { echo "/health/live serves $GITHUB_SHA (attempt $attempt)"; break; }
-            [ "$attempt" = "60" ] && { echo "::error::/health/live still serves ${commit:-no X-Commit header}, not $GITHUB_SHA"; exit 1; }
-            sleep 15
+            [ "$attempt" = "40" ] && { echo "::error::/health/live still serves ${commit:-no X-Commit header}, not $GITHUB_SHA"; exit 1; }
+            sleep 10
           done
-          for attempt in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$base/health" || echo 000)
-            [ "$code" = "200" ] && { echo "/health -> 200 (attempt $attempt)"; exit 0; }
-            sleep 15
+          for attempt in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE_URL$HEALTH_PATH" || echo 000)
+            [ "$code" = "200" ] && { echo "$HEALTH_PATH -> 200 (attempt $attempt)"; exit 0; }
+            sleep 10
           done
-          echo "::error::/health never returned 200 (last: $code)"; exit 1
+          echo "::error::$HEALTH_PATH never returned 200 (last: $code)"; exit 1
 
-      - name: Smoke test the deployed site
+      - name: Post-deploy smoke (scripts/post-deploy-smoke.ps1)
+        if: hashFiles('scripts/post-deploy-smoke.ps1') != ''
         shell: pwsh
-        env:
-          PoRepoLineTracker_VerifyUrl: ${{ env.AZURE_WEBAPP_URL }}
-        run: ./infra/verify-deploy.ps1 -Attempts 30
+        run: ./scripts/post-deploy-smoke.ps1 -BaseUrl "$env:BASE_URL"
 
-  # Apply infrastructure (resource group, app settings, role assignments) from Bicep.
-  # Manual only: run the workflow via "Run workflow" with deploy_infra=true. This is the path for
-  # previewing a change with what-if before it reaches production.
-
+      # Runs on a cancel or a timeout too, not only on a failure: either can strand a half-good build.
       - name: Roll back to the previous build
-        if: failure() && steps.deploy.outcome == 'success' && steps.backup.outputs.ok == 'true'
+        if: (failure() || cancelled()) && steps.deploy.outcome == 'success' && steps.backup.outputs.ok == 'true'
         run: |
-          az webapp deploy -g "${{ github.event.repository.name }}" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
-            --src-path previous.zip --type zip --clean true
+          az webapp deploy -g "$RG" -n "$APP" --src-path previous.zip --type zip --clean true
           echo "::error title=Rolled back::${{ github.sha }} failed after it went live; the previous build is live again."
-  apply-infra:
-    name: Apply Infra (manual)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_infra
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: azure/login@v3
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      # Unique, per-run deployment name. A subscription-scoped deployment object is
-      # pinned to the location it was first created in, so a fixed name (e.g. "main")
-      # cannot move regions — use a fresh name each run to avoid InvalidDeploymentLocation.
-      - name: What-if (preview changes)
-        run: az deployment sub what-if --name "infra-${{ github.run_id }}" --location eastus2 --template-file infra/main.bicep || true
-      - name: Deploy
-        run: az deployment sub create --name "infra-${{ github.run_id }}" --location eastus2 --template-file infra/main.bicep
+
+      - name: Tell ntfy about the rollback
+        if: (failure() || cancelled()) && steps.deploy.outcome == 'success' && steps.backup.outputs.ok == 'true'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          [ -n "$NTFY_TOPIC" ] || { echo "No NTFY_TOPIC secret; the CI watcher will still report the red run."; exit 0; }
+          curl -fsS -H "Title: ${{ github.event.repository.name }} rolled back" -H "Tags: rewind" \
+            -d "${{ github.sha }} failed after going live; the previous build is back." "https://ntfy.sh/$NTFY_TOPIC" > /dev/null

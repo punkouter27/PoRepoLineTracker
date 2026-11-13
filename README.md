@@ -76,7 +76,7 @@ The `lint-infra` job compiles every `infra/*.bicep` on every run.
 
 ## Azure deployment
 
-Deployment runs from GitHub Actions ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) on push to `master`: it lints and builds, deploys the app package to a Linux App Service, and can apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) via the manual `deploy_infra` input. The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
+The shared GitHub Actions workflow ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) builds and tests on pull requests and deploys the app package to a Linux App Service only from `master`; `scripts/ci-checks.ps1` compiles the Bicep files and `scripts/post-deploy-smoke.ps1` verifies the live routes. Apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) separately with the manual [.github/workflows/infra.yml](.github/workflows/infra.yml) workflow. The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
 
 ### GitHub sign-in (OAuth apps)
 
