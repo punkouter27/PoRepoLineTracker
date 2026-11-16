@@ -17,7 +17,7 @@
           <OutputPath>./TestResults/coverage</OutputPath>
 
           <!-- Assemblies to include in coverage measurement -->
-          <Include>[PoRepoLineTracker.API]*,[PoRepoLineTracker.Shared]*,[PoRepoLineTracker.Client]*</Include>
+          <Include>[PoRepoLineTracker.Api]*,[PoRepoLineTracker.Shared]*,[PoRepoLineTracker.Client]*</Include>
 
           <!-- Exclude generated and test code -->
           <Exclude>[PoRepoLineTracker.Unit]*,[PoRepoLineTracker.Integration]*,[PoRepoLineTracker.E2EAPI]*,[PoRepoLineTracker.E2EUI]*</Exclude>
