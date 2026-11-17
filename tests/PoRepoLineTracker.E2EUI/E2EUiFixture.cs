@@ -63,6 +63,8 @@ public sealed class E2EUiFixture : IAsyncLifetime
     /// Opens <paramref name="path"/> at the given viewport, skipping when the browser or the app
     /// is unavailable. The caller owns the returned page's context via <see cref="IAsyncDisposable"/>.
     /// </summary>
+    /// <remarks>30 s for the document load: on a busy machine a cold WASM boot over the dev
+    /// certificate overran the old 10 s and the run reported a timeout, not a defect.</remarks>
     public async Task<IPage> OpenAsync(ViewportSize viewport, string path = "/")
     {
         Skip.If(Browser is null, "Playwright browser unavailable — run playwright.ps1 install.");
@@ -76,7 +78,7 @@ public sealed class E2EUiFixture : IAsyncLifetime
         var page = await context.NewPageAsync();
         try
         {
-            await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 10000 });
+            await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 30000 });
         }
         catch (PlaywrightException ex)
         {
@@ -117,7 +119,7 @@ public sealed class E2EUiFixture : IAsyncLifetime
         var page = await context.NewPageAsync();
         try
         {
-            await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 15000 });
+            await page.GotoAsync(BaseUrl.TrimEnd('/') + path, new PageGotoOptions { Timeout = 30000 });
         }
         catch (PlaywrightException ex)
         {

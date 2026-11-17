@@ -12,7 +12,7 @@ namespace PoRepoLineTracker.E2EAPI;
 public sealed class HealthAndAuthApiTests
 {
     [SkippableFact]
-    public async Task Health_IsAnonymous_Returns_200_And_ReportsHealthy()
+    public async Task Health_IsAnonymous_Returns_200_And_ReportsNotUnhealthy()
     {
         // The FallbackPolicy authenticates by default; /health opts out explicitly
         // because Azure's probe and the CI smoke test call it with no credential.
@@ -20,7 +20,9 @@ public sealed class HealthAndAuthApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "an anonymous probe must get 200, never a 401 or a redirect to sign-in");
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Healthy");
+        // Healthy or Degraded, both 200 by design: a machine without Key Vault or a GitHub PAT is
+        // Degraded (KeyVaultHealthCheck, GitHubApiHealthCheck), and that is not an outage.
+        (await response.Content.ReadAsStringAsync()).Should().BeOneOf("Healthy", "Degraded");
     }
 
     [SkippableFact]

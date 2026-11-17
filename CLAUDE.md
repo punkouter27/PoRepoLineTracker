@@ -17,6 +17,10 @@ dotnet test tests/PoRepoLineTracker.Unit                      # the only CI gate
 dotnet test tests/PoRepoLineTracker.Integration               # needs Docker (Testcontainers/Azurite)
 dotnet test tests/PoRepoLineTracker.E2EAPI                    # needs the app running
 dotnet test tests/PoRepoLineTracker.E2EUI                     # needs the app running + `playwright.ps1 install` once
+# Both E2E tiers SKIP every test when nothing answers at E2E_BASE_URL (API default http://localhost:5002,
+# UI default https://localhost:5003; the UI tier needs HTTPS because of upgrade-insecure-requests), e.g.
+# ASPNETCORE_URLS=https://localhost:7207 KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile
+# then E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI. A run that "passes" in seconds skipped.
 
 dotnet test tests/PoRepoLineTracker.Unit --filter "FullyQualifiedName~FileIgnoreFilter"   # single class/test
 ```

@@ -66,13 +66,6 @@
                    see InstallAppButton. It sits before the theme toggle so the controls that are
                    always present keep a stable position when it does appear. *@
                 <InstallAppButton />
-                @* Settings in the upper-right as well as the sidebar (owner's call, 2026-11-17): on a
-                   phone the drawer is closed, and the header is where people look for it. A real
-                   link, so it middle-clicks and announces as navigation. *@
-                <a href="@AppRoutes.Settings" class="header-icon-link" title="Settings" aria-label="Settings"
-                   data-testid="header-settings">
-                    <RadzenIcon Icon="settings" />
-                </a>
                 <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
                               ButtonStyle="ButtonStyle.Light"
                               Variant="Variant.Text"
@@ -81,6 +74,14 @@
                               aria-label="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
                               Click="@ToggleDarkMode" />
                 <LoginDisplay />
+                @* Settings in the upper-right as well as the sidebar (owner's call, 2026-11-17): on a
+                   phone the drawer is closed, and the header is where people look for it. Last, so it
+                   is the right-most control at every width. A real link, so it middle-clicks and
+                   announces as navigation. *@
+                <a href="@AppRoutes.Settings" class="header-icon-link" title="Settings" aria-label="Settings"
+                   data-testid="header-settings">
+                    <RadzenIcon Icon="settings" />
+                </a>
             </div>
         </div>
     </RadzenHeader>
