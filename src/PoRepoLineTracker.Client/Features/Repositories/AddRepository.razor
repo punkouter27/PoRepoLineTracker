@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject DialogService DialogService
 @inject NotificationService NotificationService
+@inject FluentValidation.IValidator<BulkRepositoryDto> Validator
 @implements IAsyncDisposable
 @using PoRepoLineTracker.Client.Models
 @using PoRepoLineTracker.Shared.Domain
@@ -184,6 +185,18 @@
                     RepoName = fullNameParts[1]
                 };
             }).ToList();
+
+            // The same FluentValidation rules the /bulk endpoint applies. One bad name used to
+            // fail the whole request with a 400; now it is left out and named, and the rest go.
+            var skipped = repositoriesToAdd.Where(r => !Validator.Validate(r).IsValid).ToList();
+            if (skipped.Count > 0)
+            {
+                repositoriesToAdd = repositoriesToAdd.Except(skipped).ToList();
+                Logger.LogWarning("Skipping {Count} repositories with invalid names", skipped.Count);
+                pageState.ErrorMessage = $"Skipped {skipped.Count} with a name GitHub would not accept: "
+                    + string.Join(", ", skipped.Select(r => $"{r.Owner}/{r.RepoName}"));
+            }
+            if (repositoriesToAdd.Count == 0) return;
 
             var (bulkResult, status, errorContent) = await Api.BulkAddRepositoriesAsync(repositoriesToAdd, _addCts!.Token);
 

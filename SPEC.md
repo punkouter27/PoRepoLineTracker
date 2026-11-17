@@ -22,7 +22,7 @@ One deployable: the ASP.NET Core API hosts the Blazor WebAssembly client, keeps 
 8. **Own your data.** Settings exports the portfolio (JSON/CSV, `GET /api/repositories/export`) and deletes the account (`DELETE /api/account`).
 9. **Survive a network drop.** The PWA shell is cached; `OfflineIndicator` shows when the connection is gone. Read-only offline.
 
-Secondary: counted file types (`/api/settings/user-preferences`), appearance & effects switches (Settings), operator diagnostics (`/diagnostics`, not in the sidebar), PWA install, single-repository re-analyse.
+Secondary: counted file types (`/api/settings/user-preferences`), appearance & effects switches (Settings), system status (`/diag`, alias `/diagnostics`; works signed-out, data from the anonymous `GET /api/diag`, which carries statuses, fixed text, latencies and at most an exception type — never secrets, URIs or messages; not in the sidebar, 2026-11-17), a header Settings link (upper-right, beside the sidebar entry, 2026-11-17), PWA install, single-repository re-analyse.
 
 ## 3. Tech stack
 
@@ -112,7 +112,7 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 - **Middleware order:** static files → `ApiNotFoundMiddleware` (404 for unmatched `/api` GETs; a middleware, never a catch-all route) → authentication → authorization → rate limiting → `ProductionAuthEnforcementMiddleware` (redirects anonymous page requests to `/login` in Production) → `AntiforgeryMiddleware` (after authorization, so an anonymous write gets 401, not 400).
 - **Security headers** (`SecurityHeadersMiddleware`) and CSP outside Development: `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'`, same-origin styles and fonts, `connect-src 'self' wss:`.
 - **Cookies:** HTTPS-only outside Development; the `__Host-` antiforgery cookie is keyed on `Security:RequireSecureCookies`, not the environment name.
-- **Validation at trust boundaries:** owner/name restricted to GitHub's character set (`Shared/RepositoryValidators`); the clone URL is always built server-side (`GitHubRepository.CloneUrlFor`), never accepted from a caller, because the user's token is embedded in it. `returnUrl` on `/auth/login` must be local. Ownership and authorization are checked before storage.
+- **Validation at trust boundaries:** owner/name restricted to GitHub's character set (`Shared/RepositoryValidators`); every submitting form (Add extension, extension row edit, Save preferences, Delete-account confirmation, bulk add) validates with a FluentValidation validator in `Shared/RepositoryValidators.cs`, shown inline through `Client/Layout/FluentValidationValidator`, with the submit disabled while it runs; `PUT /api/settings/user-preferences` and `POST /api/repositories/bulk` return `ValidationProblem` from the same validators (2026-11-17); the clone URL is always built server-side (`GitHubRepository.CloneUrlFor`), never accepted from a caller, because the user's token is embedded in it. `returnUrl` on `/auth/login` must be local. Ownership and authorization are checked before storage.
 - **Anonymous surface** is exactly: antiforgery token, `/auth/*`, `/health`, `/health/live`, `/badge/*`, `/share/*`, the webhook receiver and the SPA fallback. `AuthorizationFallbackTests` pins the list.
 - **Rate limits:** 30/min per user on bulk-add and re-analyse; 60/min per address on `/health`; 120/min per address on badges, share pages and webhooks.
 - **Tokens:** GitHub tokens are encrypted at rest (`IDataProtector`). The server PAT (`GitHub:PAT`) is used only in Development and Test.
@@ -214,7 +214,7 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 - Write without a valid antiforgery pair → 400 (after authorization, so anonymous writes get 401 first).
 - Another user's repository id → 403 via `RepositoryOwnership`.
 - Analysis queued or running → 409 `analysis_in_progress` for re-analyse, delete, remove-all, account delete and visibility.
-- App Insights or OTLP not configured → the app runs; `/diagnostics` says "Not configured" (`TelemetrySettings` is the one resolver both use).
+- App Insights or OTLP not configured → the app runs; `/diag` shows Telemetry export as Degraded "Not configured" (`TelemetrySettings` is the one resolver both use).
 - Webhook with a bad signature → 401; unknown repository → 404.
 - First E2EUI run on a machine → install Playwright browsers once.
 
@@ -223,7 +223,7 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 1. Unit tier green on every commit; Integration green for composition-root changes.
 2. E2EUI exits 0 with no skips when the app is up.
 3. `/health/live` and `/health` answer 200 after a deploy (the deploy's health gate checks both).
-4. The app boots without `GitHub:ClientId`, `KeyVault:Uri`, `ApplicationInsights:ConnectionString` or `WEBSITE_HOSTNAME`; `/diagnostics` reflects what is absent.
+4. The app boots without `GitHub:ClientId`, `KeyVault:Uri`, `ApplicationInsights:ConnectionString` or `WEBSITE_HOSTNAME`; `/diag` reflects what is absent.
 5. Re-applying `infra/main.bicep` succeeds.
 6. The API builds clean with the trim and AOT analyzers on.
 7. Test tiers stay within their caps (§7).

@@ -1,0 +1,43 @@
+@inject DialogService DialogService
+
+@* Settings → Add Extension. A real form with the shared FluentValidation rules
+   (FileExtensionInputValidator): a bad or duplicate extension shows its reason under the box and
+   the dialog stays open, where it used to close and raise a toast. Closes with the normalised
+   extension (".py"), or null on Cancel. *@
+<div class="ext-dialog">
+    <RadzenTemplateForm TItem="FileExtensionInput" Data="@_input" Submit="@Submit">
+        <FluentValidationValidator TModel="FileExtensionInput" Validator="@_validator" />
+        <RadzenStack Gap="1rem">
+            <RadzenStack Gap="0.25rem">
+                <RadzenLabel Text="File extension" Component="Extension" />
+                <RadzenTextBox Name="Extension" @bind-Value="_input.Extension" Placeholder="e.g., .py or py"
+                               class="ext-input" autofocus Disabled="@_submitting" />
+                <ValidationMessage For="@(() => _input.Extension)" />
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Add" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@_submitting" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+</div>
+
+@code {
+    /// <summary>Extensions already in the list, for the duplicate rule.</summary>
+    [Parameter] public IReadOnlyCollection<string> Existing { get; set; } = [];
+
+    private readonly FileExtensionInput _input = new();
+    private FileExtensionInputValidator _validator = new();
+    private bool _submitting;
+
+    protected override void OnParametersSet() =>
+        _validator = new(ext => Existing.Contains(ext, StringComparer.OrdinalIgnoreCase));
+
+    private void Submit()
+    {
+        if (_submitting) return; // duplicate-submit guard
+        _submitting = true;
+        DialogService.Close(FileExtensionRules.Normalize(_input.Extension));
+    }
+}

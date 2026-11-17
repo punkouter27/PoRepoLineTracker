@@ -33,21 +33,29 @@
                 your settings and your stored GitHub token, then revokes this app's access on GitHub.
                 This cannot be undone.
             </RadzenText>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                <label for="account-delete-confirm" class="account-card__label">Type <code>DELETE</code> to confirm</label>
-                <RadzenTextBox id="account-delete-confirm" @bind-Value="_confirmation" @bind-Value:event="oninput"
-                               autocomplete="off" class="account-card__input" />
-                <RadzenButton Text="Delete my account" Icon="delete_forever" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
-                              IsBusy="@_deleting" BusyText="Deleting…"
-                              Disabled="@(_confirmation != "DELETE" || _deleting)"
-                              Click="@DeleteAccountAsync" />
-            </RadzenStack>
+            @* A form with the shared FluentValidation rule (DeleteAccountConfirmationValidator):
+               anything but DELETE shows the reason under the box instead of a silently dead button. *@
+            <RadzenTemplateForm TItem="DeleteAccountConfirmation" Data="@_confirm" Submit="@DeleteAccountAsync">
+                <FluentValidationValidator TModel="DeleteAccountConfirmation" Validator="@ConfirmValidator" />
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <label for="account-delete-confirm" class="account-card__label">Type <code>DELETE</code> to confirm</label>
+                    <div class="account-card__field">
+                        <RadzenTextBox id="account-delete-confirm" Name="Confirmation" @bind-Value="_confirm.Confirmation"
+                                       autocomplete="off" class="account-card__input" Disabled="@_deleting" />
+                        <ValidationMessage For="@(() => _confirm.Confirmation)" />
+                    </div>
+                    <RadzenButton ButtonType="ButtonType.Submit" Text="Delete my account" Icon="delete_forever"
+                                  ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  IsBusy="@_deleting" BusyText="Deleting…" Disabled="@_deleting" />
+                </RadzenStack>
+            </RadzenTemplateForm>
         </RadzenStack>
     </RadzenCard>
 </div>
 
 @code {
-    private string _confirmation = string.Empty;
+    private static readonly DeleteAccountConfirmationValidator ConfirmValidator = new();
+    private readonly DeleteAccountConfirmation _confirm = new();
     private bool _deleting;
     private ElementReference _card;
 
@@ -61,6 +69,7 @@
 
     private async Task DeleteAccountAsync()
     {
+        if (_deleting) return; // duplicate-submit guard; the button is disabled as well
         _deleting = true;
         try
         {

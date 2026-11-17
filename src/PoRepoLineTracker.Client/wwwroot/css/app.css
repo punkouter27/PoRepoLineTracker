@@ -636,6 +636,13 @@ a:focus-visible {
     }
 }
 
+/* Inline per-field errors from <ValidationMessage> (FluentValidationValidator forms). */
+.validation-message {
+    color: var(--status-neg);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+}
+
 /* ─── Radzen component polish ────────────────────────────────────────────── */
 .rz-button {
     border-radius: 20px !important;

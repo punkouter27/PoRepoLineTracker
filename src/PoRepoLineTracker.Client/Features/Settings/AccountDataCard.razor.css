@@ -25,6 +25,12 @@
     font-size: 0.875rem;
 }
 
+.account-card__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
 ::deep .account-card__input.account-card__input {
     width: 8rem;
     max-width: 100%;

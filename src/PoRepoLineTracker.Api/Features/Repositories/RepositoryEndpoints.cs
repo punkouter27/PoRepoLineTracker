@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using Serilog;
@@ -144,7 +145,7 @@ internal static class RepositoryEndpoints
         })
         .WithName("RemoveAllRepositories");
 
-        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, AddMultipleRepositoriesCommandHandler addHandler, AnalysisQueue queue, RepositoryWebhooks webhooks, IRepositoryDataService repoDataService) =>
+        repos.MapPost("/bulk", async ([FromBody] IEnumerable<BulkRepositoryDto> repositories, HttpContext ctx, IValidator<BulkRepositoryDto> validator, AddMultipleRepositoriesCommandHandler addHandler, AnalysisQueue queue, RepositoryWebhooks webhooks, IRepositoryDataService repoDataService) =>
         {
             if (!ctx.User.TryGetUserId(out var userId))
                 return Results.Unauthorized();
@@ -158,11 +159,11 @@ internal static class RepositoryEndpoints
                 });
             }
 
-            // Validate each entry with the shared repository rules.
+            // Validate each entry with the shared FluentValidation rules (the client runs the same).
             foreach (var dto in repoList)
             {
-                if (RepositoryValidators.Validate(dto) is { } errors)
-                    return Results.ValidationProblem(errors);
+                if (validator.Validate(dto) is { IsValid: false } invalid)
+                    return Results.ValidationProblem(invalid.ToDictionary());
             }
 
             var result = await addHandler.Handle(new AddMultipleRepositoriesCommand(

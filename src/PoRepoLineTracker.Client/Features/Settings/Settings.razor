@@ -106,7 +106,12 @@
                                     <code class="ext-code">@item.Extension</code>
                                 </Template>
                                 <EditTemplate Context="item">
-                                    <RadzenTextBox @bind-Value="item.Extension" class="ext-input" autofocus />
+                                    <RadzenTextBox @bind-Value="item.Extension" class="ext-input" autofocus
+                                                   aria-label="File extension" aria-invalid="@(_editError is not null ? "true" : null)" />
+                                    @if (_editError is not null)
+                                    {
+                                        <div class="validation-message" role="alert">@_editError</div>
+                                    }
                                 </EditTemplate>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn TItem="ExtensionItem" Property="Category" Title="Category" Width="120px">
@@ -187,7 +192,7 @@
     // Set by Reset to Defaults when the user has stored ignore patterns. There is no editor for
     // them any more, so Reset is the only way left to clear patterns the user can no longer see.
     private bool clearGlobs;
-    private string newExtensionValue = string.Empty;
+    private static readonly UserPreferencesValidator PreferencesValidator = new();
     private static readonly Dictionary<string, string[]> categoryMap = new()
     {
         // Tuned for Blazor WebAssembly + .NET API: code files only.
@@ -273,17 +278,13 @@
 
     private async Task AddNewExtension()
     {
-        var result = await DialogService.OpenAsync("Add Extension", ds =>
-            @<RadzenStack Gap="1rem" class="ext-dialog">
-                <RadzenTextBox @bind-Value="@newExtensionValue" Placeholder="e.g., .py or py" class="ext-input" aria-label="File extension" />
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
-                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(null))" />
-                    <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Primary" Click="@(() => ds.Close(newExtensionValue))" />
-                </RadzenStack>
-            </RadzenStack>,
+        var existing = extensionItems?.Select(e => e.Extension).ToList() ?? [];
+        var result = await DialogService.OpenAsync<AddExtensionDialog>("Add Extension",
+            new Dictionary<string, object?> { [nameof(AddExtensionDialog.Existing)] = existing },
             new DialogOptions { Width = "min(350px, 95vw)", AutoFocusFirstElement = true, CssClass = "app-drawer" });
 
-        if (result is string { Length: > 0 } typed && ValidateExtension(typed) is { } ext)
+        // The dialog only closes with a value its validator accepted.
+        if (result is string { Length: > 0 } ext)
         {
             extensionItems ??= [];
             extensionItems.Add(new ExtensionItem { Extension = ext, Category = GetCategory(ext) });
@@ -291,7 +292,6 @@
             await extensionGrid!.Reload();
             NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Added", Detail = $"Added '{ext}'", Duration = 2000 });
         }
-        newExtensionValue = string.Empty;
     }
 
     /// <summary>
@@ -302,11 +302,15 @@
     private ExtensionItem? _editing;
     private string _editSnapshot = string.Empty;
 
+    /// <summary>The inline error under the row being edited, from FileExtensionInputValidator.</summary>
+    private string? _editError;
+
     private async Task EditRow(ExtensionItem item)
     {
         // Single edit mode: opening a second row drops the first one's editor without a Cancel
         // click, so restore that row here or its half-typed value would stay in the list.
         if (_editing is not null) CancelEdit(_editing);
+        _editError = null;
 
         (_editing, _editSnapshot) = (item, item.Extension);
         await extensionGrid!.EditRow(item);
@@ -314,11 +318,19 @@
 
     private async Task SaveRow(ExtensionItem item)
     {
-        // The row stays in edit mode when the check fails. This used to assign
-        // NormalizeExtension's result unconditionally — which is "" for invalid input — so an
-        // empty extension went into the list and on to the server.
-        if (ValidateExtension(item.Extension, self: item) is not { } ext) return;
+        // The row stays in edit mode, with the reason under the box, when the check fails. The
+        // same shared validator as the Add dialog; the row being edited may keep its own value.
+        var check = new FileExtensionInputValidator(ext =>
+            extensionItems?.Any(e => e != item && e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true);
+        var result = check.Validate(new FileExtensionInput { Extension = item.Extension });
+        if (!result.IsValid)
+        {
+            _editError = result.Errors[0].ErrorMessage;
+            return;
+        }
 
+        var ext = FileExtensionRules.Normalize(item.Extension);
+        _editError = null;
         item.Extension = ext;
         item.Category = GetCategory(ext);
         _editing = null;
@@ -330,6 +342,7 @@
     {
         item.Extension = _editSnapshot;
         _editing = null;
+        _editError = null;
         extensionGrid!.CancelEditRow(item);
     }
 
@@ -375,8 +388,7 @@
 
     private async Task SavePreferences()
     {
-        if (extensionItems == null) return;
-        isSaving = true;
+        if (extensionItems == null || isSaving) return; // duplicate-submit guard; the button is busy too
         errorMessage = null;
 
         try
@@ -392,6 +404,16 @@
                 CustomIgnoreGlobs = clearGlobs ? [] : preferences?.CustomIgnoreGlobs ?? [],
                 LastUpdated = DateTime.UtcNow
             };
+
+            // The rules the PUT endpoint applies (UserPreferencesValidator), checked before sending.
+            var check = PreferencesValidator.Validate(updatedPrefs);
+            if (!check.IsValid)
+            {
+                errorMessage = string.Join(" ", check.Errors.Select(e => e.ErrorMessage).Distinct());
+                return;
+            }
+
+            isSaving = true;
             preferences = await PreferencesClient.SaveAsync(updatedPrefs);
             originalExtensionItems = extensionItems.Select(e => new ExtensionItem { Extension = e.Extension, Category = e.Category }).ToList();
             clearGlobs = false;
@@ -408,34 +430,6 @@
         {
             isSaving = false;
         }
-    }
-
-    /// <summary>
-    /// The typed extension, normalised, or null after a warning toast when it is invalid or
-    /// already listed. <paramref name="self"/> is the row being edited, which may keep its own value.
-    /// One copy for Add and for an in-place edit, which had drifted apart once already.
-    /// </summary>
-    private string? ValidateExtension(string? typed, ExtensionItem? self = null)
-    {
-        var ext = NormalizeExtension(typed ?? string.Empty);
-        if (string.IsNullOrEmpty(ext)) return Warn("Invalid Extension", "Must contain only letters/numbers after dot.");
-        if (extensionItems?.Any(e => e != self && e.Extension.Equals(ext, StringComparison.OrdinalIgnoreCase)) == true)
-            return Warn("Duplicate", $"'{ext}' already exists.");
-        return ext;
-
-        string? Warn(string summary, string detail)
-        {
-            NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Warning, Summary = summary, Detail = detail, Duration = 3000 });
-            return null;
-        }
-    }
-
-    private static string NormalizeExtension(string ext)
-    {
-        ext = ext.Trim().ToLowerInvariant();
-        if (!ext.StartsWith('.')) ext = "." + ext;
-        if (ext.Length < 2 || !ext[1..].All(c => char.IsLetterOrDigit(c))) return string.Empty;
-        return ext;
     }
 
     public class ExtensionItem
