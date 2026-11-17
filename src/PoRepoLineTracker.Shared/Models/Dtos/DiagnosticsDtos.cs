@@ -1,44 +1,47 @@
 namespace PoRepoLineTracker.Shared.Models.Dtos;
 
 /// <summary>
-/// Wire shape for <c>GET /api/diagnostics</c>.
+/// Wire shape for the anonymous <c>GET /api/diag</c>, rendered by the <c>/diag</c> page.
 ///
-/// These were anonymous types on the API side and a private mirror of them inside
-/// ExternalConnections.razor on the client side. Anonymous types cannot be described by a
-/// <c>JsonSerializerContext</c> — the source generator has no name to emit metadata for — so
-/// zero-reflection serialization requires a concrete contract. Declaring it once in Shared also
-/// removes the hand-maintained client copy that had to be kept in step by eye.
+/// <para>Anonymous, so it carries only what is safe for anyone to read: a status, a fixed
+/// plain-English purpose and a latency per dependency, and at most an exception TYPE name. Never a
+/// health-check description, exception message, connection string, URI, path or id; the
+/// integration tier asserts that (DiagNoSecretsTests).</para>
 /// </summary>
 public sealed class DiagnosticsResponse
 {
+    /// <summary>Healthy, Degraded or Unhealthy: the worst of the health checks.</summary>
+    public string Status { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-    public string OverallHealth { get; set; } = string.Empty;
-    public ExternalConnectionsData ExternalConnections { get; set; } = new();
-    public DiagnosticsSummary Summary { get; set; } = new();
+
+    /// <summary>The server build's YYMMDD stamp.</summary>
+    public string Version { get; set; } = string.Empty;
+    public DateTime CheckedAtUtc { get; set; }
+
+    /// <summary>Data stores (Azure Table Storage).</summary>
+    public List<DiagnosticsCheck> Storage { get; set; } = [];
+
+    /// <summary>External dependencies: Key Vault, GitHub API, GitHub sign-in, telemetry export.</summary>
+    public List<DiagnosticsCheck> Services { get; set; } = [];
 }
 
-/// <summary>External dependencies grouped by provider, as rendered by the /diagnostics page.</summary>
-public sealed class ExternalConnectionsData
-{
-    public List<ExternalConnectionInfo> Azure { get; set; } = [];
-    public List<ExternalConnectionInfo> GitHub { get; set; } = [];
-    public List<ExternalConnectionInfo> OpenTelemetry { get; set; } = [];
-}
-
-/// <summary>A single external dependency and whether this deploy has it configured.</summary>
-public sealed class ExternalConnectionInfo
+/// <summary>One dependency's result.</summary>
+public sealed class DiagnosticsCheck
 {
     public string Name { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string Purpose { get; set; } = string.Empty;
-}
 
-/// <summary>Roll-up counts shown above the per-provider grids.</summary>
-public sealed class DiagnosticsSummary
-{
-    public int TotalConnections { get; set; }
-    public int ConfiguredCount { get; set; }
-    public string ApplicationPurpose { get; set; } = string.Empty;
+    /// <summary>One line: what the app uses it for.</summary>
+    public string Purpose { get; set; } = string.Empty;
+
+    /// <summary>Healthy, Degraded or Unhealthy.</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>A short, fixed explanation of a non-healthy status (never the check's own text).</summary>
+    public string? Note { get; set; }
+
+    /// <summary>Probe duration; null for configuration-only rows that make no call.</summary>
+    public double? LatencyMs { get; set; }
+
+    /// <summary>The exception's type name when the probe threw. Never its message.</summary>
+    public string? ErrorType { get; set; }
 }

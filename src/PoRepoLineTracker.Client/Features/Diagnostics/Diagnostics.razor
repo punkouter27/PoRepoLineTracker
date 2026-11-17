@@ -1,144 +1,181 @@
+@page "/diag"
 @page "/diagnostics"
-@attribute [Authorize]
 @inject RepoApiClient Api
 @inject ILogger<Diagnostics> Logger
+@using System.Diagnostics
 @using PoRepoLineTracker.Client.Features.Shared
 @using PoRepoLineTracker.Client.Models
 @using Radzen
 @using Radzen.Blazor
-@using Microsoft.AspNetCore.Authorization
 
-<PageTitle>Diagnostics · PoRepoLineTracker</PageTitle>
+@* The fleet /diag page (standard of 2026-11-17). Reachable signed-out: no [Authorize], the
+   server lets /diag through its production sign-in gate, and the data comes from the anonymous
+   GET /api/diag, which carries statuses and fixed text only. /diagnostics is kept as an alias. *@
 
-<div class="app-stack">
-    @* <PageHero> — this was the last page still hand-rolling its header, around a `.page-header`
-       class that no stylesheet in the project defines. It therefore had none of the hero's padding,
-       gradient or wrap behaviour, and sat flush against the top of the well while every other page
-       had a strip. *@
+<PageTitle>System status · PoRepoLineTracker</PageTitle>
+
+<div class="app-stack diag">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.15rem">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
-                    <RadzenIcon Icon="cloud" class="xc-title-icon" />
-                    <h1 class="page-hero__title xc-title">Diagnostics</h1>
-                </RadzenStack>
+                <h1 class="page-hero__title xc-title">System status</h1>
                 <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">
-                    APIs, databases, and external services that this application connects to
+                    Whether the app, its storage and the services it relies on are working right now
                 </RadzenText>
             </RadzenStack>
         </Heading>
         <Actions>
             <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
                           Variant="Variant.Outlined" Size="ButtonSize.Small"
-                          Click="@LoadDiagnostics" Disabled="@_isLoading" />
+                          IsBusy="@_isLoading" BusyText="Checking…"
+                          Click="@LoadAsync" Disabled="@_isLoading" class="diag-refresh" />
         </Actions>
     </PageHero>
 
-    @if (_isLoading)
+    @if (_report is null && _isLoading)
     {
         <RadzenCard>
-            <RadzenSkeleton Width="100%" Height="400px" />
+            <RadzenStack Gap="0.75rem">
+                <RadzenText TextStyle="TextStyle.Body2">Running the checks…</RadzenText>
+                <RadzenSkeleton Width="100%" Height="160px" />
+            </RadzenStack>
         </RadzenCard>
     }
-    else if (!string.IsNullOrEmpty(_error))
+    else if (_error is not null)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
-            @_error
-            <RadzenButton Text="Retry" Icon="refresh" Size="ButtonSize.Small" Variant="Variant.Text"
-                          Click="@LoadDiagnostics" class="xc-refresh" />
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="false" class="diag-banner">
+            <strong>The server did not answer.</strong> @_error
         </RadzenAlert>
-    }
-    else if (_diagnostics != null)
-    {
-        @* Summary Card *@
         <RadzenCard class="xc-env-card">
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="1rem">
-                <RadzenStack Gap="0.25rem">
-                    <RadzenText TextStyle="TextStyle.H6" class="xc-section-title">@_diagnostics.Environment Environment</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="xc-caption"
-                                title="@_diagnostics.Timestamp.ToLocalTime().ToString("f")">
-                        Last updated: @ChartFormat.RelativeTime(_diagnostics.Timestamp)
-                    </RadzenText>
+            <RadzenStack Gap="0.25rem">
+                <h2 class="diag-section-title">API</h2>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Unreachable" />
+                    <RadzenText TextStyle="TextStyle.Body2">Tried for @Ms(_apiMs)</RadzenText>
                 </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@($"{_diagnostics.Summary.ConfiguredCount}/{_diagnostics.Summary.TotalConnections} Configured")" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (_report is not null)
+    {
+        <RadzenAlert AlertStyle="@AlertFor(_report.Status)" ShowIcon="true" AllowClose="false" class="diag-banner"
+                     data-status="@_report.Status">
+            <strong>@Headline(_report.Status)</strong>
+            <span class="diag-meta">
+                @_report.Environment · version v@(_report.Version) ·
+                <span title="@_report.CheckedAtUtc.ToLocalTime().ToString("f")">checked @ChartFormat.RelativeTime(_report.CheckedAtUtc)</span>
+            </span>
+        </RadzenAlert>
+
+        <RadzenCard class="xc-env-card">
+            <RadzenStack Gap="0.25rem">
+                <h2 class="diag-section-title">API</h2>
+                <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">The app's own server, which this page just called.</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Reachable" />
+                    <RadzenText TextStyle="TextStyle.Body2">Responded in @Ms(_apiMs)</RadzenText>
                 </RadzenStack>
             </RadzenStack>
         </RadzenCard>
 
-        @* Consolidate providers into RadzenTabs with full-width clarity (Option 5) *@
-        <RadzenTabs RenderMode="TabRenderMode.Client" class="xc-tabs">
-            <Tabs>
-                <RadzenTabsItem Text="Azure Services" Icon="cloud">
-                    <ConnectionGrid Title="Azure Services"
-                                    Icon="cloud"
-                                    IconClass="xc-icon--azure"
-                                    Connections="@_diagnostics.ExternalConnections.Azure" />
-                </RadzenTabsItem>
-                <RadzenTabsItem Text="GitHub Integrations" Icon="code">
-                    <ConnectionGrid Title="GitHub Integrations"
-                                    Icon="code"
-                                    IconClass="xc-icon--github"
-                                    Connections="@_diagnostics.ExternalConnections.GitHub"
-                                    StatusIsHealthy="@(s => s.Contains("Configured") || s.Contains("PAT"))" />
-                </RadzenTabsItem>
-                <RadzenTabsItem Text="Observability" Icon="analytics">
-                    <ConnectionGrid Title="Observability"
-                                    Icon="analytics"
-                                    IconClass="xc-icon--otel"
-                                    Connections="@_diagnostics.ExternalConnections.OpenTelemetry" />
-                </RadzenTabsItem>
-            </Tabs>
-        </RadzenTabs>
+        <section class="diag-section" aria-labelledby="diag-storage">
+            <h2 id="diag-storage" class="diag-section-title">Database / storage</h2>
+            @CheckList(_report.Storage, "No data stores are checked by this server.")
+        </section>
 
-        @* Purpose *@
-        <RadzenCard class="xc-summary-card">
-            <RadzenStack Gap="0.5rem">
-                <RadzenText TextStyle="TextStyle.Subtitle2">Application Purpose</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2">@_diagnostics.Summary.ApplicationPurpose</RadzenText>
-            </RadzenStack>
-        </RadzenCard>
+        <section class="diag-section" aria-labelledby="diag-services">
+            <h2 id="diag-services" class="diag-section-title">Services</h2>
+            @CheckList(_report.Services, "No external services are checked by this server.")
+        </section>
     }
 </div>
 
 @code {
-    private DiagnosticsResponse? _diagnostics;
-    private bool _isLoading = false;
-    private string _error = string.Empty;
+    private DiagnosticsResponse? _report;
+    private bool _isLoading;
+    private string? _error;
+    private double _apiMs;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadDiagnostics();
-    }
+    protected override Task OnInitializedAsync() => LoadAsync();
 
-    private async Task LoadDiagnostics()
+    private async Task LoadAsync()
     {
+        if (_isLoading) return; // busy guard: the button is disabled too, this covers a double tap
         _isLoading = true;
-        _error = string.Empty;
-        StateHasChanged();
-
+        _error = null;
+        var watch = Stopwatch.StartNew();
         try
         {
-            _diagnostics = await Api.GetDiagnosticsAsync();
-            if (_diagnostics == null)
-            {
-                _error = "Failed to load diagnostics data.";
-            }
+            _report = await Api.GetDiagnosticsAsync();
+            if (_report is null) _error = "It returned an empty answer.";
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading diagnostics");
-            _error = $"Error loading diagnostics: {ex.Message}";
+            _error = "Check your connection and press Refresh.";
+            _report = null;
         }
         finally
         {
+            _apiMs = watch.Elapsed.TotalMilliseconds;
             _isLoading = false;
-            StateHasChanged();
         }
     }
 
-    // DiagnosticsResponse / ExternalConnectionsData / ExternalConnectionInfo / DiagnosticsSummary used to
-    // be declared here, as a hand-maintained mirror of the anonymous types the API returned —
-    // nothing but a passing integration test kept the two in step. They are now one contract in
-    // Shared, which is also what lets the payload be source-generated.
+    private RenderFragment CheckList(List<DiagnosticsCheck> checks, string empty) => __builder =>
+    {
+        if (checks.Count == 0)
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">@empty</RadzenText>
+            return;
+        }
+        <div class="diag-grid">
+            @foreach (var check in checks)
+            {
+                <RadzenCard class="diag-check" data-check="@check.Name">
+                    <RadzenStack Gap="0.35rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                                     JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                            <h3 class="diag-check__name">@check.Name</h3>
+                            <RadzenBadge BadgeStyle="@BadgeFor(check.Status)" Text="@check.Status" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.Body2">@check.Purpose</RadzenText>
+                        @if (check.Note is not null)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption" class="diag-check__note">
+                                @check.Note@(check.ErrorType is null ? "" : $" ({check.ErrorType})")
+                            </RadzenText>
+                        }
+                        <RadzenText TextStyle="TextStyle.Caption" class="xc-caption">
+                            @(check.LatencyMs is { } ms ? $"Checked in {Ms(ms)}" : "Configuration check, no call made")
+                            · @ChartFormat.RelativeTime(_report!.CheckedAtUtc)
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            }
+        </div>
+    };
+
+    private static string Ms(double ms) => ms < 1 ? "under 1 ms" : $"{ms:0} ms";
+
+    private static string Headline(string status) => status switch
+    {
+        "Healthy" => "Everything is working.",
+        "Degraded" => "Working, with warnings below.",
+        _ => "Something is not working.",
+    };
+
+    private static AlertStyle AlertFor(string status) => status switch
+    {
+        "Healthy" => AlertStyle.Success,
+        "Degraded" => AlertStyle.Warning,
+        _ => AlertStyle.Danger,
+    };
+
+    private static BadgeStyle BadgeFor(string status) => status switch
+    {
+        "Healthy" => BadgeStyle.Success,
+        "Degraded" => BadgeStyle.Warning,
+        _ => BadgeStyle.Danger,
+    };
 }

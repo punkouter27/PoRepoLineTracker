@@ -20,7 +20,8 @@ $failed = $false
 foreach ($entry in @(
     @{ Path = '/login'; Want = 200 },
     @{ Path = '/api/repositories'; Want = 401 },
-    @{ Path = '/api/diagnostics'; Want = 401 },
+    @{ Path = '/diag'; Want = 200 },
+    @{ Path = '/api/diag'; Want = 200 },
     @{ Path = '/api/no-such-route-smoke-test'; Want = 404 }
 )) {
     $code = 0

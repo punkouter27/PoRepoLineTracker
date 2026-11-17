@@ -26,6 +26,7 @@ public class AuthorizationFallbackTests
     private static readonly string[] AnonymousAllowList =
     [
         "/api/antiforgery/token",
+        "/api/diag", // the /diag status page works signed-out; statuses and fixed text only
         "/api/webhooks/github/{repositoryId}", // GitHub push deliveries; HMAC-signed per repository
         "/auth/login",
         "/auth/logout",

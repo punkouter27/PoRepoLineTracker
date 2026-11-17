@@ -13,7 +13,7 @@ namespace PoRepoLineTracker.Unit.Diagnostics;
 /// <summary>
 /// Pins the A3 acceptance:
 /// 1. The check returns the documented status for the documented inputs.
-/// 2. /health and /api/diagnostics both read the same registry — neither
+/// 2. /health and /api/diag both read the same registry — neither
 ///    re-implements a probe, which is what SPEC §11.3's "diag is honest"
 ///    requirement is asking for.
 /// </summary>

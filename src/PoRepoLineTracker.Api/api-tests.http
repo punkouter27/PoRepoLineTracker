@@ -18,9 +18,8 @@
 GET {{baseUrl}}/health
 Accept: application/json
 
-### Structured diagnostics (auth required)
-GET {{baseUrl}}/api/diagnostics
-X-Fake-User: {{fakeUser}}
+### Structured diagnostics for the /diag page (anonymous)
+GET {{baseUrl}}/api/diag
 Accept: application/json
 
 # ============================================================

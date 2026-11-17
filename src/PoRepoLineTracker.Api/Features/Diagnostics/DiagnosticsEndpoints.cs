@@ -1,104 +1,106 @@
+using System.Reflection;
+using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using System.ComponentModel.DataAnnotations;
 using Serilog;
 
 namespace PoRepoLineTracker.Api.Features.Diagnostics;
 
 internal static class DiagnosticsEndpoints
 {
+    /// <summary>
+    /// Plain-English purpose for every registered health check, keyed by registration name. The
+    /// checks' own descriptions are NOT passed through: they name tables and, for Key Vault, used
+    /// to carry the vault URI, and this endpoint is anonymous.
+    /// </summary>
+    private static readonly Dictionary<string, (string Name, string Purpose, bool IsStorage)> Known = new()
+    {
+        ["azure-table-storage"] = ("Azure Table Storage", "Stores your tracked repositories, line-count history and settings.", true),
+        ["key-vault"] = ("Azure Key Vault", "Holds the app's secrets, such as the GitHub sign-in keys.", false),
+        ["github-api"] = ("GitHub API", "Reads your repositories and their commit history.", false),
+    };
+
+    private static readonly string Version = typeof(DiagnosticsEndpoints).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(a => a.Key == "BuildStamp")?.Value ?? "dev";
+
     internal static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // /health is served by the registered IHealthCheck pipeline via app.MapHealthChecks("/health")
-        // in Program.cs — no custom implementation needed here.
-
-        // The single server-side diagnostics surface. The Blazor client keeps a /diagnostics PAGE route
-        // (Pages/Diagnostics.razor) whose data comes from here, so a browser never needs a
-        // content-negotiating server route on the same path.
-        var diagnostics = endpoints.MapGroup("/api/diagnostics")
+        // /health is served by app.MapHealthChecks("/health") in Program.cs. This is the same
+        // registry shaped for the /diag page. Anonymous by the fleet /diag standard (2026-11-17):
+        // the page must work signed-out, so the payload is limited to statuses and fixed text.
+        endpoints.MapGet("/api/diag", GetAsync)
             .WithTags("Diagnostics")
-            .RequireAuthorization();
-
-        diagnostics.MapGet("/", async (IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks) =>
-        {
-            return await MapDiagnosticsData(configuration, env, healthChecks);
-        })
-        .WithName("ApiDiagnostics");
+            .WithName("ApiDiag")
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Health);
     }
 
-    private static async Task<IResult> MapDiagnosticsData(IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks)
+    private static async Task<IResult> GetAsync(
+        IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks,
+        IAuthenticationSchemeProvider schemes, CancellationToken ct)
     {
         HealthReport report;
         try
         {
-            report = await healthChecks.CheckHealthAsync();
+            report = await healthChecks.CheckHealthAsync(ct);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Error(ex, "Health check execution failed during diagnostics request");
-            report = new HealthReport(
-                new Dictionary<string, HealthReportEntry>
-                {
-                    ["health_check_error"] = new HealthReportEntry(
-                        HealthStatus.Unhealthy, ex.Message, TimeSpan.Zero, ex, null)
-                },
-                HealthStatus.Unhealthy,
-                TimeSpan.Zero);
+            report = new HealthReport(new Dictionary<string, HealthReportEntry>(), HealthStatus.Unhealthy, TimeSpan.Zero);
         }
 
-        // Telemetry status comes from TelemetrySettings, which is the same resolver AddTelemetry
-        // uses. Checking ConfigKeys.Telemetry.AppInsightsConnectionString directly — as this did —
-        // sees only the environment-variable form, so a connection string supplied through
-        // appsettings, user-secrets or Key Vault (the only places it is allowed to live, since it
-        // must never be committed) was reported as "Not configured" while telemetry was in fact
-        // exporting.
-        var appInsightsConfigured = TelemetrySettings.IsAppInsightsConfigured(configuration);
-        var otlpConfigured = TelemetrySettings.IsOtlpConfigured(configuration);
-
-        int configuredCount = 0;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri])) configuredCount++;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString])) configuredCount++;
-        if (appInsightsConfigured) configuredCount++;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.ClientId])) configuredCount++;
-        if (!string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat])) configuredCount++;
-        if (otlpConfigured) configuredCount++;
-
-        var externalConnections = new ExternalConnectionsData
+        var response = new DiagnosticsResponse
         {
-            Azure =
-            [
-                new ExternalConnectionInfo { Name = "Azure Key Vault", Type = "Secret Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.KeyVault.Uri]) ? "Configured" : "Not configured", Purpose = "Securely stores secrets" },
-                new ExternalConnectionInfo { Name = "Azure Table Storage", Type = "Data Storage", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ServiceUrl]) || !string.IsNullOrEmpty(configuration[ConfigKeys.AzureTableStorage.ConnectionString]) ? "Configured" : "Not configured", Purpose = "Stores repository analysis data" },
-                new ExternalConnectionInfo { Name = "Azure Application Insights", Type = "Telemetry", Status = appInsightsConfigured ? "Configured" : "Not configured", Purpose = "Performance monitoring" }
-            ],
-            GitHub =
-            [
-                new ExternalConnectionInfo { Name = "GitHub OAuth", Type = "Authentication", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.ClientId]) ? "Configured" : "Not configured", Purpose = "User authentication" },
-                new ExternalConnectionInfo { Name = "GitHub REST API", Type = "External API", Status = !string.IsNullOrEmpty(configuration[ConfigKeys.GitHub.Pat]) ? "PAT Configured" : "Rate Limited", Purpose = "Repository data access" }
-            ],
-            OpenTelemetry =
-            [
-                new ExternalConnectionInfo { Name = "OTLP Exporter", Type = "Telemetry Export", Status = otlpConfigured ? "Configured" : "Not configured", Purpose = "Distributed tracing" }
-            ]
+            Status = report.Status.ToString(),
+            Environment = env.EnvironmentName,
+            Version = Version,
+            CheckedAtUtc = DateTime.UtcNow,
         };
 
-        return Results.Ok(new DiagnosticsResponse
+        foreach (var (key, entry) in report.Entries)
         {
-            Environment = env.EnvironmentName,
-            Timestamp = DateTime.UtcNow,
-            OverallHealth = report.Status.ToString(),
-            ExternalConnections = externalConnections,
-            Summary = new DiagnosticsSummary
+            var (name, purpose, isStorage) = Known.TryGetValue(key, out var known) ? known : (key, "Dependency check.", false);
+            (isStorage ? response.Storage : response.Services).Add(new DiagnosticsCheck
             {
-                TotalConnections = 6,
-                ConfiguredCount = configuredCount,
-                ApplicationPurpose = "Repository line tracking, line-count history, contributor statistics"
-            }
+                Name = name,
+                Purpose = purpose,
+                Status = entry.Status.ToString(),
+                Note = NoteFor(key, entry.Status),
+                LatencyMs = Math.Round(entry.Duration.TotalMilliseconds, 1),
+                ErrorType = entry.Exception?.GetType().Name,
+            });
+        }
+
+        // Configuration-only rows: no probe, so no latency, and they do not change /health.
+        var signIn = await schemes.GetSchemeAsync(GitHubAuthenticationDefaults.AuthenticationScheme) is not null;
+        response.Services.Add(new DiagnosticsCheck
+        {
+            Name = "GitHub sign-in",
+            Purpose = "Signs you in with your GitHub account (OAuth).",
+            Status = signIn ? "Healthy" : "Degraded",
+            Note = signIn ? null : "Not configured on this server; GitHub sign-in is unavailable.",
         });
+
+        var telemetry = TelemetrySettings.IsAppInsightsConfigured(configuration) || TelemetrySettings.IsOtlpConfigured(configuration);
+        response.Services.Add(new DiagnosticsCheck
+        {
+            Name = "Telemetry export",
+            Purpose = "Sends traces and metrics to Application Insights or an OTLP collector. Optional.",
+            Status = telemetry ? "Healthy" : "Degraded",
+            Note = telemetry ? null : "Not configured; the app runs without it.",
+        });
+
+        return Results.Ok(response);
     }
 
+    private static string? NoteFor(string key, HealthStatus status) => (key, status) switch
+    {
+        (_, HealthStatus.Healthy) => null,
+        ("key-vault", _) => "Not configured; secrets come from local settings or environment variables.",
+        ("github-api", _) => "Unreachable, rate-limited or missing a credential; cached reads still work.",
+        ("azure-table-storage", _) => "Storage could not be reached; nothing can be loaded or saved.",
+        _ => "Check reported a problem.",
+    };
 }
-
-

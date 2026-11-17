@@ -29,8 +29,8 @@ public static class AppRoutes
     /// <summary>File counting, GitHub access and account controls.</summary>
     public const string Settings = "/settings";
 
-    /// <summary>An operator's page: queue state, health, logs. Deliberately not in the sidebar.</summary>
-    public const string Diagnostics = "/diagnostics";
+    /// <summary>The system-status page (fleet /diag standard). Works signed-out; also answers <c>/diagnostics</c>. Not in the sidebar.</summary>
+    public const string Diagnostics = "/diag";
 
     /// <summary>Where the sign-in link and the auth middleware both send an anonymous visitor.</summary>
     public const string Login = "/login";

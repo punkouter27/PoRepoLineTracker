@@ -37,7 +37,7 @@ function Get-Probe([string]$Path) {
     }
 }
 
-# /api/repositories and /api/diagnostics: 401 when anonymous — the API auth layer rejects, it
+# /diag and /api/diag: 200 anonymous (the status page works signed-out). /api/repositories: 401 when anonymous — the API auth layer rejects, it
 # does not redirect, so callers can tell "you need to log in" from "this URL is wrong". The
 # unknown route must be 404 — not 401, and above all not 200 carrying the HTML shell. GET only:
 # see the known limit documented on ApiNotFoundMiddleware.
@@ -45,7 +45,8 @@ $paths = @(
     @{ Path = '/health';                        Want = 200 },
     @{ Path = '/login';                         Want = 200 },
     @{ Path = '/api/repositories';              Want = 401 },
-    @{ Path = '/api/diagnostics';               Want = 401 },
+    @{ Path = '/diag';                          Want = 200 },
+    @{ Path = '/api/diag';                      Want = 200 },
     @{ Path = '/api/no-such-route-smoke-test';  Want = 404 }
 )
 

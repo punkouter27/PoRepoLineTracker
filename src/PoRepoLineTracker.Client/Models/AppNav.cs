@@ -47,6 +47,6 @@ public static class AppNav
         ]),
     ];
 
-    // No Diagnostics entry, by the owner's choice: /diagnostics is an operator's tool, not
+    // No Diagnostics entry, by the owner's choice: /diag is an operator's tool, not
     // something to offer every signed-in user from the sidebar.
 }

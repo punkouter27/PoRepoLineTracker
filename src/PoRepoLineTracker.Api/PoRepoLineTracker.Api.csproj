@@ -52,6 +52,11 @@
     <ProjectReference Include="..\PoRepoLineTracker.Client\PoRepoLineTracker.Client.csproj" />
   </ItemGroup>
 
+  <!-- The YYMMDD build stamp /api/diag reports, matching the client's bottom-right label. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildStamp" Value="$([System.DateTime]::UtcNow.ToString('yyMMdd'))" />
+  </ItemGroup>
+
   <!-- Include startup.sh in publish output for Azure App Service git installation -->
   <ItemGroup>
     <None Include="startup.sh" CopyToPublishDirectory="PreserveNewest" />

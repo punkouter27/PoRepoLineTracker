@@ -1,9 +1,5 @@
-/* Scoped styles for the /diag page.
+/* Scoped styles for the /diag page. Rooted at the plain .diag <div>.
    See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
-
-::deep .xc-title-icon.xc-title-icon {
-    font-size: 1.5rem !important;
-}
 
 ::deep .xc-title.xc-title {
     margin: 0 !important;
@@ -15,51 +11,49 @@
     margin: 0 !important;
 }
 
-::deep .xc-refresh.xc-refresh {
-    margin-left: 0.5rem !important;
-}
-
 ::deep .xc-env-card.xc-env-card {
     border-left: 4px solid var(--rz-primary) !important;
-}
-
-::deep .xc-summary-card.xc-summary-card {
-    /* --bg-tertiary, not --rz-base-100. Radzen's dark theme resolves --rz-base-100 to a MID grey
-       (#a0a0a0) while the text inside stays near-white — 1.98:1, the panel was unreadable in dark
-       mode. This is the same --rz-base-* trap documented at the top of app.css; the app's own
-       surface tokens are defined per theme and are what the rest of the UI paints with. */
-    background: var(--bg-tertiary) !important;
-    color: var(--text-primary) !important;
-}
-
-::deep .xc-section-title.xc-section-title {
-    margin: 0 !important;
 }
 
 ::deep .xc-caption.xc-caption {
     color: var(--rz-text-secondary-color) !important;
 }
 
-::deep .xc-grid.xc-grid {
-    font-size: 0.9rem !important;
+::deep .diag-banner.diag-banner {
+    margin: 0 !important;
 }
 
-/* Per-provider brand colours for the section icons.
-
-   Each is mixed toward the current text colour rather than being the raw brand hex. The literals
-   were picked against a white card and two of the three failed on the dark one: GitHub's #333 is
-   1.3:1 against Radzen's dark surface — effectively an invisible icon — and #6b4fbb is 2.4:1.
-   `color-mix` toward --text-primary keeps the hue recognisably Azure blue / GitHub grey / OTel
-   purple while pulling the lightness to the side of the surface that is actually being painted,
-   in both themes, from one declaration each. */
-::deep .xc-icon--azure.xc-icon--azure {
-    color: color-mix(in srgb, #0078d4 72%, var(--text-primary)) !important;
+.diag-meta {
+    display: block;
+    font-size: 0.875rem;
+    margin-top: 0.15rem;
 }
 
-::deep .xc-icon--github.xc-icon--github {
-    color: color-mix(in srgb, #6e7681 55%, var(--text-primary)) !important;
+.diag-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
-::deep .xc-icon--otel.xc-icon--otel {
-    color: color-mix(in srgb, #6b4fbb 62%, var(--text-primary)) !important;
+.diag-section-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* One column on a phone, as many 18rem cards as fit on a desktop. */
+.diag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+    gap: 0.75rem;
+}
+
+.diag-check__name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+::deep .diag-check__note.diag-check__note {
+    color: var(--text-primary) !important;
 }

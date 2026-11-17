@@ -57,14 +57,28 @@ public class RealAuthFactory : WebApplicationFactory<Program>
             services.AddScoped(_ => Substitute.For<IUserService>());
             services.AddScoped(_ => Substitute.For<IUserPreferencesService>());
             services.AddScoped(_ => Substitute.For<IGitHubService>());
+
+            // The GitHub health check must not reach api.github.com from a test.
+            services.AddHttpClient("GitHubClient").ConfigurePrimaryHttpMessageHandler(() => new StubGitHubHandler());
         });
 
         builder.UseEnvironment("Test");
     }
 }
 
+/// <summary>Answers the GitHub health probe locally: 200 with a healthy rate-limit budget.</summary>
+internal sealed class StubGitHubHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK);
+        response.Headers.Add("X-RateLimit-Remaining", "5000");
+        return Task.FromResult(response);
+    }
+}
+
 /// <summary>
-/// Header-driven dev/test auth, and /api/diagnostics as the single diagnostics surface.
+/// Header-driven dev/test auth, and the anonymous /api/diag behind the /diag page.
 /// </summary>
 public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 {
@@ -164,34 +178,40 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
         actOutside.Should().NotThrow();
     }
 
-    // ── /api/diagnostics ───────────────────────────────────────────────────────────────
+    // ── /api/diag ──────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ApiDiagnostics_Requires_Authentication()
+    public async Task ApiDiag_Is_Anonymous_And_Reports_The_Running_Environment_As_Json()
     {
-        var response = await CreateClient().SendAsync(Get("/api/diagnostics"));
-        response.StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Found);
-    }
+        var response = await CreateClient().SendAsync(Get("/api/diag"));
 
-    [Fact]
-    public async Task ApiDiagnostics_Never_Echoes_A_Configured_Secret_Value()
-    {
-        var response = await CreateClient().SendAsync(Get("/api/diagnostics", user: "alice"));
-        var body = await response.Content.ReadAsStringAsync();
-
-        body.Should().NotContain(RealAuthFactory.KnownSecret,
-            "the diagnostics payload reports configured/not-configured, never a secret value");
-    }
-
-    [Fact]
-    public async Task ApiDiagnostics_Reports_The_Running_Environment_As_Json()
-    {
-        var response = await CreateClient().SendAsync(Get("/api/diagnostics", user: "alice"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, "the /diag page must work signed-out");
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("environment").GetString().Should().Be("Test");
+        json.GetProperty("storage").GetArrayLength().Should().BeGreaterThan(0);
+        json.GetProperty("services").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Anonymous, so the payload must carry statuses and fixed text only. Storage here has no
+    /// Azurite behind it, so the table check throws and the test also proves that an exception's
+    /// MESSAGE (which names the endpoint) never reaches the wire, only its type.
+    /// </summary>
+    [Fact]
+    public async Task ApiDiag_Never_Exposes_Secrets_Or_Internals()
+    {
+        var body = await (await CreateClient().SendAsync(Get("/api/diag"))).Content.ReadAsStringAsync();
+
+        string[] forbidden =
+        [
+            RealAuthFactory.KnownSecret, "test-client-secret", "test-client-id",
+            "UseDevelopmentStorage", "AccountKey", "devstoreaccount1", "127.0.0.1", "localhost",
+            "vault.azure.net", "://", "PoRepoLineTrackerRepositories", CustomWebApplicationFactory.TestRepoRoot,
+            ":\\", "   at ", "StackTrace", "@", "tenant", "subscription"
+        ];
+        foreach (var value in forbidden)
+            body.Should().NotContainEquivalentOf(value, $"/api/diag is anonymous and must not leak '{value}'");
     }
 }
