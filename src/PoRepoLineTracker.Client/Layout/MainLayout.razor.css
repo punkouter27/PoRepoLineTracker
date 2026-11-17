@@ -67,6 +67,28 @@
     color: rgba(255, 255, 255, 0.85) !important;
 }
 
+/* The header Settings link: sized and coloured like the icon buttons beside it. */
+.header-icon-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+}
+
+.header-icon-link:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.header-icon-link:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
 .po-error-panel {
     margin: 1rem auto;
     max-width: 40rem;

@@ -20,11 +20,8 @@
                              AlternateText="@($"{AuthStateProvider.CurrentUser?.DisplayName ?? AuthStateProvider.CurrentUser?.Username ?? "User"}'s profile picture")"
                              class="login-display__avatar" />
             }
-            <RadzenText TextStyle="TextStyle.Body2" class="login-display__identity">
-                @(AuthStateProvider.CurrentUser?.Email
-                  ?? AuthStateProvider.CurrentUser?.DisplayName
-                  ?? AuthStateProvider.CurrentUser?.Username
-                  ?? "User")
+            <RadzenText TextStyle="TextStyle.Body2" class="login-display__identity" title="@Identity">
+                @Identity
             </RadzenText>
             <RadzenButton Text="Logout"
                           ButtonStyle="ButtonStyle.Light" 
@@ -57,6 +54,11 @@
 </div>
 
 @code {
+    private string Identity => AuthStateProvider.CurrentUser?.Email
+        ?? AuthStateProvider.CurrentUser?.DisplayName
+        ?? AuthStateProvider.CurrentUser?.Username
+        ?? "User";
+
     private void HandleLogin()
     {
         // Navigate to login endpoint which will redirect to GitHub OAuth

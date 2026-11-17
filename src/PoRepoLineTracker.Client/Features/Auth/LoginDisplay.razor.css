@@ -11,6 +11,14 @@
     .login-display ::deep .login-display__persona {
         display: none;
     }
+
+    /* Room for the header Settings link at 390px: a long email ellipsises (full text in title). */
+    .login-display ::deep .login-display__identity {
+        max-width: 7.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 .login-display ::deep .login-display__avatar {
