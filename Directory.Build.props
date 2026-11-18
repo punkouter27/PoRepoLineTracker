@@ -12,14 +12,37 @@
     <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
 
-  <!-- The Po build stamp: one value for every project in the build, so the client's vYYMMDD corner label and the
-       server's /api/diag version agree. The UTC build date, not the commit date (SPEC.md "Versioning"): re-running an
-       old commit's deploy stamps it with the re-run day. Override with -p:PoStamp=YYMMDD. -->
-  <PropertyGroup>
-    <PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <EnableDefaultCompressionFormats>false</EnableDefaultCompressionFormats>
+    <PublishCompressionFormats>brotli</PublishCompressionFormats>
   </PropertyGroup>
-  <ItemGroup>
-    <AssemblyMetadata Include="BuildStamp" Value="$(PoStamp)" />
-    <AssemblyMetadata Include="BuildVersion" Value="$(PoStamp)" />
-  </ItemGroup>
+
+  <!-- Self-contained Po build stamp (vYYMMDD = UTC date of HEAD commit, fallback to UTC build date).
+       Emits BuildVersion (and legacy aliases BuildStamp/BuildDate) so client corner badge and /api/diag match. -->
+  <Target Name="PoBuildStamp" BeforeTargets="GetAssemblyAttributes;CoreCompile">
+    <Exec Condition="'$(PoStamp)' == ''" Command="git rev-list -1 --timestamp HEAD" WorkingDirectory="$(MSBuildThisFileDirectory)"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_PoHeadCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="_PoHeadCommitExit" />
+    </Exec>
+    <PropertyGroup>
+      <PoStamp Condition="'$(PoStamp)' == '' and '$(_PoHeadCommitExit)' == '0' and '$(_PoHeadCommit)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_PoHeadCommit.Split(` `)[0])', '^\d+$'))">$([System.DateTime]::UnixEpoch.AddSeconds($(_PoHeadCommit.Split(' ')[0])).ToString('yyMMdd'))</PoStamp>
+      <PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildVersion</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildStamp</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildDate</_Parameter1>
+        <_Parameter2>$(PoStamp)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
 </Project>
