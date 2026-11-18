@@ -3,6 +3,8 @@
 @inject IWebAssemblyHostEnvironment HostEnv
 
 <div class="bare-layout">
+    @* The same header as every other page; the sign-in card sits in the body under it. *@
+    <PoHeader />
     <main id="main-content" class="login-main bare-layout__main" tabindex="-1">
         <ErrorBoundary @ref="_errorBoundary">
             <ChildContent>
@@ -27,7 +29,6 @@
             </ErrorContent>
         </ErrorBoundary>
     </main>
-    <BuildVersion />
 </div>
 
 @code {

@@ -5,6 +5,8 @@
 @inject DialogService Dialogs
 @inject ILogger<AccountDataCard> Logger
 @inject IJSRuntime JS
+@inject ApiAuthenticationStateProvider AuthStateProvider
+@inject Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnv
 
 @* The user's own data: take it with them, or delete it. Its own component so the Settings page,
    which is about counted extensions, does not grow a second job in its @code block.
@@ -14,6 +16,21 @@
 <div class="account-card" @ref="_card">
     <RadzenCard>
         <RadzenStack Gap="0.75rem">
+            @* Who is signed in and Sign out: here since the header became the Po shell (email + gear only). *@
+            <h2 class="account-card__title">Account</h2>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenText TextStyle="TextStyle.Body2" class="account-card__who">Signed in as <strong>@AccountMenu.Identity(AuthStateProvider.CurrentUser)</strong></RadzenText>
+                <RadzenButton Text="Sign out" Icon="logout" Size="ButtonSize.Small" Variant="Variant.Outlined" Click="@SignOutAsync" />
+                @if (HostEnv.IsDevelopment() || HostEnv.IsEnvironment("Test"))
+                {
+                    <RadzenDropDown TValue="string" Data="@AccountMenu.Personas" TextProperty="Label" ValueProperty="FakeUserHeader"
+                                    Value="@DevFakeUserHandler.ActiveFakeUser" Change="@OnDevPersonaChanged"
+                                    Placeholder="Dev User" aria-label="Dev persona switcher" class="account-card__persona" />
+                }
+            </RadzenStack>
+
+            <hr class="account-card__rule" />
+
             <h2 class="account-card__title">Your data</h2>
             <RadzenText TextStyle="TextStyle.Body2">
                 Download every tracked repository with its current size, as JSON or CSV.
@@ -64,6 +81,23 @@
     /// so the browser saves the file and the page stays where it is. /api is outside the service
     /// worker's cache, so this always reaches the server.
     /// </summary>
+    private async Task SignOutAsync()
+    {
+        // The service worker keeps this user's /auth/me, repositories and insights for offline reads (apiCacheName in
+        // service-worker.published.js; keep the name in step). Left behind, the next person on this browser would get
+        // them served back while offline. Best-effort: no Cache API means there is nothing cached.
+        try { await JS.InvokeVoidAsync("caches.delete", "porepolinetracker-api-cache"); }
+        catch (JSException) { }
+
+        Navigation.NavigateTo("auth/logout", forceLoad: true);
+    }
+
+    private void OnDevPersonaChanged(object? value)
+    {
+        DevFakeUserHandler.ActiveFakeUser = value as string;
+        AuthStateProvider.NotifyAuthenticationStateChanged();
+    }
+
     private void Download(string? format) =>
         Navigation.NavigateTo(format is null ? "/api/repositories/export" : $"/api/repositories/export?format={format}", forceLoad: true);
 

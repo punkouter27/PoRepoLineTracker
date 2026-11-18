@@ -1,0 +1,18 @@
+/* Layout and colours come from po-tokens.css (.po-header). This only sizes the logo mark Radzen draws. */
+::deep .brand-icon-main.brand-icon-main {
+    font-size: 1.2rem !important;
+    color: var(--po-accent) !important;
+}
+
+::deep .brand-icon-trend.brand-icon-trend {
+    font-size: 0.55rem !important;
+    color: #fff !important; /* on the green --success-color badge in both themes */
+}
+
+/* A phone keeps the whole name: the gap and the mark give way first. */
+@media (max-width: 480px) {
+    .po-header__title {
+        gap: var(--po-space-1);
+        font-size: var(--po-text-md);
+    }
+}

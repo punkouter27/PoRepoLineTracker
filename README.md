@@ -76,7 +76,7 @@ The `lint-infra` job compiles every `infra/*.bicep` on every run.
 
 ## Azure deployment
 
-The shared GitHub Actions workflow ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) builds and tests on pull requests and deploys the app package to a Linux App Service only from `master`; `scripts/ci-checks.ps1` compiles the Bicep files and `scripts/post-deploy-smoke.ps1` verifies the live routes. Apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) separately with the manual [.github/workflows/deploy.yml](.github/workflows/deploy.yml) run by hand with `infra` = what-if, then apply. The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
+The GitHub Actions workflow ([.github/workflows/deploy.yml](.github/workflows/deploy.yml), the same file in every Po repo, owned by each) builds and deploys every push to `master` to a Linux App Service and waits until `/health/live` reports the pushed commit. It runs no tests and nothing on pull requests: run the tests and `scripts/ci-checks.ps1` (compiles the Bicep files) locally, and `scripts/post-deploy-smoke.ps1` to verify the live routes. Apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) by hand with `az deployment` (what-if first). The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
 
 ### GitHub sign-in (OAuth apps)
 

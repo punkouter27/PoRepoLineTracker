@@ -45,3 +45,12 @@
         white-space: normal;
     }
 }
+
+::deep .account-card__who.account-card__who {
+    margin: 0 !important;
+    overflow-wrap: anywhere;
+}
+
+::deep .account-card__persona {
+    max-width: 8.5rem;
+}

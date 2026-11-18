@@ -3,7 +3,6 @@
 @using PoRepoLineTracker.Client.Services
 @using Radzen
 @using Radzen.Blazor
-@inject IJSRuntime JSRuntime
 
 
 @* Radzen's own matchMedia wrapper — see OnMobileChanged for why this replaced a one-shot
@@ -23,67 +22,11 @@
 
 <RadzenLayout>
     <RadzenHeader>
-        @* Header contract — Left (Branding) | Center (Toggle + Theme) | Right (Session).
-           Three explicit regions rather than SpaceBetween, so the centre stays centred whatever
-           it contains and the session controls stay isolated on the right.
-
-           The previous header also carried Repositories / Insights / Settings buttons; those were
-           byte-identical to the items in <NavMenu>, so the layout paid for two copies of the same
-           nav and on phones the three buttons crowded the brand wordmark. The drawer is the only
-           nav surface now — the header carries the controls that are not navigation. *@
-        <div class="app-header">
-            <div class="app-header__brand">
-                @* A real link, not a <RadzenStack @onclick>. The clickable div had no role, no
-                   tab stop and no href: a keyboard could not reach it and a middle-click did
-                   nothing. The title carries the full name, because the wordmark ellipsises on a
-                   phone ("PoRepoLine…"). *@
-                <a href="@AppRoutes.Repositories" class="brand-link" title="PoRepoLineTracker — home">
-                    <span class="brand-icon-wrap" aria-hidden="true">
-                        <RadzenIcon Icon="code" class="brand-icon-main" />
-                        <RadzenIcon Icon="trending_up" class="brand-icon-trend" />
-                    </span>
-                    @* A <span>, not <RadzenText TextStyle="H5">. The brand is not a heading: as an
-                       <h5> it was the first heading on every page, so the document outline opened
-                       H5 → H3 and the wordmark outranked the page title beneath it. Styling is
-                       unchanged — brand-wordmark already carries it. *@
-                    <span class="brand-wordmark">PoRepoLineTracker</span>
-                </a>
-            </div>
-
-            <div class="app-header__actions">
-                <RadzenButton Icon="@(sidebarExpanded ? "menu_open" : "menu")"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              class="header-icon-btn"
-                              title="@(sidebarExpanded ? "Hide navigation" : "Show navigation")"
-                              aria-label="@(sidebarExpanded ? "Hide navigation" : "Show navigation")"
-                              Click="@ToggleSidebar" />
-            </div>
-
-            <div class="app-header__session">
-                <OfflineIndicator />
-                @* Renders nothing unless the browser has actually offered an install prompt —
-                   see InstallAppButton. It sits before the theme toggle so the controls that are
-                   always present keep a stable position when it does appear. *@
-                <InstallAppButton />
-                <RadzenButton Icon="@(_isDarkMode ? "light_mode" : "dark_mode")"
-                              ButtonStyle="ButtonStyle.Light"
-                              Variant="Variant.Text"
-                              class="header-icon-btn"
-                              title="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
-                              aria-label="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")"
-                              Click="@ToggleDarkMode" />
-                <LoginDisplay />
-                @* Settings in the upper-right as well as the sidebar (owner's call, 2026-11-17): on a
-                   phone the drawer is closed, and the header is where people look for it. Last, so it
-                   is the right-most control at every width. A real link, so it middle-clicks and
-                   announces as navigation. *@
-                <a href="@AppRoutes.Settings" class="header-icon-link" title="Settings" aria-label="Settings"
-                   data-testid="header-settings">
-                    <RadzenIcon Icon="settings" />
-                </a>
-            </div>
-        </div>
+        @* The Po shell header (Layout/PoHeader): name top-left, email and the Settings gear top-right. The theme toggle,
+           the drawer toggle and the dev persona picker left the header with it: the theme follows the device, the
+           sidebar stays open on wide screens and phones use the bottom bar (all three destinations), and the persona
+           picker and Sign out are in Settings' account card. *@
+        <PoHeader />
     </RadzenHeader>
 
     <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="@SidebarClass">
@@ -143,7 +86,6 @@
     private ErrorBoundary? _errorBoundary;
     private bool sidebarExpanded = true;
     private bool _isMobile = false;
-    private bool _isDarkMode = false;
 
     /// <summary>The skip link's target. Focusable only because &lt;main&gt; carries tabindex="-1".</summary>
     private ElementReference _mainContent;
@@ -161,19 +103,6 @@
     private string SidebarClass => sidebarExpanded
         ? "app-sidebar app-sidebar--open"
         : "app-sidebar app-sidebar--collapsed";
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-
-        // Seed from what the boot script actually painted rather than from localStorage:
-        // with no saved choice the script follows the OS, and reading the raw key would
-        // leave the toggle icon showing the opposite of the page.
-        var theme = await JSRuntime.InvokeAsync<string>("getEffectiveTheme");
-        _isDarkMode = theme == "dark";
-
-        StateHasChanged();
-    }
 
     /// <summary>
     /// Fired by <c>&lt;RadzenMediaQuery&gt;</c> whenever the match state changes.
@@ -210,11 +139,5 @@
         StateHasChanged();
     }
 
-    private async Task ToggleDarkMode()
-    {
-        _isDarkMode = !_isDarkMode;
-        await JSRuntime.InvokeVoidAsync("setTheme", _isDarkMode ? "dark" : "light");
-        StateHasChanged();
-    }
 
 }

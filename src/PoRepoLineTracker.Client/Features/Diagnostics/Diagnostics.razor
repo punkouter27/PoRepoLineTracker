@@ -14,7 +14,7 @@
 
 <PageTitle>System status · PoRepoLineTracker</PageTitle>
 
-<div class="app-stack diag">
+<div class="app-stack diag po-diag">
     <PageHero>
         <Heading>
             <RadzenStack Gap="0.15rem">
@@ -46,15 +46,14 @@
         <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" AllowClose="false" class="diag-banner">
             <strong>The server did not answer.</strong> @_error
         </RadzenAlert>
-        <RadzenCard class="xc-env-card">
-            <RadzenStack Gap="0.25rem">
-                <h2 class="diag-section-title">API</h2>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Unreachable" />
-                    <RadzenText TextStyle="TextStyle.Body2">Tried for @Ms(_apiMs)</RadzenText>
-                </RadzenStack>
-            </RadzenStack>
-        </RadzenCard>
+        <section class="po-diag__group xc-env-card" aria-labelledby="diag-api">
+            <h2 id="diag-api" class="diag-section-title">API</h2>
+            <div class="po-diag__card">
+                <h3 class="diag-check__name">Server</h3>
+                <span class="po-badge po-badge--bad">Unreachable</span>
+                <span class="diag-check__note">Tried for @Ms(_apiMs)</span>
+            </div>
+        </section>
     }
     else if (_report is not null)
     {
@@ -67,23 +66,21 @@
             </span>
         </RadzenAlert>
 
-        <RadzenCard class="xc-env-card">
-            <RadzenStack Gap="0.25rem">
-                <h2 class="diag-section-title">API</h2>
-                <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">The app's own server, which this page just called.</RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Reachable" />
-                    <RadzenText TextStyle="TextStyle.Body2">Responded in @Ms(_apiMs)</RadzenText>
-                </RadzenStack>
-            </RadzenStack>
-        </RadzenCard>
+        <section class="po-diag__group xc-env-card" aria-labelledby="diag-api">
+            <h2 id="diag-api" class="diag-section-title">API</h2>
+            <div class="po-diag__card">
+                <h3 class="diag-check__name">Server</h3>
+                <span class="po-badge po-badge--ok">Reachable</span>
+                <span class="diag-check__note">The app's own server, which this page just called. Responded in @Ms(_apiMs).</span>
+            </div>
+        </section>
 
-        <section class="diag-section" aria-labelledby="diag-storage">
-            <h2 id="diag-storage" class="diag-section-title">Database / storage</h2>
+        <section class="po-diag__group diag-section" aria-labelledby="diag-storage">
+            <h2 id="diag-storage" class="diag-section-title">Data</h2>
             @CheckList(_report.Storage, "No data stores are checked by this server.")
         </section>
 
-        <section class="diag-section" aria-labelledby="diag-services">
+        <section class="po-diag__group diag-section" aria-labelledby="diag-services">
             <h2 id="diag-services" class="diag-section-title">Services</h2>
             @CheckList(_report.Services, "No external services are checked by this server.")
         </section>
@@ -132,26 +129,22 @@
         <div class="diag-grid">
             @foreach (var check in checks)
             {
-                <RadzenCard class="diag-check" data-check="@check.Name">
-                    <RadzenStack Gap="0.35rem">
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                                     JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            <h3 class="diag-check__name">@check.Name</h3>
-                            <RadzenBadge BadgeStyle="@BadgeFor(check.Status)" Text="@check.Status" />
-                        </RadzenStack>
-                        <RadzenText TextStyle="TextStyle.Body2">@check.Purpose</RadzenText>
+                @* One Po card per dependency: name and status badge on the first row, then what it is for. *@
+                <div class="po-diag__card diag-check" data-check="@check.Name">
+                    <h3 class="diag-check__name">@check.Name</h3>
+                    <span class="po-badge po-badge--@BadgeFor(check.Status)">@check.Status</span>
+                    <span class="diag-check__body">
+                        @check.Purpose
                         @if (check.Note is not null)
                         {
-                            <RadzenText TextStyle="TextStyle.Caption" class="diag-check__note">
-                                @check.Note@(check.ErrorType is null ? "" : $" ({check.ErrorType})")
-                            </RadzenText>
+                            <span class="diag-check__note">@check.Note@(check.ErrorType is null ? "" : $" ({check.ErrorType})")</span>
                         }
-                        <RadzenText TextStyle="TextStyle.Caption" class="xc-caption">
+                        <span class="xc-caption">
                             @(check.LatencyMs is { } ms ? $"Checked in {Ms(ms)}" : "Configuration check, no call made")
                             · @ChartFormat.RelativeTime(_report!.CheckedAtUtc)
-                        </RadzenText>
-                    </RadzenStack>
-                </RadzenCard>
+                        </span>
+                    </span>
+                </div>
             }
         </div>
     };
@@ -172,10 +165,10 @@
         _ => AlertStyle.Danger,
     };
 
-    private static BadgeStyle BadgeFor(string status) => status switch
+    private static string BadgeFor(string status) => status switch
     {
-        "Healthy" => BadgeStyle.Success,
-        "Degraded" => BadgeStyle.Warning,
-        _ => BadgeStyle.Danger,
+        "Healthy" => "ok",
+        "Degraded" => "warn",
+        _ => "bad",
     };
 }

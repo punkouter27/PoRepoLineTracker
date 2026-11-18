@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject NavigationManager Navigation
+
 @* The ONLY copy of the Radzen hosts. MainLayout used to render a second set, so every dialog and
    toast was drawn twice (two overlays, two focus traps). Living here also covers BareLayout.
    RadzenTooltip stays although nothing calls TooltipService directly: RadzenChart renders its
@@ -14,7 +17,13 @@
                     <RedirectToLogin />
                 </NotAuthorized>
             </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            @* The page's h1 takes the focus once the user has followed a link, so a screen reader starts there. Not on
+               the page the browser loaded (nor its sign-in redirect): there nothing has focus, so Tab opens the Po
+               developer window (js/po-devwindow.js) and the next Tab moves into the page as usual. *@
+            @if (_followedLink)
+            {
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            }
         </Found>
         <NotFound>
             <LayoutView Layout="@typeof(MainLayout)">
@@ -25,3 +34,14 @@
 </CascadingAuthenticationState>
 
 <BuildVersion />
+
+@code {
+    private bool _followedLink;
+
+    // Subscribed before the Router's own handler, so the page a link opens is drawn with the focus already wired.
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _followedLink |= e.IsNavigationIntercepted;
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

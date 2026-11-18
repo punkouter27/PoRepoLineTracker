@@ -29,7 +29,7 @@ public sealed class StatusAndHeaderUiTests
         await page.WaitForSelectorAsync(".diag-banner[data-status]", new PageWaitForSelectorOptions { Timeout = 30000 });
 
         var text = await page.InnerTextAsync("main");
-        text.Should().Contain("API").And.Contain("Database / storage").And.Contain("Services");
+        text.Should().Contain("API").And.Contain("Data").And.Contain("Services");
         text.Should().Contain("Azure Table Storage").And.Contain("GitHub API");
         (await page.Locator(".diag-refresh").IsEnabledAsync()).Should().BeTrue("Refresh is usable once the checks are back");
 

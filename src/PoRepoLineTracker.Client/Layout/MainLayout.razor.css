@@ -1,8 +1,7 @@
 /* Scoped styles for MainLayout.
 
    WHAT BELONGS HERE: rules whose target is, or sits under, a plain HTML element declared in
-   MainLayout.razor — `.app-header`, `.app-header__brand`, `.app-header__actions`,
-   `.app-header__session`, `.app-sidebar__nav`, `.app-content`.
+   MainLayout.razor — `.app-sidebar__nav`, `.app-content`. The header is Layout/PoHeader.
 
    WHAT DOES NOT: anything targeting `.rz-layout`, `.rz-header`, `.rz-sidebar` or `.rz-body`.
    Blazor compiles `::deep .x` to `[b-scope] .x`, which needs a plain HTML ancestor carrying the
@@ -21,72 +20,6 @@
 /* ─── Header regions ─────────────────────────────────────────────────────── */
 .app-sidebar__nav {
     padding: 1rem 0 0.5rem;
-}
-
-/* ─── Radzen-rendered children of our own elements (these ::deep rules DO apply) ─ */
-
-/* A plain <a> in this file's own markup now, so no ::deep. The flex row is what the RadzenStack
-   it replaced provided; min-width: 0 is what lets the wordmark inside it ellipsise. */
-.brand-link {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-    text-decoration: none;
-}
-
-/* The global link ring is the brand purple — invisible on the purple header. */
-.brand-link:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-}
-
-::deep .brand-icon-main.brand-icon-main {
-    font-size: 1.2rem !important;
-    color: #fff !important;
-}
-
-::deep .brand-icon-trend.brand-icon-trend {
-    font-size: 0.55rem !important;
-    color: #fff !important;
-}
-
-::deep .brand-wordmark.brand-wordmark {
-    margin: 0 !important;
-    font-weight: 700 !important;
-    color: #fff !important;
-    letter-spacing: -0.01em !important;
-    /* Long wordmark must yield before it pushes the session controls off a phone. */
-    font-size: clamp(0.9rem, 2.6vw, 1.25rem) !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-::deep .header-icon-btn.header-icon-btn {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* The header Settings link: sized and coloured like the icon buttons beside it. */
-.header-icon-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    color: rgba(255, 255, 255, 0.85);
-    text-decoration: none;
-}
-
-.header-icon-link:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-}
-
-.header-icon-link:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
 }
 
 .po-error-panel {

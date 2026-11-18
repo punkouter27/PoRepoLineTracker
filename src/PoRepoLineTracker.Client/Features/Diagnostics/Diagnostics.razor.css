@@ -11,12 +11,31 @@
     margin: 0 !important;
 }
 
-::deep .xc-env-card.xc-env-card {
-    border-left: 4px solid var(--rz-primary) !important;
+/* The cards and badges are the Po ones (po-tokens.css: .po-diag, .po-diag__card, .po-badge). */
+.po-diag {
+    max-width: none;
+    margin: 0;
+    padding: 0;
 }
 
-::deep .xc-caption.xc-caption {
-    color: var(--rz-text-secondary-color) !important;
+.po-diag__card .po-badge {
+    align-self: start;
+    white-space: nowrap;
+}
+
+.diag-check__body {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: var(--po-text-sm);
+    overflow-wrap: anywhere;
+}
+
+.xc-caption,
+.diag-check__note {
+    font-size: var(--po-text-xs);
+    color: var(--po-text-muted);
 }
 
 ::deep .diag-banner.diag-banner {
@@ -52,8 +71,4 @@
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
-}
-
-::deep .diag-check__note.diag-check__note {
-    color: var(--text-primary) !important;
 }

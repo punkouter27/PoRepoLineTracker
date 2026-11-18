@@ -32,7 +32,7 @@ Secondary: counted file types (`/api/settings/user-preferences`), appearance & e
 - **Git:** the `git` CLI only. `GitClient` runs clone, fetch, `log` and `--numstat`; `GitObjectReader` reads trees and blobs through one long-lived `git cat-file --batch`. No native git library (LibGit2Sharp crashed with SIGABRT on App Service Linux).
 - **Key packages:** Azure.Data.Tables, Azure.Identity, Key Vault configuration, OpenTelemetry + Azure Monitor, Serilog, HybridCache, AspNet.Security.OAuth.GitHub, Microsoft.CodeAnalysis.CSharp (syntax only, for code health), Scalar (Dev OpenAPI UI), MinVer.
 - **Compiler guards:** `Directory.Build.props` sets `TreatWarningsAsErrors` and `Nullable`. A new NuGet advisory (`NU1903`) fails the build; fix it by bumping the version, never by suppressing.
-- **Versioning:** MinVer from `v*` tags for assemblies; the `vYYMMDD` label in the client's corner is the build date (`AssemblyMetadata` `BuildVersion`).
+- **Versioning:** MinVer from `v*` tags for assemblies; the `vYYMMDD` label in the client's corner (`.po-version`) is the UTC build date (`AssemblyMetadata` `BuildStamp`, set for every project in `Directory.Build.props`, so `/api/diag` agrees).
 - **Tests:** xunit + NSubstitute + FluentAssertions (+ Xunit.SkippableFact, Playwright, Testcontainers.Azurite). No other assertion or mocking library.
 - **Local dependencies:** `docker compose up -d` starts Azurite and Jaeger (UI 16686, OTLP 4317/4318). Without Docker, npm `azurite` works; the Integration tier falls back to it.
 
@@ -222,7 +222,7 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 
 1. Unit tier green on every commit; Integration green for composition-root changes.
 2. E2EUI exits 0 with no skips when the app is up.
-3. `/health/live` and `/health` answer 200 after a deploy (the deploy's health gate checks both).
+3. `/health/live` and `/health` answer 200 after a deploy (the deploy waits for `/health/live` to report the pushed commit; check `/health` with `scripts/post-deploy-smoke.ps1`).
 4. The app boots without `GitHub:ClientId`, `KeyVault:Uri`, `ApplicationInsights:ConnectionString` or `WEBSITE_HOSTNAME`; `/diag` reflects what is absent.
 5. Re-applying `infra/main.bicep` succeeds.
 6. The API builds clean with the trim and AOT analyzers on.

@@ -11,4 +11,14 @@
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>low</NuGetAuditLevel>
   </PropertyGroup>
+
+  <!-- The Po build stamp: one value for every project in the build, so the client's vYYMMDD corner label and the
+       server's /api/diag version agree. The UTC build date, not the commit date (SPEC.md "Versioning"): re-running an
+       old commit's deploy stamps it with the re-run day. Override with -p:PoStamp=YYMMDD. -->
+  <PropertyGroup>
+    <PoStamp Condition="'$(PoStamp)' == ''">$([System.DateTime]::UtcNow.ToString('yyMMdd'))</PoStamp>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildStamp" Value="$(PoStamp)" />
+  </ItemGroup>
 </Project>

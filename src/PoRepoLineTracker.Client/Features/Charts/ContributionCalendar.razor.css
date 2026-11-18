@@ -1,4 +1,4 @@
-/* Rooted at the plain .cal div. GitHub's own greens, with its dark-theme ramp under data-theme. */
+/* Rooted at the plain .cal div. GitHub's own greens, with its dark-theme ramp when the device is dark. */
 .cal {
     display: flex;
     flex-direction: column;
@@ -44,8 +44,10 @@
 .cal__l3 { fill: #30a14e; }
 .cal__l4 { fill: #216e39; }
 
-:root[data-theme="dark"] .cal__l0 { fill: #161b22; }
-:root[data-theme="dark"] .cal__l1 { fill: #0e4429; }
-:root[data-theme="dark"] .cal__l2 { fill: #006d32; }
-:root[data-theme="dark"] .cal__l3 { fill: #26a641; }
-:root[data-theme="dark"] .cal__l4 { fill: #39d353; }
+@media (prefers-color-scheme: dark) {
+    .cal__l0 { fill: #161b22; }
+    .cal__l1 { fill: #0e4429; }
+    .cal__l2 { fill: #006d32; }
+    .cal__l3 { fill: #26a641; }
+    .cal__l4 { fill: #39d353; }
+}

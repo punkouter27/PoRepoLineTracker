@@ -34,6 +34,13 @@ internal static class DiagnosticsEndpoints
             .WithName("ApiDiag")
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicies.Health);
+
+        // The same report under the name the Tab developer window (wwwroot/po-dev.html) asks for first.
+        endpoints.MapGet("/api/diag/status", GetAsync)
+            .WithTags("Diagnostics")
+            .WithName("ApiDiagStatus")
+            .AllowAnonymous()
+            .RequireRateLimiting(RateLimitPolicies.Health);
     }
 
     private static async Task<IResult> GetAsync(
