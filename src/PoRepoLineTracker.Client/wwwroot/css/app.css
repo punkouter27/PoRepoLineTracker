@@ -15,10 +15,140 @@
       matched nothing. The same applies to NavMenu.razor (roots at
       <RadzenPanelMenu>), so its nav styling is here too.
 
-   2. Dark mode keys off `[data-theme]`, which index.html's boot script always
-      sets (from localStorage, else the OS preference). The
-      `prefers-color-scheme` block below is a no-JS fallback only.
+   2. Dark mode is the device's: `prefers-color-scheme` only, no data-theme and no switch.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── App tokens, aliased to the Po standard ─────────────────────────────────
+   css/po-tokens.css is the Po kit, the same file in every Po app (never edit this copy): light and dark follow the
+   device, one indigo accent, Inter for text and Space Grotesk for titles. This app's own variables are kept so
+   every rule that reads them still works, but each colour now resolves to a --po-* token instead of a literal, and
+   there is no data-theme any more: dark is prefers-color-scheme alone. */
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    src: url('/_content/Radzen.Blazor/fonts/MaterialSymbolsOutlined.woff2') format('woff2');
+    font-weight: 100 700;
+    font-style: normal;
+    font-display: block;
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 20px;
+    line-height: 1;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+}
+
+:root {
+    --primary-color: var(--po-accent);
+    --primary-dark: var(--po-accent-hover);
+    --primary-light: color-mix(in srgb, var(--po-accent) 75%, #ffffff);
+    --brand-violet: var(--po-accent);
+    --brand-violet-light: var(--po-accent-hover);
+    --primary-on-surface: var(--po-accent);
+    --accent-secondary: var(--po-accent);
+    --code-color: var(--po-accent);
+
+    --secondary-color: var(--po-text-muted);
+    --secondary-dark: var(--po-text);
+    --secondary-light: var(--po-border);
+
+    --success-color: var(--po-success);
+    --warning-color: var(--po-warning);
+    --danger-color: var(--po-danger);
+
+    --bg-primary: var(--po-surface);
+    --bg-secondary: var(--po-bg);
+    --bg-tertiary: var(--po-surface-2);
+    --bg-dark: #0f1117;
+    --bg-dark-secondary: #171a23;
+
+    --text-primary: var(--po-text);
+    --text-secondary: var(--po-text-muted);
+    --text-muted: var(--po-text-muted);
+    --text-inverse: var(--po-on-accent);
+
+    --border-light: var(--po-border);
+    --border-medium: color-mix(in srgb, var(--po-border) 70%, var(--po-text));
+    --border-dark: var(--po-text-muted);
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: var(--po-shadow);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    --space-xs: clamp(0.2rem, 0.5vw, 0.25rem);
+    --space-sm: clamp(0.375rem, 0.9vw, 0.5rem);
+    --space-md: clamp(0.625rem, 1.6vw, 1rem);
+    --space-lg: clamp(0.875rem, 2.4vw, 1.5rem);
+    --space-xl: clamp(1.25rem, 3.2vw, 2rem);
+    --space-2xl: clamp(1.75rem, 4.5vw, 3rem);
+
+    --status-pos: var(--po-success);
+    --status-neg: var(--po-danger);
+    --status-warn: var(--po-warning);
+    --status-info: var(--po-info);
+    --status-crit: var(--po-danger);
+
+    /* Chart series: categorical, so they stay their own hues (one accent is for UI, not for data). */
+    --series-0: #5b3df5;
+    --series-1: #d46ae8;
+    --series-2: #ff7a59;
+    --series-3: #ffb84d;
+    --series-4: #f95d9b;
+    --series-5: #34c3b3;
+    --series-6: #5aa9ff;
+    --series-7: #9b7bff;
+    --series-8: #8bc34a;
+    --series-9: #ffd54f;
+    --series-10: #ec407a;
+    --series-11: #26a69a;
+
+    --text-xs: var(--po-text-xs);
+    --text-sm: var(--po-text-sm);
+    --text-base: var(--po-text-md);
+    --text-lg: 1.125rem;
+    --text-xl: var(--po-text-lg);
+    --text-2xl: var(--po-text-xl);
+    --text-3xl: 1.875rem;
+
+    --shell-sidebar-width: 240px;
+    --shell-header-height: var(--po-header-h);
+
+    --chart-aspect: 16 / 9;
+    --chart-h-min: clamp(200px, 30dvh, 280px);
+    --chart-h-max: min(56dvh, 480px);
+    --dash-min: 420px;
+
+    --rz-primary-lighter: color-mix(in srgb, var(--po-accent) 12%, transparent);
+    --rz-secondary: var(--po-accent-hover);
+    --rz-secondary-light: var(--po-accent-hover);
+    --rz-secondary-dark: var(--po-accent-hover);
+    --rz-card-background-color: var(--po-surface);
+    --rz-grid-background-color: var(--po-surface);
+    --rz-grid-header-background-color: var(--po-surface);
+    --rz-grid-stripe-odd-background-color: var(--po-surface);
+    --rz-grid-stripe-background-color: var(--po-bg);
+    --rz-border-radius: var(--po-radius-sm);
+    --rz-card-border-radius: var(--po-radius);
+
+    --ambient-glow: color-mix(in srgb, var(--po-accent) 6%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ambient-glow: color-mix(in srgb, var(--po-accent) 18%, transparent);
+    }
+}
+
+/* Radzen's headings take the Po display face, like plain h1-h6. */
+.rz-text-h1, .rz-text-h2, .rz-text-h3, .rz-text-h4, .rz-text-h5, .rz-text-h6 {
+    font-family: var(--po-font-display);
+}
 
 /* ─── Breakpoints ────────────────────────────────────────────────────────────
    The scale, named once. These CANNOT be custom properties: a media or container
@@ -68,7 +198,7 @@
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 html, body {
-    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: var(--po-font);
     background-color: var(--bg-primary);
     color: var(--text-primary);
     margin: 0;
@@ -160,7 +290,7 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
     letter-spacing: -0.025em;
     line-height: 1.2;
-    font-family: inherit;
+    font-family: var(--po-font-display);
 }
 
 h1 { font-size: clamp(1.5rem, 1.2rem + 1.4vw, 1.875rem); font-weight: 700; }
@@ -229,26 +359,20 @@ a:focus-visible {
     z-index: 1000;
     height: var(--shell-header-height);
     box-sizing: border-box;
-    background: color-mix(in srgb, var(--primary-color) 92%, transparent);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 1px 24px color-mix(in srgb, var(--primary-color) 25%, transparent), 0 1px 4px rgba(0, 0, 0, 0.18);
+    /* Only holds the Po header (Layout/PoHeader), which draws its own surface and rule. */
+    background: var(--po-surface);
+    border: 0;
+    box-shadow: none;
 }
 
-.rz-header .rz-text,
-.rz-header h5,
-.rz-header .rz-button-box {
-    color: #fff !important;
+/* Radzen colours every link in its header for its old brand bar; the Po header keeps the Po colours. */
+.rz-header a.po-header__title,
+.rz-header a.po-header__settings {
+    color: var(--po-text);
 }
 
-.rz-header .rz-button {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-.rz-header .rz-button:hover {
-    background: rgba(255, 255, 255, 0.12) !important;
-    color: #fff !important;
+.rz-header a.po-header__settings:hover {
+    color: var(--po-accent);
 }
 
 .rz-sidebar,
@@ -481,16 +605,11 @@ a:focus-visible {
     .app-scrim { display: none; }
 }
 
-/* YYMMDD build stamp, rendered by App.razor so it shows under both layouts. Click-through so it
-   never covers a control; z-index 1 keeps it under the scrim (890) and Radzen's dialog mask (1000). */
-.app-build-version {
-    position: fixed;
-    right: 0.5rem;
-    bottom: 0.25rem;
-    z-index: 1;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    pointer-events: none;
+/* The build stamp is the Po one (.po-version in po-tokens.css). On a phone it sits above the bottom bar. */
+@media (max-width: 768px) {
+    body:has(.bottom-nav) {
+        --po-stamp-lift: calc(3.25rem + env(safe-area-inset-bottom));
+    }
 }
 
 /* The mobile bottom-nav bar lived here. It was a second copy of the drawer's six destinations,
@@ -499,13 +618,15 @@ a:focus-visible {
    behind the header's toggle, and it does not permanently consume 56px of a phone screen. */
 
 /* Elevated card boundaries in dark mode */
-[data-theme="dark"] .rz-card {
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
-}
+@media (prefers-color-scheme: dark) {
+    .rz-card {
+        border: 1px solid var(--po-border) !important;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+    }
 
-[data-theme="dark"] .rz-card:hover {
-    border-color: rgba(124, 58, 237, 0.35) !important;
+    .rz-card:hover {
+        border-color: color-mix(in srgb, var(--po-accent) 35%, transparent) !important;
+    }
 }
 
 /* ─── Navigation (NavMenu.razor roots at a component, so styling lives here) ─ */
@@ -577,64 +698,6 @@ a:focus-visible {
 
 /* .nav-section-label is a plain <div> inside NavMenu.razor, so it scopes correctly
    and lives in NavMenu.razor.css. */
-
-/* ─── Header regions: Left (branding) | Centre (actions) | Right (session) ───
-   Equal-width outer columns keep the centre optically centred whatever the
-   brand or session controls contain. */
-.app-header {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.5rem clamp(0.75rem, 2vw, 1rem);
-    height: 100%;
-    box-sizing: border-box;
-}
-
-.app-header__brand { justify-self: start; min-width: 0; }
-
-.app-header__actions {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.app-header__session {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.25rem;
-}
-
-/* Narrow viewports cannot fit three columns, and the header row is a fixed height — so the
-   three regions have to stay on ONE line. A flex row does that; assigning them all to grid
-   column 2 did not, because auto-placement then stacked them into separate rows and the
-   overflow painted outside the header's coloured box.
-
-   The labelled action buttons hide rather than wrap: both destinations are in the sidebar nav,
-   so nothing becomes unreachable. The drawer toggle and session controls stay. */
-@media (max-width: 768px) {
-    .app-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        padding-inline: 0.75rem;
-    }
-
-    .app-header__brand {
-        min-width: 0;
-        flex: 1 1 auto;
-        overflow: hidden;
-    }
-
-    .app-header__actions,
-    .app-header__session {
-        flex: 0 0 auto;
-    }
-}
 
 /* Inline per-field errors from <ValidationMessage> (FluentValidationValidator forms). */
 .validation-message {
@@ -1039,11 +1102,8 @@ a:focus-visible {
 
    This screen used to be the one part of the app that ignored the theme. Every
    colour below was a light-mode literal (#f5f3ff canvas, #ede9fe stops, a
-   rgba(255,255,255,0.88) card), with no [data-theme="dark"] block anywhere — so
-   toggling to dark, or arriving with a dark OS preference, still painted a
-   near-white page. The boot script in index.html stamps data-theme BEFORE first
-   paint, which made it a full-screen flash of white on the very first thing a
-   dark-mode user sees.
+   rgba(255,255,255,0.88) card), with no dark block anywhere — so arriving with a
+   dark device preference still painted a near-white page.
 
    The fix is three tokens rather than a parallel set of dark rules: the canvas
    base, the wash strength, and the card surface. The mesh keeps its own hues
@@ -1051,26 +1111,16 @@ a:focus-visible {
    has to flip.
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-    --login-canvas-bg: #f5f3ff;
+    --login-canvas-bg: var(--po-bg);
     --login-wash: 42%;
     --login-card-bg: rgba(255, 255, 255, 0.88);
     --login-card-border: rgba(255, 255, 255, 0.7);
     --login-blob-opacity: 0.35;
 }
 
-:root[data-theme="dark"] {
-    --login-canvas-bg: #0f172a;
-    /* A wash tuned for a white base is invisible on a dark one — the stops have to be
-       proportionally stronger to read at all against #0f172a. */
-    --login-wash: 30%;
-    --login-card-bg: rgba(30, 41, 59, 0.82);
-    --login-card-border: rgba(148, 163, 184, 0.22);
-    --login-blob-opacity: 0.45;
-}
-
+/* A wash tuned for a light base is invisible on a dark one: the stops are proportionally stronger there. */
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-        --login-canvas-bg: #0f172a;
+    :root {
         --login-wash: 30%;
         --login-card-bg: rgba(30, 41, 59, 0.82);
         --login-card-border: rgba(148, 163, 184, 0.22);
@@ -1079,8 +1129,8 @@ a:focus-visible {
 }
 
 .login-canvas {
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: calc(100vh - var(--po-header-h));
+    min-height: calc(100dvh - var(--po-header-h));
     display: flex;
     align-items: center;
     justify-content: center;

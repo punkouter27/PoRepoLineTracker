@@ -6,7 +6,8 @@
 @inject ILogger<AccountDataCard> Logger
 @inject IJSRuntime JS
 @inject ApiAuthenticationStateProvider AuthStateProvider
-@inject Microsoft.AspNetCore.Components.WebAssembly.Hosting.IWebAssemblyHostEnvironment HostEnv
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
+@inject IWebAssemblyHostEnvironment HostEnv
 
 @* The user's own data: take it with them, or delete it. Its own component so the Settings page,
    which is about counted extensions, does not grow a second job in its @code block.

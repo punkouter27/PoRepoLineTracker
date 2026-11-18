@@ -369,7 +369,7 @@
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         if (!count) return;
-        gl.uniform1f(uniforms.additive, document.documentElement.getAttribute('data-theme') === 'dark' ? 1 : 0);
+        gl.uniform1f(uniforms.additive, window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0);
         for (var i = 0, o = 0; i < count; i++, o += STRIDE) {
             vertices[o] = px[i]; vertices[o + 1] = py[i]; vertices[o + 2] = size[i];
             vertices[o + 3] = cr[i]; vertices[o + 4] = cg[i]; vertices[o + 5] = cb[i]; vertices[o + 6] = alpha(i);

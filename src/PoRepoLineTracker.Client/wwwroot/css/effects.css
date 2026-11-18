@@ -73,15 +73,8 @@
     }
 }
 
-:root[data-theme="dark"] {
-    --glass-bg: rgba(30, 41, 59, 0.58);
-    --glass-border: rgba(148, 163, 184, 0.22);
-    --glass-highlight: rgba(255, 255, 255, 0.10);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.30);
-}
-
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    :root {
         --glass-bg: rgba(30, 41, 59, 0.58);
         --glass-border: rgba(148, 163, 184, 0.22);
         --glass-highlight: rgba(255, 255, 255, 0.10);
@@ -213,15 +206,8 @@
     animation: skeletonSweep 1.6s ease-in-out infinite;
 }
 
-:root[data-theme="dark"] .rz-skeleton {
-    background-image: linear-gradient(90deg,
-                rgba(148, 163, 184, 0.10) 25%,
-                rgba(148, 163, 184, 0.24) 37%,
-                rgba(148, 163, 184, 0.10) 63%) !important;
-}
-
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .rz-skeleton {
+    .rz-skeleton {
         background-image: linear-gradient(90deg,
                     rgba(148, 163, 184, 0.10) 25%,
                     rgba(148, 163, 184, 0.24) 37%,

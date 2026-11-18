@@ -203,8 +203,11 @@
             canvas.addEventListener('webglcontextlost', stop);
             window.addEventListener('resize', resize);
             document.addEventListener('visibilitychange', onVisibility);
-            observer = new MutationObserver(function () { readColours(); draw(last); });
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            // The device switching between light and dark repaints in the new colours.
+            var scheme = window.matchMedia('(prefers-color-scheme: dark)');
+            var onScheme = function () { readColours(); draw(last); };
+            scheme.addEventListener('change', onScheme);
+            observer = { disconnect: function () { scheme.removeEventListener('change', onScheme); } };
 
             // Only now: this is what makes the shell's own backgrounds transparent.
             document.documentElement.setAttribute('data-backdrop', 'on');

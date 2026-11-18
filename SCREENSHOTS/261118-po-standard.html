@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Po web standard: header, email, gear, stamp, /diag, Tab window</title>
+<style>
+  body { margin: 0; padding: 24px 16px; font: 15px/1.45 system-ui, sans-serif; color: #1f2330; background: #f4f5fb; }
+  h1 { font-size: 1.4rem; margin: 0 0 8px; }
+  ul { max-width: 80ch; }
+  img { max-width: 100%; border-radius: 10px; box-shadow: 0 1px 6px rgb(0 0 0 / 0.08); }
+</style>
+</head>
+<body>
+<h1>Po web standard (2026-11-18): before and after</h1>
+<ul>
+  <li><b>Header on every page</b>, signed in and out (the sign-in page was a full-screen card with no header):
+    PoRepoLineTracker top-left with its whole name on a phone (it was clipped to "Po…"), top-right the GitHub
+    account's <b>email</b> (the GitHub login when GitHub shares no email) or Sign in, then the Settings gear.</li>
+  <li>Theme toggle, drawer toggle and the header persona picker are gone: light/dark follows the device, phones use
+    the bottom bar, and Sign out plus the dev persona picker moved to Settings' account card.</li>
+  <li><b>Look</b>: Inter body text (was Roboto), Space Grotesk headings, one indigo accent (was purple and magenta).</li>
+  <li><b>Build stamp</b>: one <code>v261118</code> bottom-right (the sign-in page drew two on top of each other).</li>
+  <li><b>/diag</b>: API / Data / Services, one card per dependency with a status badge. <b>Tab</b> on a fresh page opens <code>/po-dev.html</code>.</li>
+</ul>
+<p>Screenshots, before on the left and after on the right:</p>
+<img src="261118-po-standard.png" alt="PoRepoLineTracker before and after: phone signed out, phone signed in, desktop signed in, desktop /diag">
+</body>
+</html>

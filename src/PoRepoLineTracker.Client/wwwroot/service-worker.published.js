@@ -89,8 +89,9 @@ async function onFetch(event) {
     }
 
     // A client-side route (/insights, /insights/health, /repositories/<guid>) has no file behind it —
-    // the server answers it with index.html via MapFallbackToFile, and so do we.
-    const shouldServeIndexHtml = event.request.mode === 'navigate';
+    // the server answers it with index.html via MapFallbackToFile, and so do we. A navigation to a real file (the Po
+    // developer window, /po-dev.html, opened by Tab) is that file, not the shell.
+    const shouldServeIndexHtml = event.request.mode === 'navigate' && !/\.[a-z0-9]+$/i.test(url.pathname);
     const request = shouldServeIndexHtml ? 'index.html' : event.request;
 
     const cache = await caches.open(cacheName);

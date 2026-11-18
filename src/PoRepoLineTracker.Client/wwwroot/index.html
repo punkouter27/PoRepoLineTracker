@@ -13,12 +13,13 @@
     <base href="/" />
     <link rel="manifest" href="manifest.json" />
 
-    <!-- No font links. Radzen's theme stylesheet below declares both families the app uses
-         ("Roboto" and "Material Symbols") against woff2 files it ships under _content/, so the
-         two Google Fonts stylesheets that used to sit here fetched a second copy of Roboto and a
-         "Material Icons" family nothing references — two render-blocking third-origin requests,
-         and the reason icons fell back to ligature text when offline. -->
-    <link id="radzen-theme" rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css?v=12.1.12" />
+    <!-- No font links. Inter and Space Grotesk are self-hosted by css/po-tokens.css (wwwroot/fonts/), and the
+         Material Symbols icon font ships with Radzen under _content/.
+         Light and dark follow the device, with no switch: the browser applies whichever of Radzen's two themes
+         matches prefers-color-scheme. po-tokens.css (the Po kit, the same file in every Po app) comes after them,
+         so its Radzen bridge wins, and first among the app's own sheets. -->
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css?v=12.1.12" media="(prefers-color-scheme: light)" />
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-dark.css?v=12.1.12" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="css/po-tokens.css" />
     <link rel="stylesheet" href="css/app.css" />
     <!-- effects.css AFTER app.css: it redefines glass tokens per theme and layers motion
@@ -46,38 +47,17 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
+    <!-- Tab while nothing has focus opens the Po developer window (/po-dev.html). -->
+    <script src="js/po-devwindow.js"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=12.1.12"></script>
     <script src="_framework/blazor.webassembly.js"></script>
-    <!-- Animated background; on unless localStorage 'backdrop' is 'off'. Deferred, so
-         it runs after the boot script below has stamped data-theme — it reads the theme's colours. -->
+    <!-- Animated background; on unless localStorage 'backdrop' is 'off'. Deferred, so it runs after the boot
+         script below has defined the switches it reads. -->
     <script src="js/backdrop.js" defer></script>
     <!-- Sound, the particle overlay, SVG filters and pointer effects (js/fx.js). Deferred for the
          same reason: it reads prefersReducedMotion and soundOn from the boot script below. -->
     <script src="js/fx.js" defer></script>
     <script>
-        // Paint a theme without recording a choice. `data-theme` is what app.css keys
-        // off, so it must be set on every path — previously it was only set when the
-        // user actively toggled, which left the OS-dark case styled as light.
-        function applyTheme(theme) {
-            var link = document.getElementById('radzen-theme');
-            if (link) {
-                link.href = theme === 'dark'
-                    ? '_content/Radzen.Blazor/css/material-dark.css?v=12.1.12'
-                    : '_content/Radzen.Blazor/css/material-base.css?v=12.1.12';
-            }
-            document.documentElement.setAttribute('data-theme', theme);
-        }
-
-        // Explicit user choice: paint it and remember it.
-        function setTheme(theme) {
-            applyTheme(theme);
-            localStorage.setItem('porepolinetracker:theme', theme);
-        }
-
-        function prefersDark() {
-            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        }
-
         // Read once by AnimatedNumber so a count-up tween can skip straight to its target instead
         // of animating, for the same OS preference app.css's reduced-motion block already honours
         // for every CSS animation.
@@ -85,30 +65,9 @@
             return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         }
 
-        // What the app is actually showing right now — MainLayout reads this to seed
-        // its toggle so the icon cannot disagree with the page.
-        function getEffectiveTheme() {
-            return document.documentElement.getAttribute('data-theme') || 'light';
-        }
-
         // getViewportWidth() removed: MainLayout now uses <RadzenMediaQuery>, which subscribes to
         // matchMedia and keeps tracking. The one-shot interop it replaced sampled the width once
         // on first render, so a rotate never updated the drawer's breakpoint state.
-
-        // Resolve the theme before first paint: saved choice wins, else the OS
-        // preference. Deliberately not persisted, so a user who has never chosen
-        // keeps following their OS when it changes.
-        (function () {
-            var saved = localStorage.getItem('porepolinetracker:theme');
-            applyTheme(saved || (prefersDark() ? 'dark' : 'light'));
-
-            if (!saved && window.matchMedia) {
-                window.matchMedia('(prefers-color-scheme: dark)')
-                    .addEventListener('change', function (e) {
-                        if (!localStorage.getItem('porepolinetracker:theme')) applyTheme(e.matches ? 'dark' : 'light');
-                    });
-            }
-        })();
 
         // ── Install prompt ──────────────────────────────────────────────────────────
         //
@@ -174,7 +133,7 @@
 
         // ── Sound switch ────────────────────────────────────────────────────────────
         //
-        // Off unless the Settings switch has stored 'sound' = 'on' — the same shape as the theme:
+        // Off unless the Settings switch has stored 'sound' = 'on':
         // setSound records the choice, and every cue in js/fx.js reads it, so the page that raises
         // a cue needs to know nothing about the toggle. Here rather than in fx.js because
         // MainLayout reads it on first render, and a switch must not depend on the decoration.

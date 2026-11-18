@@ -81,6 +81,7 @@ public sealed class AccessibilityUiTests
         await using var _ = page.Context;
         await using var guard = PlaywrightErrorGuard.Watch(page);
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
+        await NoDevWindowAsync(page);
 
         await page.Keyboard.PressAsync("Tab");
         var focused = await page.EvaluateAsync<string>("() => document.activeElement?.tagName ?? ''");
@@ -133,6 +134,7 @@ public sealed class AccessibilityUiTests
 
         // Focus starts at the document, so one Tab must reach the skip link — anything else means
         // a keyboard user tabs the whole sidebar before reaching content, on every navigation.
+        await NoDevWindowAsync(page);
         await page.Keyboard.PressAsync("Tab");
         var focusedHref = await page.EvaluateAsync<string>(
             "() => document.activeElement?.getAttribute('href') ?? ''");
@@ -148,4 +150,11 @@ public sealed class AccessibilityUiTests
         var focusedId = await page.EvaluateAsync<string>("() => document.activeElement?.id ?? ''");
         focusedId.Should().Be("main-content", "following the link must MOVE focus, not merely scroll");
     }
+
+    /// <summary>
+    /// The Po developer window (js/po-devwindow.js) takes a Tab pressed while nothing has focus and opens /po-dev.html
+    /// instead. When the browser will not open it (window.open returns null, as with a popup blocker) the Tab is left
+    /// alone, which is the page's own keyboard order these tests are about.
+    /// </summary>
+    private static Task NoDevWindowAsync(IPage page) => page.EvaluateAsync("() => { window.open = () => null; }");
 }
