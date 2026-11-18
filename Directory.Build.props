@@ -20,5 +20,6 @@
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="BuildStamp" Value="$(PoStamp)" />
+    <AssemblyMetadata Include="BuildVersion" Value="$(PoStamp)" />
   </ItemGroup>
 </Project>
