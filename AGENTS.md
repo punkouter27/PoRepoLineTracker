@@ -63,7 +63,7 @@ These are the owner's standing rules for this repository. Where one conflicts wi
 
 ## CI/CD and Azure (same section in every Po repo)
 
-- A push to `master` builds and deploys (`.github/workflows/deploy.yml`), then waits until `/health/live` answers with the pushed commit in `X-Commit`. It runs no tests, no infra and no rollback, and pull requests get no run: tests, `scripts/ci-checks.ps1` and `scripts/post-deploy-smoke.ps1` run locally. Nothing is deployed by hand.
+- A push to `master` checks formatting (`dotnet format --verify-no-changes`), builds, runs the Unit tier, then deploys (`.github/workflows/deploy.yml`, identical in every Po web repo; each repo owns its copy) and waits for `/health/live` to report the pushed commit in `X-Commit`. A red check stops the deploy and the live site keeps its last good build. Integration, E2E, Bicep and other checks run locally; there is no infra job, rollback or PR build. Nothing is deployed by hand.
 - `deploy.yml` is identical in every Po repo; each repo owns its own copy (there is no shared reference copy or sync script).
 - Azure sign-in is GitHub OIDC (the `gh-<repo>-deploy` app). Its IDs are repo **variables** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`, and the App Service name is `AZURE_WEBAPP_NAME`. Never move them to secrets or write resource names into workflows.
 - Every permission the app and CI need lives in `scripts/ensure-azure-access.ps1`. A role granted by hand and not added there is a bug: the next re-provision loses it.
