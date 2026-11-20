@@ -11,7 +11,7 @@ $BaseUrl = $BaseUrl.TrimEnd('/')
 function Get-Response([string]$Path) {
     try {
         Invoke-WebRequest -Uri "$BaseUrl$Path" -SkipHttpErrorCheck -MaximumRedirection 0 `
-            -TimeoutSec 20 -ErrorAction Stop
+            -TimeoutSec 20 -ErrorAction SilentlyContinue
     }
     catch { $null }
 }
