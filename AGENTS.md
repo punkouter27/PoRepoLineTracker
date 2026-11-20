@@ -1,6 +1,14 @@
 # AGENTS.md — PoRepoLineTracker
 
-## Po Web App Standard
+## 1. Standard
+
+This repo owns every file in it. Nothing here is generated from, synced with, or required to stay identical to
+another repository. Headers like "SAME FILE IN EVERY PO …", "Generated from po-shared … DO NOT EDIT", and scripts
+that copy files into or check other repos are forbidden. Only Azure resources in the `PoShared` resource group
+may be shared.
+
+The Po Web App Standard follows (repo-specific exceptions are under "Repo-specific notes").
+
 
 This repo is one of several independent Po apps. It follows the conventions below, but it owns every file:
 nothing is generated from, synced with, or required to stay identical to another repository. Change anything
@@ -71,6 +79,33 @@ installs the `maui-android` workload and builds the Android target, so the clien
 
 ### Azure naming
 App Service `app-<repo lowercase>`; per-app resources named `<type>-<repo lowercase>`; shared things only in `PoShared`.
+
+## 2. Concurrent work
+
+Several sessions (people and agents) commit to this repo, sometimes at the same time.
+- Before every commit and every push: `git fetch origin && git rebase --autostash origin/master`.
+- Stage only the files you changed (`git add <paths>`); never `git add -A` / `git add .`; check `git diff --cached`.
+- Never revert, reformat or overwrite changes you didn't make; keep the owner's recent decisions (e.g. features
+  removed on purpose stay removed).
+- Don't commit or sync from the IDE while an agent is working in this folder.
+- Pushing `master` deploys production; changes to `.github/workflows/*` need a token with the `workflow` scope.
+
+## 3. Verification
+
+Tested 2026-11-20 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`).
+
+| Step | Command | Needs / without it |
+| --- | --- | --- |
+| Format | `dotnet format PoRepoLineTracker.slnx --verify-no-changes` | — |
+| Build | `dotnet build PoRepoLineTracker.slnx -c Release` (warnings are errors) | — |
+| Unit (142) | `dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build` | nothing |
+| Integration (38) | `dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build` | Docker for Testcontainers Azurite; without it prints "Docker is not running…" and runs on in-memory substitutes |
+| E2E API (25) | `E2E_BASE_URL=http://localhost:7208 dotnet test tests/PoRepoLineTracker.E2EAPI -c Release --no-build` | a running app; otherwise every test skips ("No app instance reachable at …") |
+| E2E UI (21) | `E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI -c Release --no-build` | a running app over HTTPS + Playwright browsers; otherwise skips |
+| Run locally | `ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="https://localhost:7207;http://localhost:7208" KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile` | Azurite on :10002 (`docker compose up -d`) or `AzureTableStorage__ConnectionString`; → https://localhost:7207 |
+| Deploy | push to `master` → `.github/workflows/deploy.yml` (format, build, Unit, Integration, publish, deploy); `*.md` and `SCREENSHOTS/**` are paths-ignored | repo variables for OIDC |
+| Deploy check | `curl -sI https://app-porepolinetracker2.azurewebsites.net/health/live` → `X-Commit: <pushed sha>`; `pwsh scripts/post-deploy-smoke.ps1 -BaseUrl https://app-porepolinetracker2.azurewebsites.net` | — |
+| Live | https://app-porepolinetracker2.azurewebsites.net and https://app-porepolinetracker2.azurewebsites.net/diag | — |
 
 ## Repo-specific notes
 
