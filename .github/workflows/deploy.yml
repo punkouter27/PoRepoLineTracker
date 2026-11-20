@@ -13,8 +13,6 @@ name: Build & Deploy
 # Layout it relies on: one *.slnx at the root, global.json, src/*.Api/*.csproj, tests/*.Unit/*.csproj,
 # tests/*.Integration/*.csproj.
 
-on: one *.slnx at the root, global.json, src/*.Api/*.csproj, tests/*.Unit/*.csproj.
-
 on:
   push:
     branches: [master]
