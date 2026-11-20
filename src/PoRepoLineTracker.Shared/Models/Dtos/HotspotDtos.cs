@@ -29,7 +29,7 @@ public sealed class HotspotFileDto
 
     public int CodeLines { get; set; }
 
-    /// <summary>The same cyclomatic approximation Code Health reports. A proxy, not a parser (SPEC §10).</summary>
+    /// <summary>The same cyclomatic approximation Code Health reports. A proxy, not a parser (docs/spec.md §10).</summary>
     public int Complexity { get; set; }
 
     /// <summary>Commits in the window that touched this file.</summary>

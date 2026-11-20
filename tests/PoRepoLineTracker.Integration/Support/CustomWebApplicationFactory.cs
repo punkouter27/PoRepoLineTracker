@@ -297,16 +297,13 @@ namespace PoRepoLineTracker.Integration
                     }
                     services.AddSingleton(new TableServiceClient("AccountName=devstoreaccount1;AccountKey=dGVzdA==;DefaultEndpointsProtocol=https;BlobEndpoint=https://127.0.0.1:11000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:11001/devstoreaccount1;TableEndpoint=https://127.0.0.1:11002/devstoreaccount1;"));
 
-                    // Remove the health check that queries Table Storage (would fail without Azurite)
-                    var allHealthChecks = services.Where(d => d.ServiceType == typeof(Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck)).ToList();
-                    foreach (var hc in allHealthChecks)
+                    // Remove the health check that queries Table Storage (it would fail without Azurite). Checks are
+                    // registrations on HealthCheckServiceOptions, not IHealthCheck services, so they are removed there.
+                    services.Configure<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckServiceOptions>(options =>
                     {
-                        if (hc.ImplementationType?.Name == "AzureTableStorageHealthCheck" ||
-                            hc.ImplementationType?.FullName?.Contains("AzureTableStorageHealthCheck") == true)
-                        {
-                            services.Remove(hc);
-                        }
-                    }
+                        foreach (var registration in options.Registrations.Where(r => r.Name == "azure-table-storage").ToList())
+                            options.Registrations.Remove(registration);
+                    });
 
                     // Replace Table-backed services with mocks
                     services.AddScoped<IRepositoryDataService>(provider => mockRepoDataService);

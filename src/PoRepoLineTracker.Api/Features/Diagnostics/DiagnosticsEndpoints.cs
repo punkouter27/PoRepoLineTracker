@@ -1,7 +1,8 @@
-using System.Reflection;
+using System.Diagnostics;
 using AspNet.Security.OAuth.GitHub;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using PoRepoLineTracker.Api.Platform;
 using Serilog;
 
 namespace PoRepoLineTracker.Api.Features.Diagnostics;
@@ -13,32 +14,21 @@ internal static class DiagnosticsEndpoints
     /// checks' own descriptions are NOT passed through: they name tables and, for Key Vault, used
     /// to carry the vault URI, and this endpoint is anonymous.
     /// </summary>
-    private static readonly Dictionary<string, (string Name, string Purpose, bool IsStorage)> Known = new()
+    private static readonly Dictionary<string, (string Label, string Purpose, bool IsStorage)> Known = new()
     {
         ["azure-table-storage"] = ("Azure Table Storage", "Stores your tracked repositories, line-count history and settings.", true),
         ["key-vault"] = ("Azure Key Vault", "Holds the app's secrets, such as the GitHub sign-in keys.", false),
         ["github-api"] = ("GitHub API", "Reads your repositories and their commit history.", false),
     };
 
-    private static readonly string Version = typeof(DiagnosticsEndpoints).Assembly
-        .GetCustomAttributes<AssemblyMetadataAttribute>()
-        .FirstOrDefault(a => a.Key == "BuildStamp")?.Value ?? "dev";
-
     internal static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // /health is served by app.MapHealthChecks("/health") in Program.cs. This is the same
-        // registry shaped for the /diag page. Anonymous by the fleet /diag standard (2026-11-17):
-        // the page must work signed-out, so the payload is limited to statuses and fixed text.
+        // registry shaped for the /diag page (the Po /diag contract: DiagReportDto). Anonymous: the
+        // page must work signed-out, so the payload is limited to statuses and fixed text.
         endpoints.MapGet("/api/diag", GetAsync)
             .WithTags("Diagnostics")
             .WithName("ApiDiag")
-            .AllowAnonymous()
-            .RequireRateLimiting(RateLimitPolicies.Health);
-
-        // The same report under the name the Tab developer window (wwwroot/po-dev.html) asks for first.
-        endpoints.MapGet("/api/diag/status", GetAsync)
-            .WithTags("Diagnostics")
-            .WithName("ApiDiagStatus")
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicies.Health);
     }
@@ -47,6 +37,15 @@ internal static class DiagnosticsEndpoints
         IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks,
         IAuthenticationSchemeProvider schemes, CancellationToken ct)
     {
+        var watch = Stopwatch.StartNew();
+        var checks = new List<DiagCheckDto>
+        {
+            // The app's own server: it is answering this request, so it is up. Its latency is the time the request
+            // took to reach this handler (the /diag page shows its own round trip instead).
+            new("server", "api", "Server", "Healthy", "The app's own API, which this page just called.",
+                "Answered this request.", Math.Round((DateTime.UtcNow - (Activity.Current?.StartTimeUtc ?? DateTime.UtcNow)).TotalMilliseconds, 1), null),
+        };
+
         HealthReport report;
         try
         {
@@ -58,48 +57,37 @@ internal static class DiagnosticsEndpoints
             report = new HealthReport(new Dictionary<string, HealthReportEntry>(), HealthStatus.Unhealthy, TimeSpan.Zero);
         }
 
-        var response = new DiagnosticsResponse
-        {
-            Status = report.Status.ToString(),
-            Environment = env.EnvironmentName,
-            Version = Version,
-            CheckedAtUtc = DateTime.UtcNow,
-        };
-
         foreach (var (key, entry) in report.Entries)
         {
-            var (name, purpose, isStorage) = Known.TryGetValue(key, out var known) ? known : (key, "Dependency check.", false);
-            (isStorage ? response.Storage : response.Services).Add(new DiagnosticsCheck
-            {
-                Name = name,
-                Purpose = purpose,
-                Status = entry.Status.ToString(),
-                Note = NoteFor(key, entry.Status),
-                LatencyMs = Math.Round(entry.Duration.TotalMilliseconds, 1),
-                ErrorType = entry.Exception?.GetType().Name,
-            });
+            var (label, purpose, isStorage) = Known.TryGetValue(key, out var known) ? known : (key, "Dependency check.", false);
+            var problem = NoteFor(key, entry.Status);
+            if (problem is not null && entry.Exception is not null) problem += $" ({entry.Exception.GetType().Name})";
+            checks.Add(new DiagCheckDto(
+                key, isStorage ? "data" : "service", label, entry.Status.ToString(), purpose,
+                "Checked with a live call.", Math.Round(entry.Duration.TotalMilliseconds, 1), problem));
         }
 
         // Configuration-only rows: no probe, so no latency, and they do not change /health.
         var signIn = await schemes.GetSchemeAsync(GitHubAuthenticationDefaults.AuthenticationScheme) is not null;
-        response.Services.Add(new DiagnosticsCheck
-        {
-            Name = "GitHub sign-in",
-            Purpose = "Signs you in with your GitHub account (OAuth).",
-            Status = signIn ? "Healthy" : "Degraded",
-            Note = signIn ? null : "Not configured on this server; GitHub sign-in is unavailable.",
-        });
+        checks.Add(new DiagCheckDto(
+            "github-sign-in", "service", "GitHub sign-in", signIn ? "Healthy" : "Degraded",
+            "Signs you in with your GitHub account (OAuth).", "Configuration check, no call made.", 0,
+            signIn ? null : "Not configured on this server; GitHub sign-in is unavailable."));
 
         var telemetry = TelemetrySettings.IsAppInsightsConfigured(configuration) || TelemetrySettings.IsOtlpConfigured(configuration);
-        response.Services.Add(new DiagnosticsCheck
-        {
-            Name = "Telemetry export",
-            Purpose = "Sends traces and metrics to Application Insights or an OTLP collector. Optional.",
-            Status = telemetry ? "Healthy" : "Degraded",
-            Note = telemetry ? null : "Not configured; the app runs without it.",
-        });
+        checks.Add(new DiagCheckDto(
+            "telemetry", "service", "Telemetry export", telemetry ? "Healthy" : "Degraded",
+            "Sends traces and metrics to Application Insights or an OTLP collector. Optional.",
+            "Configuration check, no call made.", 0,
+            telemetry ? null : "Not configured; the app runs without it."));
 
-        return Results.Ok(response);
+        var status = checks.Any(c => c.Status == "Unhealthy") ? "Unhealthy"
+            : checks.Any(c => c.Status == "Degraded") ? "Degraded"
+            : "Healthy";
+
+        return Results.Ok(new DiagReportDto(
+            status, env.EnvironmentName, PoPlatform.Version, DateTimeOffset.UtcNow,
+            Math.Round(watch.Elapsed.TotalMilliseconds, 1), [.. checks]));
     }
 
     private static string? NoteFor(string key, HealthStatus status) => (key, status) switch

@@ -37,7 +37,7 @@ public sealed class AnalysisHub : Hub
     /// reader. Capacity 64, <see cref="BoundedChannelFullMode.DropOldest"/>, single reader.
     ///
     /// <para><b>ponytail:</b> the <c>DropOldest</c> policy is the deliberate corner-cut named
-    /// in SPEC §10. The reader is slower than the writer only when a SignalR client is wedged;
+    /// in docs/spec.md §10. The reader is slower than the writer only when a SignalR client is wedged;
     /// the recovery path is the fallback poll in <c>Repositories.razor</c>, which synthesises
     /// the same frames from the persisted snapshot, so a lost frame costs at most one stale
     /// tick. Upgrade path: switch to <see cref="BoundedChannelFullMode.Wait"/> if loss ever

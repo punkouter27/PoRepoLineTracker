@@ -4,27 +4,19 @@
 @inject NavigationManager Navigation
 
 @* The header's session slot (Layout/PoHeader). Signed in: the account's email when GitHub shared one (the user:email
-   scope), else the GitHub login. Signed out: the Sign in with GitHub button. Sign out lives in Settings. *@
+   scope), else the GitHub login. Signed out: one Sign in button, the same on every page including /login. Sign out
+   lives in Settings. *@
 <AuthorizeView>
     <Authorized>
         <span class="po-header__email" title="@Identity">@Identity</span>
     </Authorized>
     <NotAuthorized>
-        @* Not on /login itself, where the card's own button is the one to press. *@
-        @if (!OnLogin)
-        {
-            <RadzenButton Text="Sign in"
-                          title="Sign in with GitHub"
-                          ButtonStyle="ButtonStyle.Primary"
-                          Size="ButtonSize.Small"
-                          Click="@HandleLogin" />
-        }
+        <button type="button" class="po-link-btn filled small" title="Sign in with GitHub"
+                data-testid="header-sign-in" @onclick="HandleLogin">Sign in</button>
     </NotAuthorized>
 </AuthorizeView>
 
 @code {
-    private bool OnLogin => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("login", StringComparison.OrdinalIgnoreCase);
-
     private string Identity => AccountMenu.Identity(AuthStateProvider.CurrentUser);
 
     // A server endpoint that starts the GitHub OAuth challenge, so the router must not handle it.

@@ -1,0 +1,91 @@
+/* Scoped styles for the /diag page (System status). Rooted at the plain .diag <div>.
+   See AddRepository.razor.css for the ::deep / doubled-class / !important pattern. */
+
+::deep .xc-title.xc-title {
+    margin: 0 !important;
+    font-weight: 700 !important;
+}
+
+::deep .xc-subtitle.xc-subtitle {
+    color: var(--po-text-muted) !important;
+    margin: 0 !important;
+}
+
+/* The cards and pills are the Po ones (po-tokens.css: .po-diag, .po-diag__card, .po-badge). */
+.po-diag {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* The overall banner: --po-text on the soft status background, the status colour only as the edge. */
+.diag-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: var(--po-space-3) var(--po-space-4);
+    border-radius: var(--po-radius);
+    border: 1px solid var(--po-border);
+    border-left-width: 4px;
+    color: var(--po-text);
+    background: var(--po-surface);
+}
+
+.diag-banner--ok { background: var(--po-success-soft); border-color: var(--po-success); }
+.diag-banner--warn { background: var(--po-warning-soft); border-color: var(--po-warning); }
+.diag-banner--bad { background: var(--po-danger-soft); border-color: var(--po-danger); }
+.diag-banner--pending { background: var(--po-info-soft); border-color: var(--po-info); }
+
+.diag-meta {
+    font-size: var(--po-text-sm);
+}
+
+.po-diag__card .po-badge {
+    align-self: start;
+    white-space: nowrap;
+}
+
+.diag-check__body {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: var(--po-text-sm);
+    overflow-wrap: anywhere;
+}
+
+.diag-check__problem {
+    font-weight: 600;
+}
+
+.diag-check__detail,
+.diag-empty {
+    font-size: var(--po-text-xs);
+    color: var(--po-text-muted);
+    margin: 0;
+}
+
+.diag-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.diag-section-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* One column on a phone, as many 18rem cards as fit on a desktop. */
+.diag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+    gap: 0.75rem;
+}
+
+.diag-check__name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}

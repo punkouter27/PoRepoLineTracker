@@ -64,7 +64,7 @@ public static class ConfigKeys
     }
 
     // The Microsoft / Entra ID key group was removed with the Microsoft OAuth provider — a
-    // recorded deviation, see SPEC.md §9. GitHub is the only provider.
+    // recorded deviation, see docs/spec.md §9. GitHub is the only provider.
 
     /// <summary>Telemetry export targets.</summary>
     public static class Telemetry

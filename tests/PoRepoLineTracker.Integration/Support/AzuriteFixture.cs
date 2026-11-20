@@ -1,5 +1,7 @@
 using Testcontainers.Azurite;
 using Xunit;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace PoRepoLineTracker.Integration;
 
@@ -25,6 +27,9 @@ public sealed class AzuriteFixture : IAsyncLifetime
     // Docker endpoint is reachable, which failed every test in the tier from the constructor —
     // before the "degrades gracefully" catch could run.
     private AzuriteContainer? _container;
+    private readonly IMessageSink _sink;
+
+    public AzuriteFixture(IMessageSink sink) => _sink = sink;
 
     public async Task InitializeAsync()
     {
@@ -39,7 +44,10 @@ public sealed class AzuriteFixture : IAsyncLifetime
         {
             // Docker/Testcontainers unavailable — leave the connection string null so the
             // factory falls back. Never fail the whole tier just because Docker is absent.
-            Console.WriteLine($"[AzuriteFixture] Testcontainers Azurite unavailable, falling back: {ex.Message}");
+            // Shown in the test output (xunit.runner.json turns diagnostic messages on).
+            _sink.OnMessage(new DiagnosticMessage(
+                "Docker is not running, so the Integration tier uses in-memory storage substitutes instead of " +
+                $"Testcontainers Azurite (start Docker Desktop to test against real Table Storage). {ex.GetType().Name}"));
             AzuriteState.ConnectionString = null;
         }
     }

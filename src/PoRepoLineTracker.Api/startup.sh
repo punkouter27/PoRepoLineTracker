@@ -6,7 +6,7 @@
 # its native network stack SIGABRTs in this container). Without git, every analysis fails with
 # "git is not installed or not in PATH".
 #
-# It is the App Service startup command; infra/resources.bicep sets that (appCommandLine).
+# It is the App Service startup command; infra/modules/resources.bicep sets that (appCommandLine).
 
 # NOTE: deliberately NOT `set -e`. A failed apt-get must not stop the site from booting —
 # a running site with broken analysis beats a container that never starts.

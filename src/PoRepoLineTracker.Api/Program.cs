@@ -122,7 +122,7 @@ namespace PoRepoLineTracker.Api
             app.UseForwardedHeaders();
             // The commit this build came from (SDK-stamped as "<version>+<sha>"), so a deploy can
             // prove which build is answering: CI checks /health/live for X-Commit equal to the pushed sha.
-            var commit = PoPlatform.Version.Split('+') is [_, var sha, ..] ? sha : "unknown";
+            var commit = PoPlatform.Commit;
             app.Use((context, next) =>
             {
                 context.Response.Headers["X-Commit"] = commit;
@@ -235,8 +235,8 @@ namespace PoRepoLineTracker.Api
             // deploy smoke test and Azure's probe with no credential, and the fallback file is
             // the Blazor shell itself — gating it would make the login page unreachable.
             app.MapHealthChecks("/health").AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Health);
-            // Uniform cross-app liveness probe (see PoPlatform). Same shape in every Po app, which
-            // is what lets the portfolio dashboard poll them all and render one uptime grid.
+            // Liveness probe (see PoPlatform), the Po convention: the deploy and the portfolio dashboard
+            // poll it to confirm which commit is live.
             app.MapPoLiveness();
             // Marked so ApiNotFoundMiddleware can tell "the SPA shell caught it" from "a real API
             // route answered" — this endpoint matches /api/typo too, and used to serve HTML to

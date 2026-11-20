@@ -42,8 +42,8 @@ public sealed class RepoApiClient(HttpClient http)
     public Task<YearInReviewDto?> GetYearInReviewAsync(int year, int offsetMinutes, CancellationToken ct = default) =>
         http.GetAppJsonAsync($"/api/insights/year/{year}?offset={offsetMinutes}", AppJsonSerializerContext.Default.YearInReviewDto, ct);
 
-    public Task<DiagnosticsResponse?> GetDiagnosticsAsync(CancellationToken ct = default) =>
-        http.GetAppJsonAsync("/api/diag", AppJsonSerializerContext.Default.DiagnosticsResponse, ct);
+    public Task<DiagReportDto?> GetDiagAsync(CancellationToken ct = default) =>
+        http.GetAppJsonAsync("/api/diag", AppJsonSerializerContext.Default.DiagReportDto, ct);
 
     public Task<List<CodeHealthSummaryDto>?> GetCodeHealthSummaryAsync(CancellationToken ct = default) =>
         http.GetFromJsonAsync("api/code-health", AppJsonSerializerContext.Default.ListCodeHealthSummaryDto, ct);

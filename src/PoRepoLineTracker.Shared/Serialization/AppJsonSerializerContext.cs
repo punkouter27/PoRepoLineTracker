@@ -84,7 +84,7 @@ namespace PoRepoLineTracker.Shared.Serialization;
 [JsonSerializable(typeof(AnalysisProgressDto))]
 [JsonSerializable(typeof(AuthResponse))]
 [JsonSerializable(typeof(ErrorResponse))]
-[JsonSerializable(typeof(DiagnosticsResponse))]
+[JsonSerializable(typeof(DiagReportDto))]
 [JsonSerializable(typeof(AntiforgeryTokenResponse))]
 [JsonSerializable(typeof(PunchcardItemDto))]
 [JsonSerializable(typeof(List<PunchcardItemDto>))]

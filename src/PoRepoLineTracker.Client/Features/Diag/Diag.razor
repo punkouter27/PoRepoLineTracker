@@ -1,0 +1,153 @@
+@page "/diag"
+@inject RepoApiClient Api
+@inject ILogger<Diag> Logger
+@using System.Diagnostics
+@using PoRepoLineTracker.Client.Features.Shared
+@using PoRepoLineTracker.Client.Models
+@using Radzen
+@using Radzen.Blazor
+
+@* System status (the Po /diag contract). Reachable signed-out: no [Authorize], the server lets /diag through its
+   production sign-in gate, and the data comes from the anonymous GET /api/diag (DiagReportDto), which carries
+   statuses and fixed text only. Layout: one plain-words banner, then API, Data and Services. *@
+
+<PageTitle>System status</PageTitle>
+
+<div class="app-stack diag po-diag">
+    <PageHero>
+        <Heading>
+            <RadzenStack Gap="0.15rem">
+                <h1 class="page-hero__title xc-title">System status</h1>
+                <RadzenText TextStyle="TextStyle.Body2" class="xc-subtitle">
+                    Whether the app, its storage and the services it relies on are working right now
+                </RadzenText>
+            </RadzenStack>
+        </Heading>
+        <Actions>
+            <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Outlined" Size="ButtonSize.Small"
+                          IsBusy="@_isLoading" BusyText="Checking…"
+                          Click="@LoadAsync" Disabled="@_isLoading" class="diag-refresh" />
+        </Actions>
+    </PageHero>
+
+    @if (_report is null)
+    {
+        <div class="diag-banner diag-banner--pending" role="status">
+            <strong>Running the checks…</strong>
+        </div>
+        <RadzenSkeleton Width="100%" Height="160px" />
+    }
+    else
+    {
+        <div class="diag-banner diag-banner--@Tone(_report.Status)" role="status" data-status="@_report.Status">
+            <strong>@Headline(_report)</strong>
+            <span class="diag-meta">
+                @_report.Environment · version v@(_report.Version) · checks took @Ms(_report.CheckedMs) ·
+                <span title="@_report.CheckedAt.ToLocalTime().ToString("f")">checked @ChartFormat.RelativeTime(_report.CheckedAt.UtcDateTime)</span>
+            </span>
+        </div>
+
+        @Section("api", "API")
+        @Section("data", "Data")
+        @Section("service", "Services")
+    }
+</div>
+
+@code {
+    private DiagReportDto? _report;
+    private bool _isLoading;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (_isLoading) return; // busy guard: the button is disabled too, this covers a double tap
+        _isLoading = true;
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            var report = await Api.GetDiagAsync();
+            var roundTrip = Math.Round(watch.Elapsed.TotalMilliseconds, 1);
+            // The API row's latency is what this page waited for the answer.
+            _report = report is null
+                ? Unreachable("It returned an empty answer.", roundTrip)
+                : report with
+                {
+                    Checks = [.. report.Checks.Select(c => c.Group == "api" ? c with { Detail = "Answered this page's request in", LatencyMs = roundTrip } : c)],
+                };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading /api/diag");
+            _report = Unreachable("The server did not answer. Check your connection and press Refresh.", watch.Elapsed.TotalMilliseconds);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>The report the page shows when the API itself cannot be reached: one unhealthy API row.</summary>
+    private static DiagReportDto Unreachable(string problem, double ms) => new(
+        "Unhealthy", "unknown", "?", DateTimeOffset.UtcNow, Math.Round(ms, 1),
+        [new DiagCheckDto("server", "api", "Server", "Unhealthy", "The app's own API, which this page calls.",
+            "Called from this page.", Math.Round(ms, 1), problem)]);
+
+    private RenderFragment Section(string group, string title) => __builder =>
+    {
+        var checks = _report!.Checks.Where(c => c.Group == group).ToList();
+        <section class="po-diag__group diag-section" aria-labelledby="diag-@group">
+            <h2 id="diag-@group" class="diag-section-title">@title</h2>
+            @if (checks.Count == 0)
+            {
+                <p class="diag-empty">Nothing in this group is checked by this server.</p>
+            }
+            else
+            {
+                <div class="diag-grid">
+                    @foreach (var check in checks)
+                    {
+                        @* One row per dependency: label and status pill, what it is for, latency, then the problem or detail. *@
+                        <div class="po-diag__card diag-check" data-check="@check.Name">
+                            <h3 class="diag-check__name">@check.Label</h3>
+                            <span class="po-badge po-badge--@Tone(check.Status)">@check.Status</span>
+                            <span class="diag-check__body">
+                                <span>@check.Purpose</span>
+                                @if (check.Problem is not null)
+                                {
+                                    <span class="diag-check__problem">@check.Problem</span>
+                                }
+                                <span class="diag-check__detail">
+                                    @check.Detail@(check.LatencyMs > 0 ? $" {Ms(check.LatencyMs)}." : "")
+                                </span>
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    };
+
+    private static string Ms(double ms) => ms < 1 ? "under 1 ms" : $"{ms:0} ms";
+
+    private static string Headline(DiagReportDto report)
+    {
+        var unhealthy = report.Checks.Where(c => c.Status == "Unhealthy").Select(c => c.Label).ToList();
+        if (unhealthy.Count > 0) return $"Not working: {string.Join(", ", unhealthy)}";
+        var degraded = report.Checks.Count(c => c.Status == "Degraded");
+        return degraded switch
+        {
+            0 => "Everything is working",
+            1 => "Working, with 1 thing degraded",
+            _ => $"Working, with {degraded} things degraded",
+        };
+    }
+
+    private static string Tone(string status) => status switch
+    {
+        "Healthy" => "ok",
+        "Degraded" => "warn",
+        _ => "bad",
+    };
+}

@@ -27,7 +27,6 @@ public class AuthorizationFallbackTests
     [
         "/api/antiforgery/token",
         "/api/diag", // the /diag status page works signed-out; statuses and fixed text only
-        "/api/diag/status", // the same report, for the Tab developer window (po-dev.html)
         "/api/webhooks/github/{repositoryId}", // GitHub push deliveries; HMAC-signed per repository
         "/auth/login",
         "/auth/logout",

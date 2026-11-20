@@ -18,6 +18,7 @@ function Get-Response([string]$Path) {
 
 $failed = $false
 foreach ($entry in @(
+    @{ Path = '/health'; Want = 200 },
     @{ Path = '/login'; Want = 200 },
     @{ Path = '/api/repositories'; Want = 401 },
     @{ Path = '/diag'; Want = 200 },

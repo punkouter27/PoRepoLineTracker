@@ -19,7 +19,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── App tokens, aliased to the Po standard ─────────────────────────────────
-   css/po-tokens.css is the Po kit, the same file in every Po app (never edit this copy): light and dark follow the
+   css/po-tokens.css holds the Po tokens and shell (this repo's own copy): light and dark follow the
    device, one indigo accent, Inter for text and Space Grotesk for titles. This app's own variables are kept so
    every rule that reads them still works, but each colour now resolves to a --po-* token instead of a literal, and
    there is no data-theme any more: dark is prefers-color-scheme alone. */
@@ -486,6 +486,8 @@ a:focus-visible {
    applies (prose blocks cap themselves) rather than by starving the dashboards. */
 .app-content {
     padding: clamp(0.75rem, 2.5vw, 1.75rem);
+    /* The Po rule: a stamp-high gap at the foot so the version badge never covers content. */
+    padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px));
     max-width: min(2100px, 100%);
     margin-inline: auto;
     width: 100%;
@@ -936,7 +938,7 @@ a:focus-visible {
     }
 
     /* Reclaim the vertical space the hero gradient and its padding were taking. */
-    .app-content { padding-block: 0.5rem; }
+    .app-content { padding-top: 0.5rem; }
 }
 
 .rz-chart svg {

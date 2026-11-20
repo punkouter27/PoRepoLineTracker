@@ -48,10 +48,9 @@ public class ProductionAuthEnforcementMiddleware
         "/login",  // the page this middleware redirects TO — gating it would be an infinite loop
         "/signin-github",
         "/signout-github",
-        // The /diag status page (and its old /diagnostics alias) must work signed-out (fleet
-        // /diag standard, 2026-11-17); its data comes from the anonymous /api/diag.
+        // The /diag status page must work signed-out (Po /diag contract); its data comes from the
+        // anonymous /api/diag.
         "/diag",
-        "/diagnostics",
         // Anonymous by design, for repositories their owner made public (PublicBadgeEndpoints):
         // a README badge fetched through GitHub's image proxy cannot follow a sign-in redirect.
         "/badge",

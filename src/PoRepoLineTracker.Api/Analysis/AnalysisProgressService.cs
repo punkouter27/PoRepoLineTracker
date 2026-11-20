@@ -13,7 +13,7 @@ namespace PoRepoLineTracker.Api.Analysis;
 /// drains, so the UI reflects a step change immediately instead of on the next poll. The reader
 /// owns the SignalR <c>IHubContext</c>; the producer (this service) owns only the in-memory
 /// snapshot and the writer half of the channel. That split is what keeps the analysis loop
-/// non-blocking even when a SignalR client is wedged — see SPEC §10.</para>
+/// non-blocking even when a SignalR client is wedged — see docs/spec.md §10.</para>
 /// </summary>
 public sealed class AnalysisProgressService : IAnalysisProgressService
 {
@@ -123,7 +123,7 @@ public sealed class AnalysisProgressService : IAnalysisProgressService
     /// <summary>
     /// Hands a snapshot to the bounded channel that <see cref="AnalysisProgressReader"/> drains.
     ///
-    /// <para>The channel is the backpressure boundary named in SPEC §10: a slow SignalR client
+    /// <para>The channel is the backpressure boundary named in docs/spec.md §10: a slow SignalR client
     /// cannot stall the analysis loop, because the writer is non-blocking (TryWrite) and the
     /// channel's <c>DropOldest</c> policy caps memory at 64 frames. Recovery on slow-consumer
     /// loss is the fallback poll in <c>Repositories.razor</c>, which synthesises the same

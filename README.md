@@ -2,6 +2,8 @@
 
 PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Blazor WebAssembly and an ASP.NET Core API. It authenticates with GitHub, tracks user-owned repositories, clones and analyzes commit history, persists derived metrics in Azure Table Storage, and surfaces line-count trends, extension breakdowns, and contributor statistics.
 
+**Live:** https://app-porepolinetracker2.azurewebsites.net (sign in with GitHub) · status page: [/diag](https://app-porepolinetracker2.azurewebsites.net/diag)
+
 ## Architecture overview
 
 - Edge delivery: a Blazor WebAssembly client is served from the same App Service as the API.
@@ -13,9 +15,10 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 
 | Document | Purpose |
 | --- | --- |
-| [SPEC.md](SPEC.md) | What the app does and must keep doing: journeys, boundaries, edge cases, build/run/test |
-| [AGENTS.md](AGENTS.md) | The writing ruleset for anyone (or anything) changing the code |
-| [tests/README.md](tests/README.md) | Test scopes and local execution commands |
+| [AGENTS.md](AGENTS.md) | The Po Web App Standard this repo follows, repo-specific notes and the owner's rules |
+| [docs/spec.md](docs/spec.md) | What the app does and must keep doing: journeys, boundaries, edge cases, build/run/test |
+| [docs/testing.md](docs/testing.md) | Test tiers and local execution commands |
+| [SCREENSHOTS/](SCREENSHOTS/) | Before/after mockups of UI changes |
 
 ## Runtime summary
 
@@ -60,23 +63,21 @@ worked examples including the antiforgery pair required by writes.
 In a browser, Development also has a sign-in bypass: `/auth/login` signs you in as a fixed
 "DevUser" when no GitHub OAuth app is configured, or when called with `?dev=true`.
 
-## CI
+## CI and deployment
 
-The pipeline's `build` job runs **`tests/PoRepoLineTracker.Unit` only**. Integration needs
-Testcontainers/Azurite and the E2E tiers need a running app plus Playwright browsers; on a hosted
-runner those fail for reasons unrelated to the change, so they run locally
-(`docker compose up -d`, then the commands in [tests/README.md](tests/README.md)).
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) is the only workflow. Every push to `master`:
+format check → Release build (warnings are errors) → Unit tier (142 tests) → Integration tier (38 tests,
+Testcontainers Azurite on the runner's Docker) → publish → deploy to the Linux App Service
+`app-porepolinetracker2` → wait until `/health/live` answers with the pushed commit in `X-Commit`. A red step stops
+the deploy and the live site keeps its last good build. Nothing runs on pull requests.
 
-Unit tests passing is not enough before a push: composition-root changes (`Program.cs`,
-`AddInfrastructure`, `AddAuth`, middleware order) only show up in the Integration tier. Run
-Unit + Integration locally.
+Locally: the E2E tiers ([docs/testing.md](docs/testing.md)), `scripts/ci-checks.ps1` (compiles the Bicep) and, after
+a deploy, `scripts/post-deploy-smoke.ps1 -BaseUrl https://app-porepolinetracker2.azurewebsites.net`.
 
-Tier sizes are kept small by convention, not by a gate: Unit ~100, Integration ~50, E2E ~25 each.
-The `lint-infra` job compiles every `infra/*.bicep` on every run.
-
-## Azure deployment
-
-The GitHub Actions workflow ([.github/workflows/deploy.yml](.github/workflows/deploy.yml), the same file in every Po repo, owned by each) builds and deploys every push to `master` to a Linux App Service and waits until `/health/live` reports the pushed commit. It runs no tests and nothing on pull requests: run the tests and `scripts/ci-checks.ps1` (compiles the Bicep files) locally, and `scripts/post-deploy-smoke.ps1` to verify the live routes. Apply the Bicep in [infra/main.bicep](infra/main.bicep) / [infra/resources.bicep](infra/resources.bicep) by hand with `az deployment` (what-if first). The deployed topology is the combined API + WASM host backed by Azure Table Storage, Key Vault, and Application Insights.
+Infrastructure is [infra/main.bicep](infra/main.bicep) + [infra/main.bicepparam](infra/main.bicepparam) (modules in
+`infra/modules/`), applied by hand: `az deployment sub what-if -l eastus2 -f infra/main.bicep -p infra/main.bicepparam`
+first. The topology is the combined API + WASM host on an F1 plan, backed by Azure Table Storage, with Key Vault and
+Application Insights shared in `PoShared`. First-run machine setup: `scripts/setup.ps1`.
 
 ### GitHub sign-in (OAuth apps)
 

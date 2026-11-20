@@ -10,7 +10,7 @@ namespace PoRepoLineTracker.Unit.Hubs;
 /// Pins the bounded channel contract that <see cref="AnalysisHub.ProgressChannel"/> exposes:
 /// capacity 64, <see cref="BoundedChannelFullMode.DropOldest"/>, single reader. Together these
 /// mean a slow SignalR consumer cannot stall the analysis loop, and the worst case is loss of
-/// the *oldest* frame — the next report supersedes it. This is the corner-cut the SPEC §10
+/// the *oldest* frame — the next report supersedes it. This is the corner-cut the docs/spec.md §10
 /// "DropOldest is deliberate" rule names.
 /// </summary>
 public class AnalysisHubChannelTests
@@ -19,7 +19,7 @@ public class AnalysisHubChannelTests
     public async Task ProgressChannel_contract_bounded_and_drops_oldest_under_load()
     {
         var options = AnalysisHub.ProgressChannelOptions;
-        options.Capacity.Should().Be(64, "the SPEC §10 budget for backlogged progress frames");
+        options.Capacity.Should().Be(64, "the docs/spec.md §10 budget for backlogged progress frames");
         options.FullMode.Should().Be(BoundedChannelFullMode.DropOldest,
             "loss of the oldest frame is recoverable: the next report carries the same step forward");
         options.SingleReader.Should().BeTrue(

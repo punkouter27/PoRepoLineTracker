@@ -304,7 +304,7 @@ else
     //
     // Not Radzen's DataGridSettings through @bind-Settings. That type carries filter values as
     // `object`, which source-generated JSON cannot describe, and the reflection serializer is
-    // deliberately unreachable from this trimmed client (SPEC §6) — it would work in a Debug
+    // deliberately unreachable from this trimmed client (docs/spec.md §6) — it would work in a Debug
     // build and fail in the published one. Column widths and order are what that costs.
 
     private const string SettingsKey = "porepolinetracker:repo-grid";

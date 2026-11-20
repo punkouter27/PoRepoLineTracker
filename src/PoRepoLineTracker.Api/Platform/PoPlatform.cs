@@ -10,8 +10,8 @@ using Microsoft.Extensions.Configuration;
 namespace PoRepoLineTracker.Api.Platform;
 
 /// <summary>
-/// The conventions every Po app shares. Deliberately dependency-free beyond the shared
-/// framework, so the one file drops into sibling repos with no package feed and no NuGet churn.
+/// The Po conventions this app follows (log property, cookie stem, liveness probe). Dependency-free
+/// beyond the shared framework. This repo owns the file; it is not synced with any other repo.
 /// </summary>
 public static class PoPlatform
 {
@@ -42,12 +42,16 @@ public static class PoPlatform
     public static string AntiforgeryCookieName(bool secure) =>
         secure ? $"__Host-{AppName}.Antiforgery" : $"{AppName}.Antiforgery";
 
-    /// <summary>Informational version, from the assembly's build metadata.</summary>
+    /// <summary>The build's YYMMDD stamp: the <c>BuildVersion</c> assembly metadata Directory.Build.props sets.</summary>
     public static string Version { get; } =
-        Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion
-        ?? Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
-        ?? "unknown";
+        typeof(PoPlatform).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(a => a.Key == "BuildVersion")?.Value
+        ?? "dev";
+
+    /// <summary>The commit this build came from (MinVer appends it to the informational version as +sha).</summary>
+    public static string Commit { get; } =
+        typeof(PoPlatform).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion.Split('+') is [_, var sha, ..] ? sha : "unknown";
 
     /// <summary>
     /// Maps <c>/health/live</c>: the uniform, dependency-free liveness probe every Po app answers

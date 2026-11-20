@@ -99,7 +99,7 @@ public sealed class GetYearInReviewQueryHandler(IRepositoryDataService repositor
         result.BiggestDay = biggestDay;
         result.BiggestDayLinesAdded = biggestLines;
 
-        // Share, not lines (SPEC §10): a type can gain share while shrinking, when the rest shrank faster.
+        // Share, not lines (docs/spec.md §10): a type can gain share while shrinking, when the rest shrank faster.
         var startTotal = startMix.Values.Sum();
         var endTotal = endMix.Values.Sum();
         if (endTotal > 0)

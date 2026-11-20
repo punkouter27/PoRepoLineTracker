@@ -212,7 +212,7 @@ public static class AuthServiceExtensions
         }
 
         // Microsoft/Entra OAuth was removed here. It is a deliberate, recorded deviation from
-        // the house rules — see SPEC.md §9.
+        // the house rules — see docs/spec.md §9.
         //
         // The short version: this app's entire purpose is reading GitHub repositories, and a
         // Microsoft-authenticated principal has no GitHub credential. The handler used to store

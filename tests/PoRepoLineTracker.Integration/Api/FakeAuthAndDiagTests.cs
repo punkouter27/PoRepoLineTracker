@@ -190,8 +190,11 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("environment").GetString().Should().Be("Test");
-        json.GetProperty("storage").GetArrayLength().Should().BeGreaterThan(0);
-        json.GetProperty("services").GetArrayLength().Should().BeGreaterThan(0);
+        json.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
+        json.GetProperty("checkedMs").GetDouble().Should().BeGreaterThanOrEqualTo(0);
+        var groups = json.GetProperty("checks").EnumerateArray().Select(c => c.GetProperty("group").GetString()).ToHashSet();
+        groups.Should().Contain("api").And.Contain("service", "the /diag page lists API, Data and Services");
+        groups.Should().BeSubsetOf(["api", "data", "service"]);
     }
 
     /// <summary>

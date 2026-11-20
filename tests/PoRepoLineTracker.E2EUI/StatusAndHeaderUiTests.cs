@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace PoRepoLineTracker.E2EUI;
 
 /// <summary>
-/// The fleet /diag standard (2026-11-17) and the header Settings control, at both viewports.
+/// The Po /diag contract (System status) and the header Settings control, at both viewports.
 /// </summary>
 [Collection(E2EUiCollection.Name)]
 public sealed class StatusAndHeaderUiTests
@@ -28,6 +28,8 @@ public sealed class StatusAndHeaderUiTests
 
         await page.WaitForSelectorAsync(".diag-banner[data-status]", new PageWaitForSelectorOptions { Timeout = 30000 });
 
+        (await page.TitleAsync()).Should().Be("System status");
+        (await page.InnerTextAsync("h1")).Should().Be("System status");
         var text = await page.InnerTextAsync("main");
         text.Should().Contain("API").And.Contain("Data").And.Contain("Services");
         text.Should().Contain("Azure Table Storage").And.Contain("GitHub API");

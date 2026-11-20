@@ -4,20 +4,31 @@ targetScope = 'subscription'
 @description('Primary location for all resources')
 param location string = 'eastus2'
 
-// Naming convention: Po{SolutionName} prefix. The live app + storage reside in the
-// 'PoRepoLineTracker' resource group (not 'rg-...-prod'); keep Bicep aligned to reality
-// so a provision does not create a duplicate, empty resource group.
-var resourceGroupName = 'PoRepoLineTracker'
-var sharedResourceGroupName = 'PoShared'
-var storageAccountName = 'stporepolinetracker2'  // Existing storage account in PoRepoLineTracker RG
-var appInsightsName = 'poappideinsights8f9c9a4e'  // Shared App Insights in PoShared RG
-var webAppName = 'app-porepolinetracker2'  // App Service in PoRepoLineTracker RG
-// Dedicated F1 (Free) plan, created and owned by this template in the PoRepoLineTracker RG.
-// Previously this referenced the shared B1 in PoShared; the app now runs on its own free plan
-// so it costs nothing and cannot contend with the other Po* sites. See the F1 constraints
-// documented on the plan resource in resources.bicep — Always On is not one of them.
-var appServicePlanName = 'asp-porepolinetracker-f1'
-var keyVaultName = 'kv-poshared2'  // Existing Key Vault in PoShared RG
+// Names of the resources the live app uses today (values in main.bicepparam). Azure naming standard:
+// App Service app-<repo lowercase>, per-app resources <type>-<repo lowercase>, shared things in PoShared.
+// This app predates it: the live names carry a "2" (app-porepolinetracker2, stporepolinetracker2) and
+// the resource group is "PoRepoLineTracker". Renaming means recreating the site and the storage
+// account (and the GitHub OAuth callback URL), so the template describes the live names.
+@description('Resource group holding the app, its plan and its storage account')
+param resourceGroupName string
+
+@description('Resource group holding the shared Key Vault and Application Insights')
+param sharedResourceGroupName string
+
+@description('Storage account (Table Storage) in the app resource group')
+param storageAccountName string
+
+@description('Shared Application Insights component in the PoShared resource group')
+param appInsightsName string
+
+@description('App Service (Linux) in the app resource group')
+param webAppName string
+
+@description('Dedicated F1 (Free) Linux plan, created and owned by this template. Always On is not available on F1.')
+param appServicePlanName string
+
+@description('Shared Key Vault in the PoShared resource group')
+param keyVaultName string
 
 // The app resource group — created here if it does not exist.
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -26,7 +37,7 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
 }
 
 // Deploy resources into the app resource group
-module resources 'resources.bicep' = {
+module resources 'modules/resources.bicep' = {
   name: 'resources'
   scope: rg
   params: {

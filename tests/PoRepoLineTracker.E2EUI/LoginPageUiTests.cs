@@ -36,6 +36,8 @@ public sealed class LoginPageUiTests
 
         var signIn = page.GetByText("Sign in", new PageGetByTextOptions { Exact = false });
         (await signIn.CountAsync()).Should().BeGreaterThan(0);
+        (await page.Locator(".po-header [data-testid=header-sign-in].po-link-btn").IsVisibleAsync())
+            .Should().BeTrue("the header's Sign in button shows on every page, the sign-in page included");
 
         errors.Should().BeEmpty("a clean boot logs no console errors");
     }

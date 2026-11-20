@@ -1,6 +1,6 @@
-# PoRepoLineTracker — SPEC.md
+# PoRepoLineTracker — spec
 
-What this app is, what it does, what it won't do, and what must stay true at every commit. The *how* of writing code (YAGNI ladder, the owner's project rules) is in `AGENTS.md`, which `.github/copilot-instructions.md` copies verbatim. This document is the *why* and the *contract*. Git history keeps the story of how each rule got here; this file states only the current rule.
+What this app is, what it does, what it won't do, and what must stay true at every commit. The *how* of writing code (YAGNI ladder, the owner's project rules) is in `AGENTS.md` (with the Po Web App Standard). This document is the *why* and the *contract*. Git history keeps the story of how each rule got here; this file states only the current rule.
 
 ---
 
@@ -22,7 +22,7 @@ One deployable: the ASP.NET Core API hosts the Blazor WebAssembly client, keeps 
 8. **Own your data.** Settings exports the portfolio (JSON/CSV, `GET /api/repositories/export`) and deletes the account (`DELETE /api/account`).
 9. **Survive a network drop.** The PWA shell is cached; `OfflineIndicator` shows when the connection is gone. Read-only offline.
 
-Secondary: counted file types (`/api/settings/user-preferences`), appearance & effects switches (Settings), system status (`/diag`, alias `/diagnostics`; works signed-out, data from the anonymous `GET /api/diag`, which carries statuses, fixed text, latencies and at most an exception type — never secrets, URIs or messages; not in the sidebar, 2026-11-17), a header Settings link (upper-right, beside the sidebar entry, 2026-11-17), PWA install, single-repository re-analyse.
+Secondary: counted file types (`/api/settings/user-preferences`), appearance & effects switches (Settings), system status (`/diag` only, title "System status"; works signed-out, data from the anonymous `GET /api/diag` (`DiagReportDto`/`DiagCheckDto`, the Po /diag contract), which carries statuses, fixed text, latencies and at most an exception type — never secrets, URIs or messages; not in the sidebar), a header Settings link (upper-right, beside the sidebar entry, 2026-11-17), PWA install, single-repository re-analyse.
 
 ## 3. Tech stack
 
@@ -32,7 +32,7 @@ Secondary: counted file types (`/api/settings/user-preferences`), appearance & e
 - **Git:** the `git` CLI only. `GitClient` runs clone, fetch, `log` and `--numstat`; `GitObjectReader` reads trees and blobs through one long-lived `git cat-file --batch`. No native git library (LibGit2Sharp crashed with SIGABRT on App Service Linux).
 - **Key packages:** Azure.Data.Tables, Azure.Identity, Key Vault configuration, OpenTelemetry + Azure Monitor, Serilog, HybridCache, AspNet.Security.OAuth.GitHub, Microsoft.CodeAnalysis.CSharp (syntax only, for code health), Scalar (Dev OpenAPI UI), MinVer.
 - **Compiler guards:** `Directory.Build.props` sets `TreatWarningsAsErrors` and `Nullable`. A new NuGet advisory (`NU1903`) fails the build; fix it by bumping the version, never by suppressing.
-- **Versioning:** MinVer from `v*` tags for assemblies; the `vYYMMDD` label in the client's corner (`.po-version`) is the UTC build date (`AssemblyMetadata` `BuildStamp`, set for every project in `Directory.Build.props`, so `/api/diag` agrees).
+- **Versioning:** MinVer from `v*` tags for assemblies; the `vYYMMDD` label in the client's corner (`.po-version`) is the UTC build date (`AssemblyMetadata` `BuildVersion`, the only version key, set for every project in `Directory.Build.props`, so `/api/diag` and `/health/live` agree).
 - **Tests:** xunit + NSubstitute + FluentAssertions (+ Xunit.SkippableFact, Playwright, Testcontainers.Azurite). No other assertion or mocking library.
 - **Local dependencies:** `docker compose up -d` starts Azurite and Jaeger (UI 16686, OTLP 4317/4318). Without Docker, npm `azurite` works; the Integration tier falls back to it.
 
@@ -42,8 +42,8 @@ Secondary: counted file types (`/api/settings/user-preferences`), appearance & e
 dotnet build PoRepoLineTracker.slnx
 dotnet run --project src/PoRepoLineTracker.Api --launch-profile https    # https://localhost:5001
 
-dotnet test tests/PoRepoLineTracker.Unit           # the CI gate
-dotnet test tests/PoRepoLineTracker.Integration    # Testcontainers Azurite (or npm azurite)
+dotnet test tests/PoRepoLineTracker.Unit           # CI runs it
+dotnet test tests/PoRepoLineTracker.Integration    # CI runs it; Testcontainers Azurite (or npm azurite)
 dotnet test tests/PoRepoLineTracker.E2EAPI         # needs the app running
 dotnet test tests/PoRepoLineTracker.E2EUI          # needs the app running + `playwright.ps1 install` once
 ```
@@ -68,17 +68,15 @@ src/
     Storage/                      Table Storage services and entities
     Telemetry/                    OpenTelemetry wiring
   PoRepoLineTracker.Client/
-    Pages/                        Root (→ /repositories), Repositories, RepositoryDetail, Insights,
-                                  Settings, Login; Operator/Diagnostics
-    Components/                   Account, Auth, Charts, Insights (AllTimeDashboard, CodeHealthDashboard),
-                                  Repositories, Shared
+    Features/                     Auth, Charts, Diag (/diag), Insights, Repositories, Settings, Shared
     Models/                       AppRoutes (every route), AppNav (sidebar), RepositoryGridRow, ChartFormat
     Services/                     auth state, API clients, antiforgery handler, analysis feed
     wwwroot/js/                   backdrop.js, fx.js, city.js (decoration, §10 "Effects")
   PoRepoLineTracker.Shared/       domain types, DTOs, validators, ConfigKeys, AppJsonSerializerContext
 tests/                            Unit, Integration, E2EAPI, E2EUI
-infra/                            Bicep + setup/verify scripts
-scripts/ensure-azure-access.ps1   every role the app and CI need
+infra/                            main.bicep + main.bicepparam, modules/
+scripts/                          setup.ps1, ensure-azure-access.ps1 (every role the app and CI need),
+                                  ci-checks.ps1 (compiles the Bicep), post-deploy-smoke.ps1
 ```
 
 Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (App Service startup; installs `git`), `PrefixKeyVaultSecretManager.cs` (strips the `PoRepoLineTracker--` secret prefix), `appsettings.Development.local.json.template` (copy for per-machine OAuth credentials; loads after Key Vault).
@@ -98,8 +96,8 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 
 ## 7. Testing
 
-- **Tier caps:** at most 100 unit, 50 integration, 25 API (E2EAPI) and 25 UI (E2EUI) tests. Merge before adding.
-- **CI gate:** Unit only. Integration and E2E run locally (`docker compose up -d` first). Composition-root changes (`Program.cs`, `AddInfrastructure`, `AddAuth`, middleware order, endpoint metadata) only fail in Integration, so run it for those.
+- **Tier sizes (2026-11-20):** 142 Unit, 38 Integration, 25 E2EAPI, 21 E2EUI. Keep them small: merge before adding.
+- **CI gate:** Unit and Integration (Testcontainers Azurite on the runner's Docker). E2E runs locally against a running app. Composition-root changes (`Program.cs`, `AddInfrastructure`, `AddAuth`, middleware order, endpoint metadata) only fail in Integration.
 - **Dev/test auth:** `X-Fake-User` (a GUID verbatim; any other string hashes to a stable GUID). Writes also need the antiforgery pair (`api-tests.http`). Registering `FakeAuthHandler` in Production crashes at startup.
 - **Chart data:** `POST /api/dev/seed/repository` (Development only, idempotent). Without it E2EUI chart tests skip.
 - **Git tests** build a real repository with the git CLI; nothing substituted can exercise object identity.
@@ -220,15 +218,14 @@ Files that look deletable but are not: `src/PoRepoLineTracker.Api/startup.sh` (A
 
 ## 12. Success criteria
 
-1. Unit tier green on every commit; Integration green for composition-root changes.
+1. Unit and Integration tiers green on every commit (CI runs both).
 2. E2EUI exits 0 with no skips when the app is up.
 3. `/health/live` and `/health` answer 200 after a deploy (the deploy waits for `/health/live` to report the pushed commit; check `/health` with `scripts/post-deploy-smoke.ps1`).
 4. The app boots without `GitHub:ClientId`, `KeyVault:Uri`, `ApplicationInsights:ConnectionString` or `WEBSITE_HOSTNAME`; `/diag` reflects what is absent.
 5. Re-applying `infra/main.bicep` succeeds.
 6. The API builds clean with the trim and AOT analyzers on.
-7. Test tiers stay within their caps (§7).
+7. The tier sizes in §7 and AGENTS.md match reality.
 8. No Critical or Important findings from `/security-review` or `/code-review` at a release commit.
-9. `AGENTS.md` and `.github/copilot-instructions.md` are identical.
 
 ## 13. Open questions
 

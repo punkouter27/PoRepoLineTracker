@@ -215,7 +215,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetPortfolioCodeHealthQueryHandler>();
 
         // Health checks — all three dependencies share the same registry so /health and
-        // /api/diag agree (SPEC §11.3). Names use hyphens to match the documented contract and
+        // /api/diag agree (docs/spec.md §11.3). Names use hyphens to match the documented contract and
         // the /diag page's rows (DiagnosticsEndpoints.Known).
         services.AddHealthChecks()
             .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")

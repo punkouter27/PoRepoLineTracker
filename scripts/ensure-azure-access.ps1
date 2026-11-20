@@ -12,7 +12,7 @@ $DeployRoles = @(               # this repo's CI runs subscription-scope Bicep t
 $AppRoles = @(                  # role | scope under the subscription ('' = the subscription itself)
     'Storage Table Data Contributor|/resourceGroups/PoRepoLineTracker/providers/Microsoft.Storage/storageAccounts/stporepolinetracker2'
 )
-# ---- Same in every Po web repo below this line. Idempotent: re-run it after any re-provision. ----
+# ---- Idempotent: re-run it after any re-provision. ----
 # Grants exactly what the app and its CI need, so "the old resources had a role nobody wrote down"
 # cannot happen again. Needs Owner (or User Access Administrator) on the subscription.
 $ErrorActionPreference = 'Stop'
