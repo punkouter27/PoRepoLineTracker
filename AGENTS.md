@@ -95,6 +95,13 @@ Several sessions (people and agents) commit to this repo, sometimes at the same 
 
 ## 3. Verification
 
+One command sequence verifies the repo (format, build, Unit, Integration, then E2E API + E2E UI on the trimmed
+Release publish):
+
+```powershell
+dotnet format PoRepoLineTracker.slnx --verify-no-changes && dotnet build PoRepoLineTracker.slnx -c Release && dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build && dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build && pwsh scripts/run-e2e.ps1
+```
+
 Tested 2026-11-21 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`). A full run is every row below
 in order; all must pass with 0 warnings and 0 skips (a skip means a dependency was missing, not a pass), and a test
 that fails only sometimes counts as failing.
@@ -109,29 +116,27 @@ that fails only sometimes counts as failing.
 | E2E against a dev server | `E2E_BASE_URL=http://localhost:7208 dotnet test tests/PoRepoLineTracker.E2EAPI -c Release --no-build`; `E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI -c Release --no-build` | a running app; otherwise every test skips ("No app instance reachable at …"). Quick loop only; the browser tier counts only against the publish above |
 | Run locally | `ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="https://localhost:7207;http://localhost:7208" KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile` | Azurite on :10002 (`docker compose up -d`) or `AzureTableStorage__ConnectionString`; → https://localhost:7207 |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, build, Unit, Integration, publish, deploy); `*.md` and `SCREENSHOTS/**` are paths-ignored | repo variables for OIDC |
-| Deploy check | `curl -sI https://app-porepolinetracker2.azurewebsites.net/health/live` → `X-Commit: <pushed sha>`; `pwsh scripts/post-deploy-smoke.ps1 -BaseUrl https://app-porepolinetracker2.azurewebsites.net` | — |
+| Deploy check | `curl -sI https://app-porepolinetracker2.azurewebsites.net/health/live` → `X-Commit: <pushed sha>`; `pwsh scripts/post-deploy-smoke.ps1 -BaseUrl https://app-porepolinetracker2.azurewebsites.net` | counts against the live budget (Hosting) |
 | Live | https://app-porepolinetracker2.azurewebsites.net and https://app-porepolinetracker2.azurewebsites.net/diag | — |
 
 ## Repo-specific notes
 
-### Exceptions to the standard (deliberate)
+### Deliberate deviations
 
-- **Radzen only (owner decision 2026-11-21: Radzen wins).** Every control is a Radzen component; the two pickers that
-  were native `<select>`s (Insights view, phone sort on Repositories) are `RadzenDropDown`s over plain strings (no
-  `TextProperty`/`ValueProperty`, so trimming cannot break them; `DropDownUiTests` proves it on the trimmed publish).
-  The only allowed native controls are native file inputs for resumable uploads, native audio/video, and read-only
-  data tables; this app uses none of them today. Header links (`.po-link-btn`, the gear) are links, not controls.
+| Deviation | Why | Commit sha / date | How to undo |
+| --- | --- | --- | --- |
+| Radzen only; the two former native `<select>`s are `RadzenDropDown`s over plain strings. No native exceptions in use (allowed: resumable-upload file inputs, native audio/video, read-only tables); header links (`.po-link-btn`, gear) are links | owner decision "Radzen wins" (Profile A); plain strings so trimming cannot break them | `597345d` 2026-11-22 | — (owner rule) |
+| Sign-in is GitHub OAuth, not Microsoft; header shows the GitHub email (or login) | the app reads repos with the user's GitHub token | — | — |
+| /diag: unconfigured services show a neutral **Off** pill, not counted; GitHub sign-in unconfigured is Off outside Production but Degraded in Production | outside Production it is a choice, in Production a fault | `597345d` 2026-11-22 | remove the `DiagOff` marker |
+| `/login` uses `BareLayout` (same `PoHeader`, name only), no nav | the sign-in page has no nav by rule | `597345d` 2026-11-22 | — |
+| Version stamp renders last in each layout's scrolling column (in flow), above the bottom bar via `--po-stamp-lift` | a fixed stamp covered /diag cards on phones (overrides the older fixed rule) | `597345d` 2026-11-22 | `git revert 597345d` (stamp part) |
+| `run-e2e.ps1` publishes with `-p:WasmApplicationEnvironmentName=Test` | .NET 10 bakes the client environment at publish; the dev sign-in needs Test | `597345d` 2026-11-22 | drop the flag |
+| Azure names `app-porepolinetracker2`, `stporepolinetracker2`, `asp-porepolinetracker-f1` | renaming means recreating site + storage and moving the OAuth callback | — | owner-approved recreate |
 
-- **Sign-in is GitHub OAuth, not Microsoft.** The app reads the user's repositories with the user's GitHub token, so
-  GitHub is the only provider that works (a Microsoft account has no repository access). The header shows the
-  account's GitHub email (`user:email` scope) and falls back to the GitHub login when GitHub shares no email.
-- **Azure names predate the naming rule.** Live: App Service `app-porepolinetracker2`, storage `stporepolinetracker2`,
-  plan `asp-porepolinetracker-f1` (F1 Free, West US 2, no Always On), resource group `PoRepoLineTracker`; Key Vault
-  `kv-poshared2` and App Insights are shared in `PoShared`. Renaming means recreating the site and the storage
-  account and moving the GitHub OAuth callback URL, so `infra/main.bicepparam` describes the live names.
-- **Navigation.** A left sidebar on wide screens and a bottom bar on phones (the version stamp sits above it through
-  `--po-stamp-lift` in `app.css`).
-- `SCREENSHOTS/` holds before/after UI mockups (owner's rule below) and is referenced from README.md.
+Navigation: left sidebar on wide screens, bottom bar on phones. `SCREENSHOTS/` holds before/after UI mockups.
+
+**Hosting:** App Service F1 (Free, `asp-porepolinetracker-f1`, West US 2, no Always On): 165 MB of data out and 60
+CPU-minutes per day. Never run test suites against the live site; live checks = at most 6 page loads + /diag + X-Commit.
 
 ### Documents
 
