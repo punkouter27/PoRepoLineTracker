@@ -29,26 +29,21 @@
         <PoHeader />
     </RadzenHeader>
 
-    <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="@SidebarClass">
-        <div class="app-sidebar__nav" @onclick="@CollapseSidebarOnMobile">
-            <ErrorBoundary>
-                <ChildContent>
-                    <NavMenu />
-                </ChildContent>
-                <ErrorContent>
-                    <!-- nav recovered silently -->
-                </ErrorContent>
-            </ErrorBoundary>
-        </div>
-    </RadzenSidebar>
-
-    @* Scrim: only rendered while the drawer overlays content on a phone. Tapping it
-       closes the drawer, which is the behaviour users expect from an off-canvas nav
-       and the only way to dismiss it without hunting for the toggle. *@
-    @if (sidebarExpanded && _isMobile)
-    {
-        <button type="button" class="app-scrim" aria-label="Close navigation" @onclick="@ToggleSidebar"></button>
-    }
+    @* Navigation only for a signed-in user: signed out, every destination would bounce to the sign-in page. *@
+    <AuthorizeView>
+        <RadzenSidebar @bind-Expanded="@sidebarExpanded" class="@SidebarClass">
+            <div class="app-sidebar__nav" @onclick="@CollapseSidebarOnMobile">
+                <ErrorBoundary>
+                    <ChildContent>
+                        <NavMenu />
+                    </ChildContent>
+                    <ErrorContent Context="navError">
+                        <!-- nav recovered silently -->
+                    </ErrorContent>
+                </ErrorBoundary>
+            </div>
+        </RadzenSidebar>
+    </AuthorizeView>
 
     <RadzenBody>
         @* tabindex="-1" so the skip link can move focus here; without it the anchor scrolls the
@@ -75,10 +70,14 @@
                 </ErrorContent>
             </ErrorBoundary>
         </main>
+        @* The version stamp, last in the scrolling column and pushed to its bottom-right, so it never covers content. *@
+        <BuildVersion />
     </RadzenBody>
 </RadzenLayout>
 
-<BottomNav />
+<AuthorizeView>
+    <BottomNav />
+</AuthorizeView>
 
 @code {
     private const int MobileBreakpointPx = 640;
@@ -125,19 +124,11 @@
         StateHasChanged();
     }
 
-    /// <summary>Dismisses the drawer after a nav tap so the page is not left behind a scrim.</summary>
+    /// <summary>Dismisses the drawer after a nav tap.</summary>
     private void CollapseSidebarOnMobile()
     {
         // Nav clicks only auto-collapse on mobile, where the sidebar overlays content.
         // On desktop a collapsed sidebar is the user's chosen state — respect it.
         if (_isMobile) sidebarExpanded = false;
     }
-
-    private void ToggleSidebar()
-    {
-        sidebarExpanded = !sidebarExpanded;
-        StateHasChanged();
-    }
-
-
 }

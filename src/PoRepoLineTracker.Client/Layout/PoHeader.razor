@@ -1,6 +1,7 @@
 @* The Po shell header, on every page signed in or out (MainLayout and BareLayout): the app's name top-left (its logo
    mark before it), top-right the offline and install hints when they apply, the signed-in email (or Sign in), and the
-   Settings gear. A plain <header> root, so this file's scoped CSS reaches it. *@
+   Settings gear. Signed out there is no navigation: no gear, and on the sign-in page (SignInPage) only the name, since
+   the page itself is the sign-in link. A plain <header> root, so this file's scoped CSS reaches it. *@
 <header class="po-header">
     <a class="po-header__title" href="/">
         <span class="brand-icon-wrap" aria-hidden="true">
@@ -9,10 +10,20 @@
         </span>
         <span>PoRepoLineTracker</span>
     </a>
+    @if (!SignInPage)
+    {
     <div class="po-header__actions">
         <OfflineIndicator />
         <InstallAppButton />
         <LoginDisplay />
+        <AuthorizeView>
         <a class="po-header__settings" href="/settings" aria-label="Settings" title="Settings" data-testid="header-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+        </AuthorizeView>
     </div>
+    }
 </header>
+
+@code {
+    /// <summary>True on the sign-in page: the header shows only the app's name.</summary>
+    [Parameter] public bool SignInPage { get; set; }
+}

@@ -53,20 +53,10 @@
             </RadzenStack>
         </Heading>
         <Actions>
-            @* A native select, as the grid's sort uses: no reflection-bound TextProperty for the trimmer to break. *@
-            <select class="rz-dropdown yir-scope" aria-label="Insights view" value="@(_health ? "health" : _allTime ? "all" : _data?.Year.ToString())"
-                    @onchange="@(e => OnScopeChanged(e.Value?.ToString()))">
-                <optgroup label="Activity">
-                    @foreach (var year in _data?.AvailableYears ?? [])
-                    {
-                        <option value="@year">@year</option>
-                    }
-                    <option value="all">All time</option>
-                </optgroup>
-                <optgroup label="Quality">
-                    <option value="health">Code health</option>
-                </optgroup>
-            </select>
+            @* A RadzenDropDown over plain strings (no TextProperty/ValueProperty): Radzen shows each string itself, so
+               there is no reflection-bound property for the trimmer to break. *@
+            <RadzenDropDown TValue="string" Data="@ScopeLabels" Value="@CurrentScopeLabel" Change="@(v => OnScopeChanged(v as string))"
+                            class="yir-scope" InputAttributes="@ScopeInputAttributes" data-testid="insights-scope" />
         </Actions>
     </PageHero>
 
@@ -374,8 +364,35 @@
         }
     }
 
-    private void OnScopeChanged(string? value) =>
-        Navigation.NavigateTo($"{AppRoutes.Insights}/{value}"); // a year, "all" or "health"
+    private const string AllTimeLabel = "All time";
+    private const string HealthLabel = "Code health";
+    private static readonly IReadOnlyDictionary<string, object> ScopeInputAttributes = new Dictionary<string, object> { ["aria-label"] = "Insights view" };
+
+    // The picker's entries: each year with activity, then "All time", then "Code health".
+    // Rebuilt only when the list of years changes (not on every reload of the same data), so the dropdown keeps one
+    // Data instance between renders and an open popup is not reset under the pointer.
+    private List<string> ScopeLabels
+    {
+        get
+        {
+            var years = string.Join(',', _data?.AvailableYears ?? []);
+            if (_scopeLabels is null || years != _scopeLabelsFor)
+            {
+                _scopeLabelsFor = years;
+                _scopeLabels = [.. (_data?.AvailableYears ?? []).Select(y => y.ToString(CultureInfo.InvariantCulture)), AllTimeLabel, HealthLabel];
+            }
+
+            return _scopeLabels;
+        }
+    }
+
+    private List<string>? _scopeLabels;
+    private string? _scopeLabelsFor;
+
+    private string? CurrentScopeLabel => _health ? HealthLabel : _allTime ? AllTimeLabel : _data?.Year.ToString(CultureInfo.InvariantCulture);
+
+    private void OnScopeChanged(string? label) =>
+        Navigation.NavigateTo($"{AppRoutes.Insights}/{label switch { AllTimeLabel => "all", HealthLabel => "health", _ => label }}"); // a year, "all" or "health"
 
     private async Task DownloadCardAsync()
     {

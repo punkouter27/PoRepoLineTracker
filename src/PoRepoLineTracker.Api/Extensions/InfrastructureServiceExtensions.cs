@@ -220,7 +220,10 @@ public static class InfrastructureServiceExtensions
         services.AddHealthChecks()
             .AddCheck<AzureTableStorageHealthCheck>("azure-table-storage")
             .AddCheck<KeyVaultHealthCheck>("key-vault")
-            .AddCheck<GitHubApiHealthCheck>("github-api");
+            .AddCheck<GitHubApiHealthCheck>("github-api")
+            .AddCheck<GitHubSignInHealthCheck>("github-sign-in")
+            .AddCheck<TelemetryExportHealthCheck>("telemetry");
+        services.AddHttpClient(DiagProbe.ClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
 
         // Rate limits. Nothing was limited before: the two endpoints that queue a clone and a
         // full history walk could be called in a loop, and the anonymous /health (a Table query

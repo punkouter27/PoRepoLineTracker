@@ -43,7 +43,10 @@ namespace PoRepoLineTracker.Api
                 builder.WebHost.UseStaticWebAssets();
             }
 
-            builder.Services.AddValidatorsFromAssemblyContaining<BulkRepositoryDtoValidator>();
+            // Validators by type, not assembly scanning: explicit registrations survive trimming and show what the
+            // endpoints actually inject.
+            builder.Services.AddScoped<IValidator<PoRepoLineTracker.Shared.Models.Dtos.BulkRepositoryDto>, BulkRepositoryDtoValidator>();
+            builder.Services.AddScoped<IValidator<PoRepoLineTracker.Shared.Domain.UserPreferences>, UserPreferencesValidator>();
 
             // Azure Key Vault — managed identity in production; DefaultAzureCredential locally
             var keyVaultUrl = builder.Configuration[ConfigKeys.KeyVault.Uri];

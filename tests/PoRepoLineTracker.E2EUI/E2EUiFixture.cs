@@ -99,7 +99,7 @@ public sealed class E2EUiFixture : IAsyncLifetime
     /// without this, which is why the existing suite only ever exercised /login.
     /// </para>
     /// </summary>
-    public async Task<IPage> OpenAuthenticatedAsync(ViewportSize viewport, string path = "/", string? colorScheme = null)
+    public async Task<IPage> OpenAuthenticatedAsync(ViewportSize viewport, string path = "/", string? colorScheme = null, string? fakeUser = null)
     {
         Skip.If(Browser is null, "Playwright browser unavailable — run playwright.ps1 install.");
 
@@ -113,7 +113,7 @@ public sealed class E2EUiFixture : IAsyncLifetime
                 "light" => ColorScheme.Light,
                 _ => null
             },
-            ExtraHTTPHeaders = new Dictionary<string, string> { ["X-Fake-User"] = FakeUser }
+            ExtraHTTPHeaders = new Dictionary<string, string> { ["X-Fake-User"] = fakeUser ?? FakeUser }
         });
 
         var page = await context.NewPageAsync();

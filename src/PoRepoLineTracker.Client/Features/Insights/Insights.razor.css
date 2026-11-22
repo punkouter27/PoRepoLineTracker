@@ -214,6 +214,6 @@
 }
 
 /* The year / "All time" picker in the hero. */
-.yir-scope {
-    width: 8rem;
+::deep .yir-scope.yir-scope {
+    width: 9rem;
 }

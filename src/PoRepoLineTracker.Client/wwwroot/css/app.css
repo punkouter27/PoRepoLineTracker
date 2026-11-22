@@ -371,6 +371,10 @@ a:focus-visible {
     color: var(--po-text);
 }
 
+.rz-header a.po-link-btn.filled {
+    color: var(--po-on-accent);
+}
+
 .rz-header a.po-header__settings:hover {
     color: var(--po-accent);
 }
@@ -434,6 +438,9 @@ a:focus-visible {
        nothing once it stops animating. */
     transition: grid-column-start 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     container: appwell / inline-size;
+    /* A column, so the version stamp after <main> drops to the bottom-right (po-tokens.css .po-version). */
+    display: flex;
+    flex-direction: column;
     /* Without this a wide grid child can force the grid track wider than its 1fr share. */
     min-width: 0;
 }
@@ -472,7 +479,8 @@ a:focus-visible {
    above the plain `.rz-layout` selector in the mobile block, and media queries add none — which
    reinstated a two-track grid on phones and put the body in a zero-width column. */
 @media (min-width: 769px) {
-    .rz-layout:has(.rz-sidebar.app-sidebar--collapsed) {
+    .rz-layout:has(.rz-sidebar.app-sidebar--collapsed),
+    .rz-layout:not(:has(.rz-sidebar)) {
         grid-template-columns: 0 1fr !important;
     }
 }
@@ -485,9 +493,8 @@ a:focus-visible {
    wide screens are used, with the readable-line-length concern handled where it actually
    applies (prose blocks cap themselves) rather than by starving the dashboards. */
 .app-content {
+    flex: 1 0 auto;
     padding: clamp(0.75rem, 2.5vw, 1.75rem);
-    /* The Po rule: a stamp-high gap at the foot so the version badge never covers content. */
-    padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px));
     max-width: min(2100px, 100%);
     margin-inline: auto;
     width: 100%;
@@ -586,31 +593,11 @@ a:focus-visible {
     }
 }
 
-/* Scrim behind the open drawer — tapping it closes the sidebar. */
-.app-scrim {
-    position: fixed;
-    inset: var(--shell-header-height) 0 0 0;
-    background: rgba(0, 0, 0, 0.45);
-    border: none;
-    padding: 0;
-    z-index: 890;
-    cursor: pointer;
-    animation: scrimFade 0.2s ease both;
-}
-
-@keyframes scrimFade {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-
-@media (min-width: 769px) {
-    .app-scrim { display: none; }
-}
-
-/* The build stamp is the Po one (.po-version in po-tokens.css). On a phone it sits above the bottom bar. */
+/* The build stamp (.po-version, po-tokens.css) is the last item in .rz-body. On a phone the column keeps clear of the
+   fixed bottom bar, so neither the stamp nor the page's end hides under it. */
 @media (max-width: 768px) {
-    body:has(.bottom-nav) {
-        --po-stamp-lift: calc(3.25rem + env(safe-area-inset-bottom));
+    body:has(.bottom-nav) .rz-body {
+        padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
     }
 }
 
@@ -793,13 +780,14 @@ a:focus-visible {
     color: #fff !important;
 }
 
-/* Amber is the exception: it is too light to carry white at AA no matter how far it is darkened
-   without ceasing to read as amber (white on #d97706 is 3.19:1). Dark text on it is 5.13:1, which
-   is also what Material itself does for this swatch. */
+/* Amber is the exception: no single amber fill carries one label colour at AA in both themes
+   (--po-warning is a dark #9a5b00 in light mode, a light #f0b84f in dark mode). So warning fills use
+   the Po status-banner recipe instead: --po-text on --po-warning-soft, outlined in --po-warning. */
 .rz-button.rz-variant-filled.rz-warning,
 .rz-badge.rz-badge-warning.rz-variant-filled {
-    background-color: var(--warning-color) !important;
-    color: #0f172a !important;
+    background-color: var(--po-warning-soft) !important;
+    color: var(--po-text) !important;
+    box-shadow: inset 0 0 0 1px var(--po-warning) !important;
 }
 
 .rz-card {

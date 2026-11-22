@@ -64,4 +64,36 @@ public sealed class StatusAndHeaderUiTests
         await page.WaitForURLAsync("**/settings", new PageWaitForURLOptions { Timeout = 15000 });
         await page.WaitForSelectorAsync("h1:has-text('Settings')", new PageWaitForSelectorOptions { Timeout = 15000 });
     }
+
+    /// <summary>
+    /// A test sign-in (dev persona whose name is an email, so it carries the email claim like a GitHub account that
+    /// shares its email): the header shows that email top-right, the title top-left, and the version stamp bottom-right.
+    /// </summary>
+    [SkippableTheory]
+    [InlineData("desktop")]
+    [InlineData("mobile")]
+    public async Task Header_Shows_The_Signed_In_Email_UpperRight(string viewport)
+    {
+        const string email = "e2e-header@example.com";
+        var size = Viewport(viewport);
+        var page = await _fixture.OpenAuthenticatedAsync(size, "/repositories", fakeUser: email);
+        await using var _ = page.Context;
+        await using var guard = PlaywrightErrorGuard.Watch(page);
+
+        var shown = page.Locator(".po-header .po-header__email");
+        await shown.WaitForAsync(new LocatorWaitForOptions { Timeout = 30000 });
+        (await shown.InnerTextAsync()).Trim().Should().Be(email);
+        (await shown.GetAttributeAsync("title")).Should().Be(email, "the full email stays available when it is cut short on a phone");
+
+        var box = (await shown.BoundingBoxAsync())!;
+        box.Y.Should().BeLessThan(56, "it sits in the header bar");
+        box.X.Should().BeGreaterThan(size.Width / 2f, "upper-right");
+        (box.X + box.Width).Should().BeLessThanOrEqualTo(size.Width);
+
+        var title = (await page.Locator(".po-header__title").BoundingBoxAsync())!;
+        title.X.Should().BeLessThan(40, "the app title is top-left");
+
+        var stamp = page.Locator(".po-version");
+        (await stamp.InnerTextAsync()).Should().MatchRegex(@"^v\d{6}$");
+    }
 }

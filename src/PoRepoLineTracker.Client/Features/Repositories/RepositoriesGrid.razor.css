@@ -112,10 +112,10 @@
     flex-wrap: wrap;
 }
 
-.rp-sort { width: auto; min-width: 0; max-width: 8.5rem; height: 2.5rem; flex: 1 1 6.5rem; }
+.rp-sort-controls ::deep .rp-sort { width: auto; min-width: 0; max-width: 9.5rem; flex: 1 1 7.5rem; }
 
 /* The Radzen grid sorts from its column headers (each sortable one carries its own sort
-   arrow) and filters from the funnel on that header. The hand-rolled select and direction
+   arrow) and filters from the funnel on that header. The sort dropdown and direction
    button therefore duplicate the table's own controls and are hidden from it — they stay
    for the card list below 768px, which is custom markup with no header row to click. */
 .rp-sort-controls { display: flex; align-items: center; gap: 0.35rem; min-width: 0; max-width: 100%; }
@@ -147,7 +147,7 @@
     .rp-repo-card { padding: 0.75rem; border: 1px solid var(--border-light); border-radius: 8px; background: var(--surface-raised); }
     .rp-repo-card { display: grid; gap: 0.65rem; }
     .rp-search-controls ::deep .rp-search-input.rp-search-input { flex-basis: 8rem; }
-    .rp-sort { flex: 1 1 7rem; }
+    .rp-sort-controls ::deep .rp-sort { flex: 1 1 7.5rem; }
 }
 
 @media print {

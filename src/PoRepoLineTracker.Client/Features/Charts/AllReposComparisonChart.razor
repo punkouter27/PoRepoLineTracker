@@ -78,7 +78,7 @@
         @* ─── Legend as selector ───────────────────────────────────────────────────
            The legend used to be a static list of every repo, which is exactly the control the
            chart needed and did not have: past about six series the lines are unreadable and there
-           was no way to narrow them. Each entry is a real <button> with aria-pressed, so it is
+           was no way to narrow them. Each entry is a RadzenButton with aria-pressed, so it is
            tab-reachable and its state is announced rather than only shown by opacity. *@
         <div class="arc-legend">
             @for (var index = 0; index < available.Count; index++)
@@ -88,14 +88,14 @@
                 var selected = IsSelected(repo.RepositoryId);
                 var label = $"{repo.Owner}/{repo.RepositoryName}";
 
-                <button type="button"
-                        class="@($"arc-legend__item {(selected ? "arc-legend__item--on" : "arc-legend__item--off")}")"
-                        aria-pressed="@selected"
-                        title="@(selected ? $"Hide {label}" : $"Show {label}")"
-                        @onclick="@(() => ToggleRepository(repo.RepositoryId))">
+                <RadzenButton ButtonStyle="ButtonStyle.Base" Variant="Variant.Flat"
+                              class="@($"arc-legend__item {(selected ? "arc-legend__item--on" : "arc-legend__item--off")}")"
+                              aria-pressed="@(selected ? "true" : "false")"
+                              title="@(selected ? $"Hide {label}" : $"Show {label}")"
+                              Click="@(() => ToggleRepository(repo.RepositoryId))">
                     <span class="arc-legend__swatch @swatchClass"></span>
                     <span class="arc-legend__label">@label</span>
-                </button>
+                </RadzenButton>
             }
 
             @if (available.Count > 1)

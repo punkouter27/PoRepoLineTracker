@@ -204,12 +204,14 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
 .po-link-btn.filled:hover { background: var(--po-accent-hover); border-color: var(--po-accent-hover); }
 .po-link-btn.small { min-height: 32px; padding: 0 var(--po-space-3); font-size: var(--po-text-xs); }
 
-/* ── Shell: build stamp, vYYMMDD, fixed lower-right on every page ── */
+/* ── Shell: build stamp, vYYMMDD, lower-right on every page ──
+   In flow, not fixed: each layout renders it last in its scrolling flex column, and margin-top:auto pushes it to the
+   bottom-right (of the viewport on a short page, under the content on a long one). A fixed badge covered whatever
+   content scrolled beneath it on a phone. */
 .po-version {
-  position: fixed;
-  right: max(var(--po-space-3), env(safe-area-inset-right, 0px));
-  bottom: max(var(--po-space-3), env(safe-area-inset-bottom, 0px));
-  z-index: var(--po-z-stamp);
+  align-self: flex-end;
+  flex: none;
+  margin: auto max(var(--po-space-3), env(safe-area-inset-right, 0px)) max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) 0;
   padding: 2px 8px;
   border-radius: var(--po-radius-pill);
   background: var(--po-surface);
@@ -218,15 +220,6 @@ h1, h2, h3, .po-display { font-family: var(--po-font-display); letter-spacing: -
   font-family: var(--po-font-mono);
   font-size: var(--po-text-xs);
   line-height: 1.6;
-  pointer-events: none;
-  opacity: 0.9;
-}
-/* The stamp never covers content: main keeps a stamp-high gap at its foot. Apps with a bottom nav on phones lift
-   the stamp above it by setting --po-stamp-lift, and main's gap grows by the same amount. */
-main { padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px)); }
-@media (max-width: 768px) {
-  .po-version { bottom: calc(max(var(--po-space-3), env(safe-area-inset-bottom, 0px)) + var(--po-stamp-lift, 0px)); }
-  main { padding-bottom: calc(var(--po-space-6) + var(--po-stamp-lift, 0px) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Shell: /diag status cards ── */
@@ -245,4 +238,6 @@ main { padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom, 0px)
 /* Status pills: --po-text on the soft status background (>= 4.5:1 in both themes), the status colour as the edge. */
 .po-badge--ok { color: var(--po-text); background: var(--po-success-soft); box-shadow: inset 0 0 0 1px var(--po-success); }
 .po-badge--warn { color: var(--po-text); background: var(--po-warning-soft); box-shadow: inset 0 0 0 1px var(--po-warning); }
+/* Off: switched off on purpose (not configured in this environment). Neutral, never counted as a problem. */
+.po-badge--off { color: var(--po-text); background: var(--po-surface-2); box-shadow: inset 0 0 0 1px var(--po-border); }
 .po-badge--bad { color: var(--po-text); background: var(--po-danger-soft); box-shadow: inset 0 0 0 1px var(--po-danger); }

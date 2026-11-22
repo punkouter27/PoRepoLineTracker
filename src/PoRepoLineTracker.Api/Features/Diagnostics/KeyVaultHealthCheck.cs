@@ -1,36 +1,55 @@
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace PoRepoLineTracker.Api.Features.Diagnostics;
 
 /// <summary>
-/// Health check for Azure Key Vault availability. Configuration-only:
-/// Healthy when <c>KeyVault:Uri</c> is set, Degraded otherwise.
-///
-/// <para>The actual credential probe happens at startup inside <c>Program.cs</c> (via
-/// <c>DefaultAzureCredential</c>) and surfaces through <c>/diag</c> as
-/// Healthy / Degraded. The description never names the vault: /health and /api/diag are
-/// anonymous. A runtime credential round-trip on every health check would
-/// either add a network call per probe or be cached and lie about its freshness — neither is
-/// worth the cost when the registration shape is the contract: a missing URI is the single
-/// thing that means "this app cannot read its secrets".</para>
+/// Health check for Azure Key Vault: a live call. Lists one page (one entry) of secret names with the app's own
+/// credential, the same read the configuration provider does at startup, so it proves the vault answers AND the
+/// managed identity may still read it. Off (see <see cref="DiagOff"/>) when <c>KeyVault:Uri</c> is unset (secrets come from local settings);
+/// Degraded when the call fails (the app keeps the secrets it loaded at startup). The description never names the vault:
+/// /health and /api/diag are anonymous.
 /// </summary>
 public sealed class KeyVaultHealthCheck(
     IConfiguration configuration,
     ILogger<KeyVaultHealthCheck> logger) : IHealthCheck
 {
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    // One credential for the process, so its token cache is reused between probes.
+    private static readonly Lazy<DefaultAzureCredential> Credential = new(() => new DefaultAzureCredential());
+
+    /// <summary>The live call. Replaceable so unit tests do not need a vault.</summary>
+    internal Func<Uri, CancellationToken, Task> Probe { get; init; } = ListOneSecretNameAsync;
+
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var uri = configuration[ConfigKeys.KeyVault.Uri];
-        var result = string.IsNullOrWhiteSpace(uri)
-            ? HealthCheckResult.Degraded("KeyVault:Uri is not configured — secrets fall back to user-secrets / environment variables")
-            : HealthCheckResult.Healthy("KeyVault is configured");
-
-        if (result.Status == HealthStatus.Degraded)
+        if (string.IsNullOrWhiteSpace(uri))
         {
-            logger.LogDebug("Health check: {Description}", result.Description);
+            return DiagOff.Result("KeyVault:Uri is not configured; secrets come from local settings or environment variables");
         }
 
-        return Task.FromResult(result);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            await Probe(new Uri(uri), timeout.Token);
+            return HealthCheckResult.Healthy("Key Vault answered a live call");
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Key Vault health check failed");
+            return HealthCheckResult.Degraded("Key Vault did not answer", ex);
+        }
+    }
+
+    private static async Task ListOneSecretNameAsync(Uri vault, CancellationToken ct)
+    {
+        var client = new SecretClient(vault, Credential.Value);
+        await foreach (var _ in client.GetPropertiesOfSecretsAsync(ct).AsPages(pageSizeHint: 1).WithCancellation(ct))
+        {
+            return;
+        }
     }
 }

@@ -1,7 +1,7 @@
 @using System.Reflection
 
-@* The Po build stamp, vYYMMDD, bottom-right on every page. Rendered once, by App.razor (not by a layout, which put a
-   second copy over the first on the sign-in page). The value comes from Directory.Build.props, which stamps the
+@* The Po build stamp, vYYMMDD, bottom-right on every page. Each layout renders it once, last in its scrolling column
+   (MainLayout inside RadzenBody, BareLayout after main), so it sits in flow and never covers content. The value comes from Directory.Build.props, which stamps the
    server too, so /api/diag reports the same one. *@
 @if (Stamp is not null)
 {

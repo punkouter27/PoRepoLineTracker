@@ -34,10 +34,13 @@ public sealed class LoginPageUiTests
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
         await page.WaitForSelectorAsync("button, a", new PageWaitForSelectorOptions { Timeout = 20000 });
 
-        var signIn = page.GetByText("Sign in", new PageGetByTextOptions { Exact = false });
-        (await signIn.CountAsync()).Should().BeGreaterThan(0);
-        (await page.Locator(".po-header [data-testid=header-sign-in].po-link-btn").IsVisibleAsync())
-            .Should().BeTrue("the header's Sign in button shows on every page, the sign-in page included");
+        // The Po rule: the sign-in page shows only the title and ONE sign-in button.
+        (await page.Locator(".po-header .po-header__title").InnerTextAsync()).Should().Contain("PoRepoLineTracker");
+        (await page.Locator(".po-header a:not(.po-header__title), .po-header button").CountAsync())
+            .Should().Be(0, "the header on the sign-in page carries only the title (no Sign in, no gear)");
+        var actions = page.Locator("main button:visible, main a:visible");
+        (await actions.CountAsync()).Should().Be(1, "the page offers exactly one action");
+        (await actions.First.InnerTextAsync()).Should().Contain("Sign in with GitHub");
 
         errors.Should().BeEmpty("a clean boot logs no console errors");
     }

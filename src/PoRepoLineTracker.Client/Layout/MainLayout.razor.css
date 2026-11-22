@@ -34,10 +34,3 @@
 .po-error-actions {
     margin-top: 0.75rem;
 }
-
-@media (max-width: 768px) {
-    /* Clear the bottom bar and the version stamp above it (--po-stamp-lift, app.css). */
-    .app-content {
-        padding-bottom: calc(var(--po-space-6) + var(--po-stamp-lift, 0px) + env(safe-area-inset-bottom));
-    }
-}

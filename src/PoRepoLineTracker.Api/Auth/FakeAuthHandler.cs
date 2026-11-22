@@ -82,6 +82,10 @@ internal sealed class FakeAuthHandler : AuthenticationHandler<AuthenticationSche
             new(ClaimTypes.Name, user)
         };
 
+        // A persona that looks like an email also carries it as the email claim, as a GitHub sign-in with a shared
+        // email does, so tests can check the header shows the signed-in email.
+        if (user.Contains('@', StringComparison.Ordinal)) claims.Add(new Claim(ClaimTypes.Email, user));
+
         if (Request.Headers.TryGetValue(RolesHeader, out var rawRoles))
         {
             claims.AddRange(rawRoles

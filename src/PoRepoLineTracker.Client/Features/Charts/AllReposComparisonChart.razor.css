@@ -22,10 +22,10 @@
     align-items: start;
 }
 
-/* Each entry became a <button> when the legend turned into the series selector. The reset here
-   is what keeps it looking like a legend rather than a form control; the interaction affordances
-   (cursor, hover, focus ring) are added back deliberately below. */
-.arc-legend__item {
+/* Each entry is a RadzenButton (series selector). The reset here, doubled to outrank .rz-button and
+   reached through ::deep because Radzen renders the element, keeps it looking like a legend rather
+   than a form control; the interaction affordances (cursor, hover, focus ring) are added back below. */
+.arc-legend ::deep .arc-legend__item.arc-legend__item {
     display: flex;
     align-items: flex-start;
     gap: 0.45rem;
@@ -45,16 +45,22 @@
        decoration. Caught only once the UI tier began seeding chart data: with no chart on the
        page there was no legend to measure, so the tap-target test had been passing vacuously. */
     min-height: 24px;
+    height: auto;
     align-content: center;
+    justify-content: flex-start;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    box-shadow: none;
 }
 
-.arc-legend__item:hover {
+.arc-legend ::deep .arc-legend__item.arc-legend__item:hover {
     background: var(--bg-tertiary);
 }
 
 /* Not `outline: none` — the legend is now keyboard-operable and needs a visible focus ring.
    The default ring is kept and simply pulled in off the rounded edge. */
-.arc-legend__item:focus-visible {
+.arc-legend ::deep .arc-legend__item.arc-legend__item:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 1px;
 }
@@ -62,12 +68,19 @@
 /* Deselected series stay listed rather than disappearing, so the set of things you can turn back
    on does not shift under the pointer. Struck through as well as dimmed: opacity alone is not a
    reliable signal, and aria-pressed carries the state for assistive tech either way. */
-.arc-legend__item--off {
+.arc-legend ::deep .arc-legend__item--off.arc-legend__item--off {
     opacity: 0.45;
 }
 
-.arc-legend__item--off .arc-legend__label {
+.arc-legend ::deep .arc-legend__item--off .arc-legend__label {
     text-decoration: line-through;
+}
+
+.arc-legend ::deep .arc-legend__item .rz-button-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
 }
 
 .arc-legend__bulk {

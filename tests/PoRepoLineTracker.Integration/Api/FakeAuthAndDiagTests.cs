@@ -60,10 +60,19 @@ public class RealAuthFactory : WebApplicationFactory<Program>
 
             // The GitHub health check must not reach api.github.com from a test.
             services.AddHttpClient("GitHubClient").ConfigurePrimaryHttpMessageHandler(() => new StubGitHubHandler());
+            // Nor may the live service probes (GitHub sign-in token endpoint): GitHub's answer to a made-up code.
+            services.AddHttpClient("DiagProbe").ConfigurePrimaryHttpMessageHandler(() => new StubJsonHandler("{\"error\":\"bad_verification_code\"}"));
         });
 
         builder.UseEnvironment("Test");
     }
+}
+
+/// <summary>Answers any request with 200 and a fixed JSON body.</summary>
+internal sealed class StubJsonHandler(string json) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") });
 }
 
 /// <summary>Answers the GitHub health probe locally: 200 with a healthy rate-limit budget.</summary>
@@ -96,6 +105,19 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
         if (user is not null) request.Headers.Add(FakeAuthHandler.UserHeader, user);
         if (roles is not null) request.Headers.Add(FakeAuthHandler.RolesHeader, roles);
         return request;
+    }
+
+    // ── Validators ───────────────────────────────────────────────────────────────────
+
+    /// <summary>The endpoints' validators are registered by type (no assembly scanning), so the host resolves them.</summary>
+    [Fact]
+    public void Validators_Are_Registered_By_Type()
+    {
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<FluentValidation.IValidator<PoRepoLineTracker.Shared.Models.Dtos.BulkRepositoryDto>>()
+            .Should().BeOfType<PoRepoLineTracker.Shared.Models.BulkRepositoryDtoValidator>();
+        scope.ServiceProvider.GetRequiredService<FluentValidation.IValidator<PoRepoLineTracker.Shared.Domain.UserPreferences>>()
+            .Should().BeOfType<PoRepoLineTracker.Shared.Models.UserPreferencesValidator>();
     }
 
     // ── FakeAuthHandler ───────────────────────────────────────────────────────────────
@@ -195,6 +217,34 @@ public class FakeAuthAndDiagTests : IClassFixture<RealAuthFactory>
         var groups = json.GetProperty("checks").EnumerateArray().Select(c => c.GetProperty("group").GetString()).ToHashSet();
         groups.Should().Contain("api").And.Contain("service", "the /diag page lists API, Data and Services");
         groups.Should().BeSubsetOf(["api", "data", "service"]);
+    }
+
+    /// <summary>
+    /// Services switched off on purpose (no Key Vault URI, no telemetry exporter here) show the neutral "Off", made no
+    /// call, and do not pull the overall status down; GitHub sign-in is a live probe (stubbed here).
+    /// </summary>
+    [Fact]
+    public async Task ApiDiag_Shows_Unconfigured_Services_As_Off_And_Leaves_Them_Out_Of_The_Overall_Status()
+    {
+        var json = await (await CreateClient().SendAsync(Get("/api/diag"))).Content.ReadFromJsonAsync<JsonElement>();
+        var checks = json.GetProperty("checks").EnumerateArray()
+            .ToDictionary(c => c.GetProperty("name").GetString()!, c => c);
+
+        foreach (var off in new[] { "key-vault", "telemetry" })
+        {
+            checks[off].GetProperty("status").GetString().Should().Be("Off", $"{off} is not configured in this test host");
+            checks[off].GetProperty("latencyMs").GetDouble().Should().Be(0);
+            checks[off].GetProperty("problem").ValueKind.Should().Be(JsonValueKind.Null);
+        }
+
+        // No GitHub OAuth scheme ends up registered in this host (AddAuth reads its settings early), and Test is
+        // not Production, so sign-in is Off here too; GitHubSignIn_check_* (Unit) covers the live probe's answers.
+        checks["github-sign-in"].GetProperty("status").GetString().Should().Be("Off");
+        checks["github-api"].GetProperty("detail").GetString().Should().Be("Checked with a live call.");
+
+        var counted = checks.Values.Select(c => c.GetProperty("status").GetString()).Where(s => s != "Off").ToList();
+        var expected = counted.Contains("Unhealthy") ? "Unhealthy" : counted.Contains("Degraded") ? "Degraded" : "Healthy";
+        json.GetProperty("status").GetString().Should().Be(expected, "Off rows never count toward the overall status");
     }
 
     /// <summary>

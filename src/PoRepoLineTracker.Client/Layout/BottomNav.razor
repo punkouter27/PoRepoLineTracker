@@ -1,14 +1,10 @@
+@* The phone form of the sidebar: the same AppNav list, so both always offer the same destinations. *@
 <nav class="bottom-nav" aria-label="Mobile navigation">
-    <NavLink class="bottom-nav-link" href="@AppRoutes.Repositories" Match="NavLinkMatch.All">
-        <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
-        <span>Repositories</span>
-    </NavLink>
-    <NavLink class="bottom-nav-link" href="@AppRoutes.Insights">
-        <span class="material-symbols-outlined" aria-hidden="true">insights</span>
-        <span>Insights</span>
-    </NavLink>
-    <NavLink class="bottom-nav-link" href="@AppRoutes.Settings">
-        <span class="material-symbols-outlined" aria-hidden="true">settings</span>
-        <span>Settings</span>
-    </NavLink>
+    @foreach (var item in AppNav.Groups.SelectMany(g => g.Items))
+    {
+        <NavLink class="bottom-nav-link" href="@item.Href" Match="@item.Match">
+            <span class="material-symbols-outlined" aria-hidden="true">@item.Icon</span>
+            <span>@item.Label</span>
+        </NavLink>
+    }
 </nav>

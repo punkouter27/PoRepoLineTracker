@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using AspNet.Security.OAuth.GitHub;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PoRepoLineTracker.Api.Platform;
 using Serilog;
@@ -19,6 +17,8 @@ internal static class DiagnosticsEndpoints
         ["azure-table-storage"] = ("Azure Table Storage", "Stores your tracked repositories, line-count history and settings.", true),
         ["key-vault"] = ("Azure Key Vault", "Holds the app's secrets, such as the GitHub sign-in keys.", false),
         ["github-api"] = ("GitHub API", "Reads your repositories and their commit history.", false),
+        ["github-sign-in"] = ("GitHub sign-in", "Signs you in with your GitHub account (OAuth).", false),
+        ["telemetry"] = ("Telemetry export", "Sends traces and metrics to Application Insights or an OTLP collector. Optional.", false),
     };
 
     internal static void MapDiagnosticsEndpoints(this IEndpointRouteBuilder endpoints)
@@ -34,8 +34,7 @@ internal static class DiagnosticsEndpoints
     }
 
     private static async Task<IResult> GetAsync(
-        IConfiguration configuration, IWebHostEnvironment env, HealthCheckService healthChecks,
-        IAuthenticationSchemeProvider schemes, CancellationToken ct)
+        IWebHostEnvironment env, HealthCheckService healthChecks, CancellationToken ct)
     {
         var watch = Stopwatch.StartNew();
         var checks = new List<DiagCheckDto>
@@ -60,26 +59,22 @@ internal static class DiagnosticsEndpoints
         foreach (var (key, entry) in report.Entries)
         {
             var (label, purpose, isStorage) = Known.TryGetValue(key, out var known) ? known : (key, "Dependency check.", false);
+            // Off: the dependency is switched off on purpose here (not configured). Neutral, no call made, and it does
+            // not count toward the overall status.
+            if (DiagOff.IsOff(entry))
+            {
+                checks.Add(new DiagCheckDto(
+                    key, isStorage ? "data" : "service", label, "Off", purpose,
+                    "Switched off in this environment; no call made.", 0, null));
+                continue;
+            }
+
             var problem = NoteFor(key, entry.Status);
             if (problem is not null && entry.Exception is not null) problem += $" ({entry.Exception.GetType().Name})";
             checks.Add(new DiagCheckDto(
                 key, isStorage ? "data" : "service", label, entry.Status.ToString(), purpose,
                 "Checked with a live call.", Math.Round(entry.Duration.TotalMilliseconds, 1), problem));
         }
-
-        // Configuration-only rows: no probe, so no latency, and they do not change /health.
-        var signIn = await schemes.GetSchemeAsync(GitHubAuthenticationDefaults.AuthenticationScheme) is not null;
-        checks.Add(new DiagCheckDto(
-            "github-sign-in", "service", "GitHub sign-in", signIn ? "Healthy" : "Degraded",
-            "Signs you in with your GitHub account (OAuth).", "Configuration check, no call made.", 0,
-            signIn ? null : "Not configured on this server; GitHub sign-in is unavailable."));
-
-        var telemetry = TelemetrySettings.IsAppInsightsConfigured(configuration) || TelemetrySettings.IsOtlpConfigured(configuration);
-        checks.Add(new DiagCheckDto(
-            "telemetry", "service", "Telemetry export", telemetry ? "Healthy" : "Degraded",
-            "Sends traces and metrics to Application Insights or an OTLP collector. Optional.",
-            "Configuration check, no call made.", 0,
-            telemetry ? null : "Not configured; the app runs without it."));
 
         var status = checks.Any(c => c.Status == "Unhealthy") ? "Unhealthy"
             : checks.Any(c => c.Status == "Degraded") ? "Degraded"
@@ -93,8 +88,11 @@ internal static class DiagnosticsEndpoints
     private static string? NoteFor(string key, HealthStatus status) => (key, status) switch
     {
         (_, HealthStatus.Healthy) => null,
-        ("key-vault", _) => "Not configured; secrets come from local settings or environment variables.",
+        ("key-vault", _) => "Not configured or did not answer; the app keeps the secrets it loaded at startup.",
         ("github-api", _) => "Unreachable, rate-limited or missing a credential; cached reads still work.",
+        ("github-sign-in", HealthStatus.Unhealthy) => "GitHub rejected the app's sign-in credentials; nobody can sign in.",
+        ("github-sign-in", _) => "Not configured or GitHub did not answer; sign-in may be unavailable.",
+        ("telemetry", _) => "Not configured or not reachable; the app runs without it.",
         ("azure-table-storage", _) => "Storage could not be reached; nothing can be loaded or saved.",
         _ => "Check reported a problem.",
     };

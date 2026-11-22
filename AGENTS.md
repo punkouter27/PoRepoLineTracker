@@ -34,12 +34,13 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
 ### Page shell (every page, signed in or out, including the sign-in page)
 - Header `.po-header`, height 56px, sticky: app name top-left (`.po-header__title`, links to `/`).
 - Top-right `.po-header__actions`: signed-in user's **email** (`.po-header__email`, full email, ellipsis at 16ch on
-  phones) — or, signed out, one **Sign in** button `class="po-link-btn filled small"` (same style on every page) —
-  then the settings gear ONLY if the app has a settings page (the owner removed settings from some apps — don't
-  re-add it). Apps without OAuth show nothing in place of the email (no fake identity chips).
-- Version badge `.po-version` fixed bottom-right showing `vYYMMDD`. It must never cover content: `main` gets
-  `padding-bottom: calc(var(--po-space-6) + env(safe-area-inset-bottom))`, and when a mobile bottom nav exists the
-  badge sits above it (`--po-stamp-lift: <nav height>`).
+  phones) — or, signed out, one **Sign in** link `class="po-link-btn filled small"` (same style on every page) —
+  then the settings gear ONLY if the app has a settings page and the user is signed in (the owner removed settings
+  from some apps — don't re-add it). Apps without OAuth show nothing in place of the email (no fake identity chips).
+- The sign-in page (`/login`) shows only the title (header with the name alone) and ONE "Sign in with GitHub" button.
+- Version badge `.po-version` bottom-right showing `vYYMMDD`. It is in flow, not fixed: each layout renders it last
+  in its scrolling column, so it sits bottom-right on a short page and after the content on a long one (phones
+  included) and never covers anything.
 - Colours only from `wwwroot/css/po-tokens.css` (`--po-*`). All text ≥ 4.5:1 contrast in light AND dark mode
   (status banners: use `--po-text` on `--po-*-soft` backgrounds, never warning-on-peach).
 - Login-only data must not be requested for signed-out visitors (no 401s in the console on public pages), and
@@ -55,13 +56,15 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   DiagReportDto(string Status, string Environment, string Version, DateTimeOffset CheckedAt, double CheckedMs,
                 DiagCheckDto[] Checks)
   DiagCheckDto(string Name, string Group /* "api" | "data" | "service" */, string Label, string Status
-               /* Healthy|Degraded|Unhealthy */, string Purpose, string Detail, double LatencyMs, string? Problem)
+               /* Healthy|Degraded|Unhealthy|Off */, string Purpose, string Detail, double LatencyMs, string? Problem)
   ```
 - UI route `/diag` ONLY (delete other diagnostics pages/routes such as `/system`, `/diagnostics`, `/status`). Page
   `<title>` and `h1`: **System status**. Layout: overall banner in plain words ("Everything is working" /
   "Working, with N things degraded" / "Not working: …"), then three sections in this order: **API**, **Data**,
   **Services**; each row = label, purpose, status pill, latency ms, problem/detail text. Every external dependency
-  the app really calls appears as a check. Anonymous, nothing secret in the payload.
+  the app really calls appears as a check, checked with a LIVE call (a configuration-only check is a bug). A
+  service switched off on purpose (its setting absent) shows the neutral grey **Off** and never counts toward the
+  banner. Anonymous, nothing secret in the payload.
 
 ### Workflow (`.github/workflows/deploy.yml`, the only one)
 push to master → format check → build (Release, warnings as errors) → Unit tests → Integration tests (Testcontainers /
@@ -92,16 +95,18 @@ Several sessions (people and agents) commit to this repo, sometimes at the same 
 
 ## 3. Verification
 
-Tested 2026-11-20 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`).
+Tested 2026-11-21 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`). A full run is every row below
+in order; all must pass with 0 warnings and 0 skips (a skip means a dependency was missing, not a pass), and a test
+that fails only sometimes counts as failing.
 
 | Step | Command | Needs / without it |
 | --- | --- | --- |
 | Format | `dotnet format PoRepoLineTracker.slnx --verify-no-changes` | — |
 | Build | `dotnet build PoRepoLineTracker.slnx -c Release` (warnings are errors) | — |
-| Unit (142) | `dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build` | nothing |
-| Integration (38) | `dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build` | Docker for Testcontainers Azurite; without it prints "Docker is not running…" and runs on in-memory substitutes |
-| E2E API (25) | `E2E_BASE_URL=http://localhost:7208 dotnet test tests/PoRepoLineTracker.E2EAPI -c Release --no-build` | a running app; otherwise every test skips ("No app instance reachable at …") |
-| E2E UI (21) | `E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI -c Release --no-build` | a running app over HTTPS + Playwright browsers; otherwise skips |
+| Unit (151) | `dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build` | nothing |
+| Integration (40) | `dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build` | Docker for Testcontainers Azurite; without it prints "Docker is not running…" and runs on in-memory substitutes |
+| E2E API (25) + E2E UI (26) | `pwsh scripts/run-e2e.ps1` (or `-Tier E2EAPI` / `-Tier E2EUI`) | Docker + Playwright browsers. Publishes the TRIMMED Release build (`-p:WasmApplicationEnvironmentName=Test`, the deploy's trimming with the dev sign-in allowed) to the temp folder, starts Azurite + that publish as `Test` on https://localhost:7207 / http://localhost:7208, runs both tiers, stops what it started |
+| E2E against a dev server | `E2E_BASE_URL=http://localhost:7208 dotnet test tests/PoRepoLineTracker.E2EAPI -c Release --no-build`; `E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI -c Release --no-build` | a running app; otherwise every test skips ("No app instance reachable at …"). Quick loop only; the browser tier counts only against the publish above |
 | Run locally | `ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="https://localhost:7207;http://localhost:7208" KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile` | Azurite on :10002 (`docker compose up -d`) or `AzureTableStorage__ConnectionString`; → https://localhost:7207 |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, build, Unit, Integration, publish, deploy); `*.md` and `SCREENSHOTS/**` are paths-ignored | repo variables for OIDC |
 | Deploy check | `curl -sI https://app-porepolinetracker2.azurewebsites.net/health/live` → `X-Commit: <pushed sha>`; `pwsh scripts/post-deploy-smoke.ps1 -BaseUrl https://app-porepolinetracker2.azurewebsites.net` | — |
@@ -110,6 +115,12 @@ Tested 2026-11-20 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeat
 ## Repo-specific notes
 
 ### Exceptions to the standard (deliberate)
+
+- **Radzen only (owner decision 2026-11-21: Radzen wins).** Every control is a Radzen component; the two pickers that
+  were native `<select>`s (Insights view, phone sort on Repositories) are `RadzenDropDown`s over plain strings (no
+  `TextProperty`/`ValueProperty`, so trimming cannot break them; `DropDownUiTests` proves it on the trimmed publish).
+  The only allowed native controls are native file inputs for resumable uploads, native audio/video, and read-only
+  data tables; this app uses none of them today. Header links (`.po-link-btn`, the gear) are links, not controls.
 
 - **Sign-in is GitHub OAuth, not Microsoft.** The app reads the user's repositories with the user's GitHub token, so
   GitHub is the only provider that works (a Microsoft account has no repository access). The header shows the
@@ -136,10 +147,10 @@ docker compose up -d                                          # Azurite (tables)
 dotnet build PoRepoLineTracker.slnx                           # warnings are errors (Directory.Build.props)
 dotnet run --project src/PoRepoLineTracker.Api --launch-profile https   # https://localhost:5001, hosts the WASM client too
 
-dotnet test tests/PoRepoLineTracker.Unit                      # 142 tests; CI runs it
-dotnet test tests/PoRepoLineTracker.Integration               # 38 tests; CI runs it. Testcontainers Azurite when Docker runs, in-memory substitutes (with a message) when not
+dotnet test tests/PoRepoLineTracker.Unit                      # 151 tests; CI runs it
+dotnet test tests/PoRepoLineTracker.Integration               # 40 tests; CI runs it. Testcontainers Azurite when Docker runs, in-memory substitutes (with a message) when not
 dotnet test tests/PoRepoLineTracker.E2EAPI                    # 25 tests; needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI                     # 21 tests; needs the app running + `playwright.ps1 install` once
+dotnet test tests/PoRepoLineTracker.E2EUI                     # 26 tests; needs the app running + `playwright.ps1 install` once
 # Both E2E tiers SKIP every test when nothing answers at E2E_BASE_URL (API default http://localhost:5002,
 # UI default https://localhost:5003; the UI tier needs HTTPS because of upgrade-insecure-requests), e.g.
 # ASPNETCORE_URLS=https://localhost:7207 KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile
@@ -163,8 +174,8 @@ One deployable: `PoRepoLineTracker.Api` (ASP.NET Core 10 minimal APIs) serves th
 - **Middleware order in `Program.cs` is load-bearing.** Static files come before auth, then `ApiNotFoundMiddleware` (404 for unmatched `/api` GETs, never a catch-all route), then authentication, authorization, rate limiting, `ProductionAuthEnforcementMiddleware`, and `AntiforgeryMiddleware` (after authorization, so unauthenticated writes get 401 rather than 400).
 - **Analysis pipeline.** Bulk-add (`/api/repositories/bulk`, the only write path) and re-analyse enqueue `AnalyzeRepositoryCommits` on `AnalysisQueue` (a channel with two workers; never `Task.Run`). Everything git is the `git` CLI (no native library; libgit2 crashed on App Service Linux): `GitClient` clones/fetches into `repo_{id}` and runs `git log`, and `GitObjectReader` reads trees and blobs through one `git cat-file --batch`. `GitHubService` walks commits with per-tree memoization, `SourceLineCounter` + `FileIgnoreFilter` + `CommentSyntax` count lines, and `RepositoryDataService` writes per-commit snapshots. Progress goes through `AnalysisProgressService` to the SignalR hub `/hubs/analysis`. The client's fallback poll synthesises the same frames, so there is only one completion path. At startup `AnalysisQueue` re-queues unfinished work (rows never attempted, or carrying `AnalysisQueuedUtc`).
 - **Single sources of truth.** Repository size is the newest commit's `TotalLines` snapshot, never a sum (`Shared/Domain/RepositoryTotals`). Streaks are in `CommitStreaks`, repo ownership checks in `Auth/RepositoryOwnership`, and config keys in `Shared/Models/ConfigKeys`.
-- **Client.** Radzen.Blazor UI. Pages and their components are in `Features/<Feature>/`, layout in `Layout/`. Scoped `.razor.css` must be rooted at a plain `<div>`; use `::deep` for anything Radzen renders. Every wire type needs a `[JsonSerializable]` entry in `AppJsonSerializerContext`, otherwise trimming breaks it at runtime. The API builds with the trim/AOT analyzers and the Request Delegate Generator, so reflection-based JSON or binding is a build error there too; server-only payloads go in `ApiJsonContext`. The `vYYMMDD` label in the bottom-right corner (`Layout/BuildVersion`, `.po-version`, rendered once by `App.razor`) is the UTC date of the HEAD commit (the build date when git is absent), the `BuildVersion` `AssemblyMetadata` item that `Directory.Build.props` adds to every project (the only version key), so `/api/diag` and `/health/live` report the same value. It is separate from MinVer, which versions the assemblies from `v*` git tags.
-- **Po shell (2026-11-18).** One header on every page, signed in or out (`Layout/PoHeader`, in `MainLayout` and in `BareLayout` above the sign-in card): the name top-left; top-right the signed-in account's email (GitHub's, via the `user:email` scope; the GitHub login when GitHub shares none), or Sign in, then the Settings gear (`data-testid=header-settings`). Sign out and the dev persona picker are in Settings' account card. No theme toggle and no drawer toggle: light and dark follow the device (`prefers-color-scheme` picks Radzen's material or material-dark sheet in `index.html`), the sidebar stays open on wide screens and phones use the bottom bar. `css/po-tokens.css` (tokens, header, `.po-link-btn`, version stamp, /diag cards and pills), `fonts/`, `js/po-devwindow.js`, `js/po-dev.js` and `po-dev.html` are this repo's own copies of the Po look; edit them here like any other file. `app.css` aliases this app's variables to the `--po-*` tokens (indigo accent, Inter text, Space Grotesk headings). `/diag` (`Features/Diag/Diag.razor`, title and h1 "System status") shows a plain-words banner, then API / Data / Services as `.po-diag__card`s with `.po-badge`s, from `GET /api/diag` (`DiagReportDto`). Tab while nothing has focus opens `/po-dev.html`, which reads `/health/live` (`X-Commit`) and `/api/diag`.
+- **Client.** Radzen.Blazor UI. Pages and their components are in `Features/<Feature>/`, layout in `Layout/`. Scoped `.razor.css` must be rooted at a plain `<div>`; use `::deep` for anything Radzen renders. Every wire type needs a `[JsonSerializable]` entry in `AppJsonSerializerContext`, otherwise trimming breaks it at runtime. The API builds with the trim/AOT analyzers and the Request Delegate Generator, so reflection-based JSON or binding is a build error there too; server-only payloads go in `ApiJsonContext`. The `vYYMMDD` label in the bottom-right corner (`Layout/BuildVersion`, `.po-version`, rendered once by each layout, last in its scrolling column) is the UTC date of the HEAD commit (the build date when git is absent), the `BuildVersion` `AssemblyMetadata` item that `Directory.Build.props` adds to every project (the only version key), so `/api/diag` and `/health/live` report the same value. It is separate from MinVer, which versions the assemblies from `v*` git tags.
+- **Po shell (2026-11-18).** One header on every page, signed in or out (`Layout/PoHeader`, in `MainLayout` and in `BareLayout` above the sign-in card): the name top-left; top-right the signed-in account's email (GitHub's, via the `user:email` scope; the GitHub login when GitHub shares none), or Sign in (a link to `/login`), then the Settings gear (`data-testid=header-settings`, signed in only). On `/login` the header is the name alone. Signed out there is no sidebar or bottom bar (every destination would bounce to `/login`); the bottom bar is built from the same `AppNav` list as the sidebar. Sign out and the dev persona picker are in Settings' account card. No theme toggle and no drawer toggle: light and dark follow the device (`prefers-color-scheme` picks Radzen's material or material-dark sheet in `index.html`), the sidebar stays open on wide screens and phones use the bottom bar. `css/po-tokens.css` (tokens, header, `.po-link-btn`, version stamp, /diag cards and pills), `fonts/`, `js/po-devwindow.js`, `js/po-dev.js` and `po-dev.html` are this repo's own copies of the Po look; edit them here like any other file. `app.css` aliases this app's variables to the `--po-*` tokens (indigo accent, Inter text, Space Grotesk headings). `/diag` (`Features/Diag/Diag.razor`, title and h1 "System status") shows a plain-words banner, then API / Data / Services as `.po-diag__card`s with `.po-badge`s, from `GET /api/diag` (`DiagReportDto`). Tab while nothing has focus opens `/po-dev.html`, which reads `/health/live` (`X-Commit`) and `/api/diag`.
 - **Effects.** Decoration lives in `wwwroot/js/backdrop.js`, `fx.js` (sound, particle overlay, SVG filters, pointer surfaces) and `city.js` (the Insights year view), styled by `effects.css`. Never on a data path: call them through interop in try/catch, and pass lists as comma-joined strings. The sound and effects switches are in Settings. See docs/spec.md §10 "Effects".
 - **Config/secrets.** Key Vault secrets are prefixed `PoRepoLineTracker--` (`PrefixKeyVaultSecretManager`). Local overrides go in the gitignored `appsettings.Development.local.json` (copy the `.template`), which loads after Key Vault. Never use user-secrets. Optional features (App Insights, OTLP) are off when their key is absent, and the app must still boot.
 - **Infra/CI.** Bicep is `infra/main.bicep` + `infra/main.bicepparam` (modules in `infra/modules/`), applied by hand (`az deployment sub what-if` first), never by CI. See "CI/CD and Azure" below.
@@ -172,8 +183,8 @@ One deployable: `PoRepoLineTracker.Api` (ASP.NET Core 10 minimal APIs) serves th
 ### CI/CD and Azure
 
 - `.github/workflows/deploy.yml` is the only workflow. A push to `master` checks formatting
-  (`dotnet format --verify-no-changes`), builds Release (warnings are errors), runs the Unit tier (142 tests) and
-  the Integration tier (38 tests, Testcontainers Azurite on the runner's Docker), publishes, deploys and waits for
+  (`dotnet format --verify-no-changes`), builds Release (warnings are errors), runs the Unit tier (151 tests) and
+  the Integration tier (40 tests, Testcontainers Azurite on the runner's Docker), publishes, deploys and waits for
   `/health/live` to report the pushed commit in `X-Commit`. A red check stops the deploy and the live site keeps its
   last good build. E2E tiers, Bicep (`scripts/ci-checks.ps1`) and `scripts/post-deploy-smoke.ps1` run locally.
   There is no infra job, rollback or PR build. Nothing is deployed by hand.
