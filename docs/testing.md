@@ -4,10 +4,10 @@ Four tiers (counts as of 2026-11-21):
 
 | Tier | Tests | What | Where it runs |
 | --- | --- | --- | --- |
-| `PoRepoLineTracker.Unit` | 151 | Pure logic, no I/O | CI + locally |
+| `PoRepoLineTracker.Unit` | 152 | Pure logic, no I/O | CI + locally |
 | `PoRepoLineTracker.Integration` | 40 | API and storage behaviour through the ASP.NET host | CI + locally |
 | `PoRepoLineTracker.E2EAPI` | 25 | API contract against a running host | locally |
-| `PoRepoLineTracker.E2EUI` | 26 | Playwright browser flows (mobile + desktop) | locally, against the trimmed Release publish (`pwsh scripts/run-e2e.ps1`) |
+| `PoRepoLineTracker.E2EUI` | 27 | Playwright browser flows (mobile + desktop) | locally, against the trimmed Release publish (`pwsh scripts/run-e2e.ps1`) |
 
 - **Integration** uses Testcontainers Azurite when Docker is running. Without Docker it prints
   "Docker is not running, so the Integration tier uses in-memory storage substitutes…" and runs against substitutes

@@ -1204,11 +1204,6 @@ a:focus-visible {
     color: var(--text-primary);
 }
 
-.login-card .login-tagline,
-.login-card .login-footnote {
-    color: var(--text-secondary);
-}
-
 .login-logomark {
     position: relative;
     width: 64px; height: 64px;

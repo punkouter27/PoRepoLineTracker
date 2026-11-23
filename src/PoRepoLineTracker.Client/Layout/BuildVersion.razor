@@ -5,7 +5,8 @@
    server too, so /api/diag reports the same one. *@
 @if (Stamp is not null)
 {
-    <span class="po-version">v@(Stamp)</span>
+    @* A <footer> (the page's contentinfo landmark) so the stamp is inside a landmark: axe "region" flagged the bare span. *@
+    <footer class="po-version">v@(Stamp)</footer>
 }
 
 @code {

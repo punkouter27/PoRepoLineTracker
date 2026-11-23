@@ -38,6 +38,26 @@ public sealed class StatusAndHeaderUiTests
         var overflow = await page.EvaluateAsync<int>(
             "() => document.documentElement.scrollWidth - document.documentElement.clientWidth");
         overflow.Should().BeLessThanOrEqualTo(1);
+
+        // Signed out there is no navigation (every destination would bounce to the sign-in page).
+        (await page.Locator(".rz-sidebar, .bottom-nav, nav").CountAsync())
+            .Should().Be(0, "navigation is hidden while signed out");
+        (await page.Locator("[data-testid=header-sign-in]").CountAsync()).Should().Be(1);
+    }
+
+    /// <summary>Radzen's theme sheet loads before the app's own sheets, so the app's rules win on equal specificity.</summary>
+    [SkippableFact]
+    public async Task Radzen_Css_Loads_Before_The_App_Css()
+    {
+        var page = await _fixture.OpenAsync(E2EUiFixture.Desktop, "/diag");
+        await using var _ = page.Context;
+
+        var sheets = await page.EvaluateAsync<string[]>(
+            "() => [...document.querySelectorAll('link[rel=stylesheet]')].map(l => new URL(l.href).pathname)");
+        var radzen = Array.FindLastIndex(sheets, s => s.StartsWith("/_content/Radzen.Blazor/css/", StringComparison.Ordinal));
+        var app = Array.FindIndex(sheets, s => s is "/css/po-tokens.css" or "/css/app.css" || s.EndsWith(".styles.css", StringComparison.Ordinal));
+        radzen.Should().BeGreaterThanOrEqualTo(0, "a Radzen theme sheet is linked");
+        app.Should().BeGreaterThan(radzen, $"every Radzen sheet comes before the app's sheets: {string.Join(", ", sheets)}");
     }
 
     /// <summary>Settings is reachable from the header's upper-right, not only from the sidebar.</summary>

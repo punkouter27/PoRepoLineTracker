@@ -223,6 +223,8 @@ public static class InfrastructureServiceExtensions
             .AddCheck<GitHubApiHealthCheck>("github-api")
             .AddCheck<GitHubSignInHealthCheck>("github-sign-in")
             .AddCheck<TelemetryExportHealthCheck>("telemetry");
+        // One round of live probes per minute at most, however often /health and /api/diag are hit.
+        CachedHealthCheckService.Decorate(services);
         services.AddHttpClient(DiagProbe.ClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
 
         // Rate limits. Nothing was limited before: the two endpoints that queue a clone and a

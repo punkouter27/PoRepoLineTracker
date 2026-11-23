@@ -29,12 +29,8 @@
                 </span>
             </div>
 
-            <RadzenStack Gap="0.35rem" AlignItems="AlignItems.Center">
-                <h1 class="page-hero__title login-wordmark">PoRepoLineTracker</h1>
-                <RadzenText TextStyle="TextStyle.Body1" class="login-tagline">
-                    Track lines of code across all your GitHub repositories
-                </RadzenText>
-            </RadzenStack>
+            @* The Po rule: the sign-in page is the title and one button, nothing else (no tagline, no footnote). *@
+            <h1 class="page-hero__title login-wordmark">PoRepoLineTracker</h1>
 
             <hr class="login-divider" />
 
@@ -59,10 +55,6 @@
                               Size="ButtonSize.Small"
                               Click="@(() => Navigation.NavigateTo("auth/login?dev=true", forceLoad: true))" />
             }
-
-            <RadzenText TextStyle="TextStyle.Caption" class="login-footnote">
-                Your data stays in your own Azure Table Storage
-            </RadzenText>
         </RadzenStack>
     </RadzenCard>
 </div>

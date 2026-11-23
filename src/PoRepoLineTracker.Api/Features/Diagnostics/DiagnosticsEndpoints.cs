@@ -81,7 +81,9 @@ internal static class DiagnosticsEndpoints
             : "Healthy";
 
         return Results.Ok(new DiagReportDto(
-            status, env.EnvironmentName, PoPlatform.Version, DateTimeOffset.UtcNow,
+            // CheckedAt is when the probes ran: the report is cached for a minute (CachedHealthCheckService).
+            status, env.EnvironmentName, PoPlatform.Version,
+            (healthChecks as CachedHealthCheckService)?.CheckedAt ?? DateTimeOffset.UtcNow,
             Math.Round(watch.Elapsed.TotalMilliseconds, 1), [.. checks]));
     }
 

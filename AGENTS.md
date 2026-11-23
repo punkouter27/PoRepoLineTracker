@@ -65,6 +65,8 @@ No `.cursorrules`, `.copilotignore`, `SPEC.md`, `tasks/`, `DOCS/` at the root (f
   the app really calls appears as a check, checked with a LIVE call (a configuration-only check is a bug). A
   service switched off on purpose (its setting absent) shows the neutral grey **Off** and never counts toward the
   banner. Anonymous, nothing secret in the payload.
+- Here the probes are cached: `/health` and `/api/diag` share one report for 60 s (`Features/Diagnostics/CachedHealthCheckService`),
+  so hammering either costs at most one round of live calls (GitHub `/rate_limit` is free; the token-endpoint probe signs nobody in) per minute.
 
 ### Workflow (`.github/workflows/deploy.yml`, the only one)
 push to master → format check → build (Release, warnings as errors) → Unit tests → Integration tests (Testcontainers /
@@ -102,7 +104,7 @@ Release publish):
 dotnet format PoRepoLineTracker.slnx --verify-no-changes && dotnet build PoRepoLineTracker.slnx -c Release && dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build && dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build && pwsh scripts/run-e2e.ps1
 ```
 
-Tested 2026-11-21 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`). A full run is every row below
+Tested 2026-11-23 (.NET SDK 10.0.4xx per `global.json`, `rollForward: latestFeature`). A full run is every row below
 in order; all must pass with 0 warnings and 0 skips (a skip means a dependency was missing, not a pass), and a test
 that fails only sometimes counts as failing.
 
@@ -110,9 +112,9 @@ that fails only sometimes counts as failing.
 | --- | --- | --- |
 | Format | `dotnet format PoRepoLineTracker.slnx --verify-no-changes` | — |
 | Build | `dotnet build PoRepoLineTracker.slnx -c Release` (warnings are errors) | — |
-| Unit (151) | `dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build` | nothing |
+| Unit (152) | `dotnet test tests/PoRepoLineTracker.Unit -c Release --no-build` | nothing |
 | Integration (40) | `dotnet test tests/PoRepoLineTracker.Integration -c Release --no-build` | Docker for Testcontainers Azurite; without it prints "Docker is not running…" and runs on in-memory substitutes |
-| E2E API (25) + E2E UI (26) | `pwsh scripts/run-e2e.ps1` (or `-Tier E2EAPI` / `-Tier E2EUI`) | Docker + Playwright browsers. Publishes the TRIMMED Release build (`-p:WasmApplicationEnvironmentName=Test`, the deploy's trimming with the dev sign-in allowed) to the temp folder, starts Azurite + that publish as `Test` on https://localhost:7207 / http://localhost:7208, runs both tiers, stops what it started |
+| E2E API (25) + E2E UI (27) | `pwsh scripts/run-e2e.ps1` (or `-Tier E2EAPI` / `-Tier E2EUI`) | Docker + Playwright browsers. Publishes the TRIMMED Release build (`-p:WasmApplicationEnvironmentName=Test`, the deploy's trimming with the dev sign-in allowed) to the temp folder, starts Azurite + that publish as `Test` on https://localhost:7207 / http://localhost:7208, runs both tiers, stops what it started |
 | E2E against a dev server | `E2E_BASE_URL=http://localhost:7208 dotnet test tests/PoRepoLineTracker.E2EAPI -c Release --no-build`; `E2E_BASE_URL=https://localhost:7207 dotnet test tests/PoRepoLineTracker.E2EUI -c Release --no-build` | a running app; otherwise every test skips ("No app instance reachable at …"). Quick loop only; the browser tier counts only against the publish above |
 | Run locally | `ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="https://localhost:7207;http://localhost:7208" KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile` | Azurite on :10002 (`docker compose up -d`) or `AzureTableStorage__ConnectionString`; → https://localhost:7207 |
 | Deploy | push to `master` → `.github/workflows/deploy.yml` (format, build, Unit, Integration, publish, deploy); `*.md` and `SCREENSHOTS/**` are paths-ignored | repo variables for OIDC |
@@ -152,10 +154,10 @@ docker compose up -d                                          # Azurite (tables)
 dotnet build PoRepoLineTracker.slnx                           # warnings are errors (Directory.Build.props)
 dotnet run --project src/PoRepoLineTracker.Api --launch-profile https   # https://localhost:5001, hosts the WASM client too
 
-dotnet test tests/PoRepoLineTracker.Unit                      # 151 tests; CI runs it
+dotnet test tests/PoRepoLineTracker.Unit                      # 152 tests; CI runs it
 dotnet test tests/PoRepoLineTracker.Integration               # 40 tests; CI runs it. Testcontainers Azurite when Docker runs, in-memory substitutes (with a message) when not
 dotnet test tests/PoRepoLineTracker.E2EAPI                    # 25 tests; needs the app running
-dotnet test tests/PoRepoLineTracker.E2EUI                     # 26 tests; needs the app running + `playwright.ps1 install` once
+dotnet test tests/PoRepoLineTracker.E2EUI                     # 27 tests; needs the app running + `playwright.ps1 install` once
 # Both E2E tiers SKIP every test when nothing answers at E2E_BASE_URL (API default http://localhost:5002,
 # UI default https://localhost:5003; the UI tier needs HTTPS because of upgrade-insecure-requests), e.g.
 # ASPNETCORE_URLS=https://localhost:7207 KeyVault__Uri= dotnet run --project src/PoRepoLineTracker.Api --no-launch-profile
@@ -188,7 +190,7 @@ One deployable: `PoRepoLineTracker.Api` (ASP.NET Core 10 minimal APIs) serves th
 ### CI/CD and Azure
 
 - `.github/workflows/deploy.yml` is the only workflow. A push to `master` checks formatting
-  (`dotnet format --verify-no-changes`), builds Release (warnings are errors), runs the Unit tier (151 tests) and
+  (`dotnet format --verify-no-changes`), builds Release (warnings are errors), runs the Unit tier (152 tests) and
   the Integration tier (40 tests, Testcontainers Azurite on the runner's Docker), publishes, deploys and waits for
   `/health/live` to report the pushed commit in `X-Commit`. A red check stops the deploy and the live site keeps its
   last good build. E2E tiers, Bicep (`scripts/ci-checks.ps1`) and `scripts/post-deploy-smoke.ps1` run locally.

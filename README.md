@@ -66,7 +66,7 @@ In a browser, Development also has a sign-in bypass: `/auth/login` signs you in 
 ## CI and deployment
 
 [.github/workflows/deploy.yml](.github/workflows/deploy.yml) is the only workflow. Every push to `master`:
-format check → Release build (warnings are errors) → Unit tier (151 tests) → Integration tier (40 tests,
+format check → Release build (warnings are errors) → Unit tier (152 tests) → Integration tier (40 tests,
 Testcontainers Azurite on the runner's Docker) → publish → deploy to the Linux App Service
 `app-porepolinetracker2` → wait until `/health/live` answers with the pushed commit in `X-Commit`. A red step stops
 the deploy and the live site keeps its last good build. Nothing runs on pull requests.
