@@ -18,7 +18,7 @@ PoRepoLineTracker is a self-hosted GitHub repository analytics app built with Bl
 | [AGENTS.md](AGENTS.md) | The Po Web App Standard this repo follows, repo-specific notes and the owner's rules |
 | [docs/spec.md](docs/spec.md) | What the app does and must keep doing: journeys, boundaries, edge cases, build/run/test |
 | [docs/testing.md](docs/testing.md) | Test tiers and local execution commands |
-| [SCREENSHOTS/](SCREENSHOTS/) | Before/after mockups of UI changes |
+| [SCREENSHOTS/](SCREENSHOTS/) | Before/after pages of UI changes (`{YYMMDD}-{feature}.html` + one annotated `.png`), made by `pwsh scripts/screenshots.ps1 -Feature <name>` |
 
 ## Runtime summary
 
